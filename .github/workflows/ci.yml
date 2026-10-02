@@ -1,0 +1,32 @@
+# Builds and tests every push to main and every pull request, so a broken change shows up before a release.
+
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build
+        run: dotnet build WindowsGSM.Next.sln -c Release --nologo
+
+      - name: Core tests
+        run: dotnet test tests/WindowsGSM.Core.Tests -c Release --no-build --nologo
+
+      - name: Agent tests
+        run: dotnet test tests/WindowsGSM.Agent.Tests -c Release --no-build --nologo

@@ -1,0 +1,76 @@
+# Builds, tests and publishes a release.
+#
+#   Push a version tag:        git tag v2.0.0-alpha.4 && git push origin v2.0.0-alpha.4
+#   …or run it by hand:        Actions → Release → Run workflow → enter the version
+#
+# The tag is the version: the app, the zip (WindowsGSM-<version>.zip) and its .sha256 all get it, so there's
+# nothing to edit first. A version with a dash (2.0.0-alpha.4, 2.1.0-beta.1) is published as a pre-release;
+# installed copies offer pre-releases only when "include pre-releases" is on in Agent settings → Updates.
+# The release text is generated from the commits since the last release — edit it on GitHub afterwards if you
+# like; installed copies show it as "What's new".
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 2.0.0-alpha.4 (a tag v<version> is created on this commit)"
+        required: true
+
+permissions:
+  contents: write # create the release and upload its files
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # release notes compare with the previous tag
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Work out the version
+        id: version
+        shell: pwsh
+        run: |
+          $v = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ github.event.inputs.version }}" } else { "${{ github.ref_name }}" }
+          $v = $v.Trim().TrimStart("v")
+          if ($v -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') { throw "'$v' isn't a version like 2.0.0 or 2.0.0-alpha.4" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          "prerelease=$(if ($v.Contains('-')) { 'true' } else { 'false' })" >> $env:GITHUB_OUTPUT
+          Write-Host "Releasing WindowsGSM $v"
+
+      - name: Test
+        shell: pwsh
+        run: |
+          dotnet test tests/WindowsGSM.Core.Tests -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { throw "Core tests failed — nothing was released." }
+          dotnet test tests/WindowsGSM.Agent.Tests -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { throw "Agent tests failed — nothing was released." }
+
+      - name: Build the package
+        shell: pwsh
+        run: ./tools/publish.ps1 -Version "${{ steps.version.outputs.version }}"
+
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+          $zip = "dist/WindowsGSM-$v.zip"
+          $ghArgs = @("release", "create", "v$v", $zip, "$zip.sha256", "--title", "WindowsGSM $v", "--generate-notes", "--target", "${{ github.sha }}")
+          if ("${{ steps.version.outputs.prerelease }}" -eq "true") { $ghArgs += "--prerelease" }
+          gh @ghArgs
+          if ($LASTEXITCODE -ne 0) { throw "Couldn't create the release (does v$v already exist?)" }

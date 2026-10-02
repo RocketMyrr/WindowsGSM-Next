@@ -235,6 +235,20 @@ ARCHITECTURE §6.1). What's different:
 
 ## Publishing a release (maintainers)
 
+GitHub does it: push a version tag and the **Release** workflow (`.github/workflows/release.yml`) runs the
+tests, builds the package and publishes the release with both files.
+
+```powershell
+git tag v2.0.0-alpha.4
+git push origin v2.0.0-alpha.4
+```
+
+The tag is the version — nothing to edit first. A version with a dash is published as a pre-release. Or run it
+from GitHub: Actions → Release → Run workflow, and type the version. If a test fails, nothing is released.
+Every push to `main` is also built and tested (`ci.yml`).
+
+To build a package by hand instead:
+
 ```powershell
 .\tools\publish.ps1 -Version 2.0.1          # or 2.1.0-beta.1 for a pre-release
 ```
