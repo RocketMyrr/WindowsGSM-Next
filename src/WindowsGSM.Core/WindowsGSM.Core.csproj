@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    WindowsGSM.Core — the engine, with no UI. Hosts servers, runs plugins, owns all state.
+
+    Plugin compatibility contract: third-party plugins are C# source compiled at runtime against THIS
+    assembly and bound via `dynamic`. The public types in these namespaces are therefore frozen API:
+      WindowsGSM.Functions        (ServerConfig, ServerPath, ServerConsole, Github, Plugin, …)
+      WindowsGSM.GameServer.Engine (SteamCMDAgent, …)   WindowsGSM.GameServer.Query (A2S, UT3, …)
+      WindowsGSM.Installer        (SteamCMD, DepotDownloader)
+    RootNamespace stays "WindowsGSM" so resource names (e.g. GameServer.Data.Icon) match the legacy app.
+  -->
+  <PropertyGroup>
+    <RootNamespace>WindowsGSM</RootNamespace>
+    <AssemblyName>WindowsGSM.Core</AssemblyName>
+    <!-- WinForms only for the Keys enum / SendKeys used to drive game console windows. No WPF, ever. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- Runtime plugin compilation needs the compile-time reference set (deps.json) at run time. -->
+    <PreserveCompilationContext>true</PreserveCompilationContext>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.Extensions.DependencyModel" />
+    <PackageReference Include="NCrontab.Signed" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="SharpZipLib" />
+    <PackageReference Include="SteamKit2" />
+    <PackageReference Include="System.Management" />
+    <PackageReference Include="CoreRCON" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="WindowsGSM.Core.Tests" />
+    <!-- The agent uses a few imported legacy helpers that were internal (SystemMetrics). -->
+    <InternalsVisibleTo Include="wgsm-agent" />
+  </ItemGroup>
+</Project>

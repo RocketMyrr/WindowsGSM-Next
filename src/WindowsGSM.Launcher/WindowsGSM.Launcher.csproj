@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    WindowsGSM.exe at the top of an install: a tiny launcher that stays put while versions change under it.
+    It starts the current version (versions\<ver>\), switches versions after an update, rolls back, and — run
+    from a fresh download — is the setup. .NET Framework 4.8 is part of Windows 10/11, so it needs nothing
+    installed and survives any update of the app itself.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>WindowsGSM</AssemblyName>
+    <RootNamespace>WindowsGSM.Launcher</RootNamespace>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <ApplicationIcon>WindowsGSM.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" PrivateAssets="all" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <EmbeddedResource Include="WindowsGSM.ico" LogicalName="WindowsGSM.ico" />
+  </ItemGroup>
+</Project>

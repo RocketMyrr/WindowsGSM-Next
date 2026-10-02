@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    wgsm-agent: hosts the engine for one machine and serves the v2 API (REST + WebSocket) and the web UI.
+    Runs in the signed-in user's session (not as a service): some game plugins type into console windows,
+    which needs an interactive desktop.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>wgsm-agent</AssemblyName>
+    <RootNamespace>WindowsGSM.Agent</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Community plugins are compiled at run time from the host's compile context (deps.json). -->
+    <PreserveCompilationContext>true</PreserveCompilationContext>
+    <!-- Web assets are read out of the assembly, never from a temp/extraction folder (the legacy 404 outage). -->
+    <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="WindowsGSM.Agent.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WindowsGSM.Core\WindowsGSM.Core.csproj" />
+    <ProjectReference Include="..\WindowsGSM.Contracts\WindowsGSM.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" />
+    <PackageReference Include="Certes" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Discord.Net.WebSocket" />
+    <PackageReference Include="Fido2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Embedded, not copied: see GenerateEmbeddedFilesManifest above. -->
+    <Content Remove="wwwroot\**" />
+    <EmbeddedResource Include="wwwroot\**" />
+  </ItemGroup>
+</Project>

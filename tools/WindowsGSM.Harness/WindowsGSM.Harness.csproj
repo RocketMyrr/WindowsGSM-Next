@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A small interactive command line for driving the engine by hand before the agent/UI exist. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>wgsm-harness</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Community plugins are compiled at run time from the host's compile context. -->
+    <PreserveCompilationContext>true</PreserveCompilationContext>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\WindowsGSM.Core\WindowsGSM.Core.csproj" />
+  </ItemGroup>
+</Project>

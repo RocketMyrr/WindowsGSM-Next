@@ -1,0 +1,29 @@
+<Project>
+  <!-- Central package versions (ManagePackageVersionsCentrally). Projects reference packages without a Version. -->
+  <ItemGroup>
+    <!-- Engine (versions match the legacy app so behaviour doesn't shift underneath the port) -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.12" />
+    <PackageVersion Include="NCrontab.Signed" Version="3.4.0" />
+    <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageVersion Include="SharpZipLib" Version="1.4.2" />
+    <PackageVersion Include="SteamKit2" Version="3.4.0" />
+    <PackageVersion Include="System.Management" Version="10.0.12" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
+    <PackageVersion Include="CoreRCON" Version="5.4.2" />
+    <!-- Agent -->
+    <PackageVersion Include="Certes" Version="4.1.0" />
+    <PackageVersion Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <PackageVersion Include="Discord.Net.WebSocket" Version="3.20.1" />
+    <PackageVersion Include="Fido2" Version="4.1.1" />
+    <!-- Desktop -->
+    <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" />
+    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+    <!-- Tests -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
+  </ItemGroup>
+</Project>

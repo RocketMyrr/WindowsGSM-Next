@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    WindowsGSM.exe: the desktop app. A tray icon and a native window around the agent's web panel (WebView2).
+    It starts the agent when it isn't running; closing the window keeps the agent — and every server — going.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>WindowsGSM</AssemblyName>
+    <RootNamespace>WindowsGSM.Desktop</RootNamespace>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationIcon>WindowsGSM.ico</ApplicationIcon>
+    <!-- The WebView2 package also ships its WPF control; this WinForms app never loads it, so its WindowsBase
+         version clash is noise. -->
+    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="WindowsGSM.Agent.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The logo, for the window and the tray (the exe's own icon comes from ApplicationIcon). -->
+    <EmbeddedResource Include="WindowsGSM.ico" LogicalName="WindowsGSM.ico" />
+  </ItemGroup>
+</Project>

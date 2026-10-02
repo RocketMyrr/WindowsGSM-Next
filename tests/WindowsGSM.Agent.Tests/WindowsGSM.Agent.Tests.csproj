@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Plugins are compiled at run time from the host's compile context (deps.json). -->
+    <PreserveCompilationContext>true</PreserveCompilationContext>
+    <!-- For the desktop app's helpers (WindowsGSM.exe is a WinForms app). -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\WindowsGSM.Agent\WindowsGSM.Agent.csproj" />
+    <ProjectReference Include="..\..\src\WindowsGSM.Desktop\WindowsGSM.Desktop.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The engine test fixtures (temp data root, the fake game plugin) are shared, not copied. -->
+    <Compile Include="..\WindowsGSM.Core.Tests\TestData.cs" Link="Shared\TestData.cs" />
+    <Compile Include="..\WindowsGSM.Core.Tests\EngineFixture.cs" Link="Shared\EngineFixture.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <!-- UseWindowsForms would import WinForms everywhere (it has its own LinkState, etc.). -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+</Project>

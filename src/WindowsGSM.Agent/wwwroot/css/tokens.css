@@ -1,0 +1,208 @@
+/*
+ * WindowsGSM design tokens.
+ *
+ * Confident but not loud: deep blue-tinted neutrals, a vivid blue accent for actions and focus, violet as the
+ * second accent, and clear status colours (green running, amber attention, red problems). Saturated enough
+ * to feel alive, never neon. Colour carries meaning; the rest stays neutral. Every colour is a token, so the
+ * light theme is a straight swap.
+ */
+:root {
+    color-scheme: dark;
+
+    /* Surfaces, darkest to lightest (a slight blue tint keeps dark mode from looking flat) */
+    --bg: #0c0f15;
+    --surface: #131720;
+    --raised: #181c26;
+    --overlay: #1c2130;
+    --hover: #232838;
+    --line: #2b3142;
+    --line-soft: #20252f;
+
+    /* Text */
+    --text: #e8ebf2;
+    --text-2: #a8b0c0;
+    --text-3: #818a9c;
+
+    /* Accent: actions, links, focus, selection */
+    --accent: #3b82f6;
+    --accent-strong: #5b95f8;
+    --accent-ink: #ffffff;
+    --accent-text: #7fb0ff;
+    --accent-soft: rgba(59, 130, 246, 0.16);
+    --accent-line: rgba(59, 130, 246, 0.45);
+    --violet: #8b5cf6;
+    --violet-text: #b09bfa;
+    --violet-soft: rgba(139, 92, 246, 0.16);
+    --violet-line: rgba(139, 92, 246, 0.45);
+
+    /* Status & data */
+    --green: #2dbd6e;
+    --green-text: #5ad690;
+    --green-soft: rgba(45, 189, 110, 0.15);
+    --green-line: rgba(45, 189, 110, 0.42);
+    --cyan: #22b8cf;
+    --cyan-soft: rgba(34, 184, 207, 0.14);
+    --amber: #f5a524;
+    --amber-soft: rgba(245, 165, 36, 0.14);
+    --rose: #f0506e;
+    --rose-soft: rgba(240, 80, 110, 0.14);
+    --sky: #60a5fa;
+    --slate: #8089a0;
+    --slate-soft: rgba(128, 137, 160, 0.15);
+
+    /* Status mapping */
+    --st-running: var(--green);
+    --st-busy: var(--cyan);
+    --st-transition: var(--amber);
+    --st-stopped: var(--slate);
+    --st-bad: var(--rose);
+
+    /* Brand: the logo mark and a few hero accents */
+    --grad-brand: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    --brand-ink: #ffffff;
+
+    /* Shape */
+    --r-xs: 6px;
+    --r-sm: 8px;
+    --r: 10px;
+    --r-lg: 14px;
+    --r-xl: 18px;
+    --r-pill: 999px;
+
+    /* Depth */
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.30);
+    --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.32);
+    --shadow-3: 0 20px 56px rgba(0, 0, 0, 0.52);
+    --glow-accent: 0 0 0 3px var(--accent-soft);
+
+    /* Type */
+    --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace;
+    --fs-xs: 11.5px;
+    --fs-sm: 12.5px;
+    --fs: 14px;
+    --fs-md: 15.5px;
+    --fs-lg: 18px;
+    --fs-xl: 24px;
+    --fs-2xl: 30px;
+
+    /* Motion */
+    --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+    --t-fast: 120ms;
+    --t: 200ms;
+
+    /* Layout */
+    --sidebar-w: 248px;
+    --topbar-h: 60px;
+    --content-max: 1760px; /* wide monitors get more columns, not empty margins */
+
+    /* Console (always dark, like a terminal) */
+    --console-bg: #0a0d13;
+    --console-text: #d6dbe4;
+    --console-prompt: #7fb0ff;
+
+    /* Game tiles: how colourful the generated tiles are */
+    --tile-s: 58%;
+}
+
+/* Light theme: explicit choice, or the OS preference when no choice was made. */
+:root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f4f6fa;
+    --surface: #ffffff;
+    --raised: #f8f9fc;
+    --overlay: #ffffff;
+    --hover: #eef1f6;
+    --line: #dce1ea;
+    --line-soft: #e8ecf2;
+    --text: #1a1f2b;
+    --text-2: #4f5869;
+    --text-3: #687184;
+    --accent: #2563eb;
+    --accent-strong: #1d4ed8;
+    --accent-ink: #ffffff;
+    --accent-text: #2158d4;
+    --accent-soft: rgba(37, 99, 235, 0.10);
+    --accent-line: rgba(37, 99, 235, 0.38);
+    --violet: #7c3aed;
+    --violet-text: #6d28d9;
+    --violet-soft: rgba(124, 58, 237, 0.10);
+    --violet-line: rgba(124, 58, 237, 0.38);
+    --green: #16a34a;
+    --green-text: #15803d;
+    --green-soft: rgba(22, 163, 74, 0.10);
+    --green-line: rgba(22, 163, 74, 0.38);
+    --cyan: #0891b2;
+    --cyan-soft: rgba(8, 145, 178, 0.10);
+    --amber: #d97706;
+    --amber-soft: rgba(217, 119, 6, 0.11);
+    --rose: #e11d48;
+    --rose-soft: rgba(225, 29, 72, 0.09);
+    --sky: #2563eb;
+    --slate: #6b7280;
+    --slate-soft: rgba(107, 114, 128, 0.12);
+    --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06);
+    --shadow-2: 0 6px 20px rgba(16, 24, 40, 0.08);
+    --shadow-3: 0 20px 56px rgba(16, 24, 40, 0.16);
+    --console-bg: #131720;
+}
+
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]):not([data-theme="light"]) {
+        color-scheme: light;
+        --bg: #f4f6fa;
+        --surface: #ffffff;
+        --raised: #f8f9fc;
+        --overlay: #ffffff;
+        --hover: #eef1f6;
+        --line: #dce1ea;
+        --line-soft: #e8ecf2;
+        --text: #1a1f2b;
+        --text-2: #4f5869;
+        --text-3: #687184;
+        --accent: #2563eb;
+        --accent-strong: #1d4ed8;
+        --accent-ink: #ffffff;
+        --accent-text: #2158d4;
+        --accent-soft: rgba(37, 99, 235, 0.10);
+        --accent-line: rgba(37, 99, 235, 0.38);
+        --violet: #7c3aed;
+        --violet-text: #6d28d9;
+        --violet-soft: rgba(124, 58, 237, 0.10);
+        --violet-line: rgba(124, 58, 237, 0.38);
+        --green: #16a34a;
+        --green-text: #15803d;
+        --green-soft: rgba(22, 163, 74, 0.10);
+        --green-line: rgba(22, 163, 74, 0.38);
+        --cyan: #0891b2;
+        --cyan-soft: rgba(8, 145, 178, 0.10);
+        --amber: #d97706;
+        --amber-soft: rgba(217, 119, 6, 0.11);
+        --rose: #e11d48;
+        --rose-soft: rgba(225, 29, 72, 0.09);
+        --sky: #2563eb;
+        --slate: #6b7280;
+        --slate-soft: rgba(107, 114, 128, 0.12);
+        --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06);
+        --shadow-2: 0 6px 20px rgba(16, 24, 40, 0.08);
+        --shadow-3: 0 20px 56px rgba(16, 24, 40, 0.16);
+        --console-bg: #131720;
+    }
+}
+
+/* ── Accent colour (Your account → Appearance; blue is the default above). Light and dark each have their own shade. ── */
+:root[data-accent="violet"] { --accent: #8b5cf6; --accent-strong: #a07cf8; --accent-text: #b79cff; --accent-soft: rgba(139, 92, 246, 0.16); --accent-line: rgba(139, 92, 246, 0.45); }
+:root[data-theme="light"][data-accent="violet"] { --accent: #7c3aed; --accent-strong: #6d28d9; --accent-text: #6d28d9; --accent-soft: rgba(124, 58, 237, 0.10); --accent-line: rgba(124, 58, 237, 0.38); }
+:root[data-accent="teal"] { --accent: #14b8a6; --accent-strong: #2dd4bf; --accent-text: #5eead4; --accent-soft: rgba(20, 184, 166, 0.16); --accent-line: rgba(20, 184, 166, 0.45); }
+:root[data-theme="light"][data-accent="teal"] { --accent: #0d9488; --accent-strong: #0f766e; --accent-text: #0f766e; --accent-soft: rgba(13, 148, 136, 0.10); --accent-line: rgba(13, 148, 136, 0.38); }
+:root[data-accent="orange"] { --accent: #f97316; --accent-strong: #fb8c3c; --accent-text: #fdba74; --accent-soft: rgba(249, 115, 22, 0.16); --accent-line: rgba(249, 115, 22, 0.45); }
+:root[data-theme="light"][data-accent="orange"] { --accent: #ea580c; --accent-strong: #c2410c; --accent-text: #c2410c; --accent-soft: rgba(234, 88, 12, 0.10); --accent-line: rgba(234, 88, 12, 0.38); }
+:root[data-accent="rose"] { --accent: #f43f5e; --accent-strong: #fb7185; --accent-text: #fda4af; --accent-soft: rgba(244, 63, 94, 0.16); --accent-line: rgba(244, 63, 94, 0.45); }
+:root[data-theme="light"][data-accent="rose"] { --accent: #e11d48; --accent-strong: #be123c; --accent-text: #be123c; --accent-soft: rgba(225, 29, 72, 0.10); --accent-line: rgba(225, 29, 72, 0.38); }
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"])[data-accent="violet"] { --accent: #7c3aed; --accent-strong: #6d28d9; --accent-text: #6d28d9; --accent-soft: rgba(124, 58, 237, 0.10); --accent-line: rgba(124, 58, 237, 0.38); }
+    :root:not([data-theme="dark"])[data-accent="teal"] { --accent: #0d9488; --accent-strong: #0f766e; --accent-text: #0f766e; --accent-soft: rgba(13, 148, 136, 0.10); --accent-line: rgba(13, 148, 136, 0.38); }
+    :root:not([data-theme="dark"])[data-accent="orange"] { --accent: #ea580c; --accent-strong: #c2410c; --accent-text: #c2410c; --accent-soft: rgba(234, 88, 12, 0.10); --accent-line: rgba(234, 88, 12, 0.38); }
+    :root:not([data-theme="dark"])[data-accent="rose"] { --accent: #e11d48; --accent-strong: #be123c; --accent-text: #be123c; --accent-soft: rgba(225, 29, 72, 0.10); --accent-line: rgba(225, 29, 72, 0.38); }
+}
