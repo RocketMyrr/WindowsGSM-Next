@@ -42,6 +42,10 @@ public class A2SQueryTests
         public void Dispose() { _stop.Cancel(); _udp.Dispose(); }
     }
 
+    /// <summary>Seconds to wait for the fake server: generous, since it answers from the thread pool, which is busy
+    /// when the whole suite runs on a slow machine (CI). A real failure still fails — just a few seconds later.</summary>
+    private const int Timeout = 5;
+
     internal static byte[] Single(byte[] payload) => new byte[] { 0xFF, 0xFF, 0xFF, 0xFF }.Concat(payload).ToArray();
 
     internal static byte[] Info(int players, int max)
@@ -96,7 +100,7 @@ public class A2SQueryTests
     public async Task Info_and_players_come_through_the_challenge()
     {
         using var server = new FakeServer { Reply = req => new() { Single(req[4] == 0x54 ? Info(2, 10) : Players("Alice", "Bob")) } };
-        var a2s = new A2S("127.0.0.1", server.Port, 2);
+        var a2s = new A2S("127.0.0.1", server.Port, Timeout);
         Assert.Equal("2/10", await a2s.GetPlayersAndMaxPlayers());
         var players = await a2s.GetPlayersData();
         Assert.Equal(new[] { "Alice", "Bob" }, players.Select(p => p.Name));
@@ -108,7 +112,7 @@ public class A2SQueryTests
     {
         string[] names = Enumerable.Range(1, 120).Select(i => $"Player number {i} with a long name").ToArray();
         using var server = new FakeServer { Reply = req => req[4] == 0x54 ? new() { Single(Info(120, 200)) } : SplitSource(Players(names), 4) };
-        var players = await new A2S("127.0.0.1", server.Port, 2).GetPlayersData();
+        var players = await new A2S("127.0.0.1", server.Port, Timeout).GetPlayersData();
         Assert.Equal(names, players.Select(p => p.Name));
     }
 
@@ -117,7 +121,7 @@ public class A2SQueryTests
     {
         string[] names = Enumerable.Range(1, 60).Select(i => $"hl1 player {i}").ToArray();
         using var server = new FakeServer { Challenge = false, Reply = req => req[4] == 0x54 ? new() { Single(Info(60, 64)) } : SplitGoldSource(Players(names), 3) };
-        var players = await new A2S("127.0.0.1", server.Port, 2).GetPlayersData();
+        var players = await new A2S("127.0.0.1", server.Port, Timeout).GetPlayersData();
         Assert.Equal(names, players.Select(p => p.Name));
     }
 
@@ -127,7 +131,7 @@ public class A2SQueryTests
         byte[] list = Players("Alice", "Bob");
         list[1] = 5; // claims five, sends two
         using var server = new FakeServer { Reply = req => new() { Single(req[4] == 0x54 ? Info(2, 10) : list) } };
-        var players = await new A2S("127.0.0.1", server.Port, 2).GetPlayersData();
+        var players = await new A2S("127.0.0.1", server.Port, Timeout).GetPlayersData();
         Assert.Equal(new[] { "Alice", "Bob" }, players.Select(p => p.Name));
     }
 

@@ -31,9 +31,11 @@ public class NotificationTests
         engine.Events.Publish(new ServerAlert("191", AlertKind.Crashed, "x", "y"));
         engine.Events.Publish(new ServerAlert("191", AlertKind.AutoRestarted, "x", "y"));
         engine.Events.Publish(new ServerAlert("192", AlertKind.Crashed, "x", "y")); // crash alerts off for 192
+        // Sends happen in the background, in no fixed order: wait for both, then give a stray third time to show up.
+        await EngineFixture.WaitUntil(() => sent.Count >= 2, "two alerts sent", 5000);
         await Settle();
 
-        Assert.Equal(new[] { "Crashed", "Restarted | Auto Restart" }, sent.Select(n => n.Status).ToArray());
+        Assert.Equal(new[] { "Crashed", "Restarted | Auto Restart" }, sent.Select(n => n.Status).OrderBy(x => x, StringComparer.Ordinal).ToArray());
         Assert.All(sent, n => Assert.Equal(("191", "https://discord.example/webhook", "@here"), (n.ServerId, n.WebhookUrl, n.CustomMessage)));
     }
 
