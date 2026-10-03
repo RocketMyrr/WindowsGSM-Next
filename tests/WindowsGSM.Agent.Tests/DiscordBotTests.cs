@@ -73,7 +73,7 @@ public class DiscordBotTests
         Assert.Null(error);
         await Core.Tests.EngineFixture.WaitUntil(() => _f.Owner.GetJsonAsync<List<AuditDto>>("/api/v2/audit").GetAwaiter().GetResult()
             .Any(e => e.User == "Cara (Discord) (via Discord)" && e.Server == "102"), "the action in the audit log");
-        await _f.Owner.PostAsync(_f.ServerUrl("102", "/stop"));
+        await _f.StopAndWait("102");
     }
 
     [Fact]

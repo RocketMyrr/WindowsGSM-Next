@@ -147,9 +147,7 @@ public class HubTests
             Assert.Null(error);
             await EngineFixture.WaitUntil(() => _f.Owner.GetJsonAsync<List<AuditDto>>("/api/v2/audit").GetAwaiter().GetResult()
                 .Any(e => e.User?.StartsWith("Bob (Discord)") == true && e.Server == "102"), "the member's audit log to name Bob (Discord)");
-            await EngineFixture.WaitUntil(() => _f.Context.Engine.Servers.Get("102")!.State is WindowsGSM.Engine.Servers.ServerState.Running or WindowsGSM.Engine.Servers.ServerState.Stopped, "102 to settle");
-            await _f.Owner.PostAsync(_f.ServerUrl("102", "/stop"));
-            await EngineFixture.WaitUntil(() => _f.Context.Engine.Servers.Get("102")!.State == WindowsGSM.Engine.Servers.ServerState.Stopped, "102 to stop");
+            await _f.StopAndWait("102");
 
             // The other machine goes offline: its servers still show (last known), without buttons that can't work.
             await link.StopAsync();

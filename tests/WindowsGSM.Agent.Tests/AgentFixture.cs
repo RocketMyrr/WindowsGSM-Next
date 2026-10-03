@@ -94,6 +94,21 @@ public sealed class AgentFixture : IAsyncLifetime
 
     public string ServerUrl(string id, string rest = "") => $"/api/v2/machines/local/servers/{id}{rest}";
 
+    /// <summary>
+    /// Stops a server and waits until it has. A stop asked for while the previous start or restart is still
+    /// finishing is turned away as busy (on a slow machine that window is wide), so it's asked again until it takes.
+    /// </summary>
+    public async Task StopAndWait(string id)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(90);
+        while (Context.Engine.Servers.Get(id)!.State != WindowsGSM.Engine.Servers.ServerState.Stopped)
+        {
+            if (DateTime.UtcNow > deadline) { Assert.Fail($"Server {id} didn't stop (still {Context.Engine.Servers.Get(id)!.State})."); }
+            if (Context.Engine.Servers.Get(id)!.State == WindowsGSM.Engine.Servers.ServerState.Running) { await Owner.PostAsync(ServerUrl(id, "/stop")); }
+            await Task.Delay(500);
+        }
+    }
+
     /// <summary>Test-only: take the client address from a header, so each test client has its own rate-limit bucket.</summary>
     private sealed class TestIpFilter : IStartupFilter
     {
