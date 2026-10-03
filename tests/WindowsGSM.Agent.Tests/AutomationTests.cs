@@ -111,7 +111,7 @@ public class AutomationTests
             Assert.Equal(before, Count());
             now = now.AddMinutes(3); Rules.CheckDisks();     // 6 minutes low → tells you
             await EngineFixture.WaitUntil(() => Count() == before + 1, "the low-disk notification");
-            var n = _f.Owner.GetJsonAsync<JsonElement>("/api/v2/notifications?limit=500").GetAwaiter().GetResult().GetProperty("items").EnumerateArray()
+            var n = (await _f.Owner.GetJsonAsync<JsonElement>("/api/v2/notifications?limit=500")).GetProperty("items").EnumerateArray()
                 .First(x => x.GetProperty("title").GetString() == "Disk test");
             Assert.Contains("only 5 GB free", n.GetProperty("text").GetString());
         }

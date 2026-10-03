@@ -22,7 +22,6 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Microsoft.Extensions.DependencyModel" />
     <PackageReference Include="NCrontab.Signed" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
     <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="SharpZipLib" />
     <PackageReference Include="SteamKit2" />

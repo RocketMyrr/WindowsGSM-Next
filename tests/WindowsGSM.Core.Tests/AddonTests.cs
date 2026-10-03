@@ -40,7 +40,7 @@ public class AddonTests
                     {
                         var stream = client.GetStream();
                         var buffer = new byte[4096];
-                        await stream.ReadAsync(buffer); // request line + headers; content doesn't matter
+                        if (await stream.ReadAsync(buffer) == 0) { continue; } // request line + headers; content doesn't matter
                         byte[] body = Zip;
                         byte[] head = Encoding.ASCII.GetBytes($"HTTP/1.1 200 OK\r\nContent-Type: application/zip\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
                         await stream.WriteAsync(head);

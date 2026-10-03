@@ -39,10 +39,10 @@ public class WorldSaveTests
     }
 
     [Fact]
-    public void Known_games_have_their_save_command_and_a_server_can_override_or_turn_it_off()
+    public async Task Known_games_have_their_save_command_and_a_server_can_override_or_turn_it_off()
     {
         EngineFixture.CreateServer("215");
-        using var engine = EngineFixture.StartEngineAsync().GetAwaiter().GetResult();
+        using var engine = await EngineFixture.StartEngineAsync();
         var s = engine.Servers.Get("215")!;
         Assert.Equal(("server.save", 10), WorldSave.For(s, "258550"));       // Rust
         Assert.Equal(("", 0), WorldSave.For(s, "999999"));                   // unknown

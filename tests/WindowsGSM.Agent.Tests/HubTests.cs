@@ -111,7 +111,7 @@ public class HubTests
 
             // …and the hub can read that machine's audit log (admins only).
             var remoteAudit = await _f.Owner.GetJsonAsync<List<AuditDto>>($"/api/v2/machines/{Remote}/audit?action=upload");
-            Assert.Contains(remoteAudit, e => e.User.EndsWith($"(via {_f.Context.Settings.MachineName})"));
+            Assert.Contains(remoteAudit, e => e.User?.EndsWith($"(via {_f.Context.Settings.MachineName})") == true);
             Assert.Equal(HttpStatusCode.Forbidden, (await viewer.GetAsync($"/api/v2/machines/{Remote}/audit")).StatusCode);
         }
         finally
@@ -146,7 +146,7 @@ public class HubTests
             string? error = only.State == "Stopped" ? await bot.ActAsync(bob, only, "start") : await bot.ActAsync(bob, only, "restart");
             Assert.Null(error);
             await EngineFixture.WaitUntil(() => _f.Owner.GetJsonAsync<List<AuditDto>>("/api/v2/audit").GetAwaiter().GetResult()
-                .Any(e => e.User.StartsWith("Bob (Discord)") && e.Server == "102"), "the member's audit log to name Bob (Discord)");
+                .Any(e => e.User?.StartsWith("Bob (Discord)") == true && e.Server == "102"), "the member's audit log to name Bob (Discord)");
             await EngineFixture.WaitUntil(() => _f.Context.Engine.Servers.Get("102")!.State is WindowsGSM.Engine.Servers.ServerState.Running or WindowsGSM.Engine.Servers.ServerState.Stopped, "102 to settle");
             await _f.Owner.PostAsync(_f.ServerUrl("102", "/stop"));
             await EngineFixture.WaitUntil(() => _f.Context.Engine.Servers.Get("102")!.State == WindowsGSM.Engine.Servers.ServerState.Stopped, "102 to stop");
