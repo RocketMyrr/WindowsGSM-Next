@@ -126,6 +126,33 @@ public class A2SQueryTests
     }
 
     [Fact]
+    public async Task GoldSource_split_replies_arriving_out_of_order_work_too()
+    {
+        // The format is told apart by packet 0; it must not matter which packet comes first.
+        string[] names = Enumerable.Range(1, 60).Select(i => $"hl1 player {i}").ToArray();
+        foreach (Func<List<byte[]>, List<byte[]>> order in new Func<List<byte[]>, List<byte[]>>[]
+            { l => Enumerable.Reverse(l).ToList(), l => new() { l[1], l[2], l[0] } })
+        {
+            using var server = new FakeServer { Challenge = false, Reply = req => req[4] == 0x54 ? new() { Single(Info(60, 64)) } : order(SplitGoldSource(Players(names), 3)) };
+            var players = await new A2S("127.0.0.1", server.Port, Timeout).GetPlayersData();
+            Assert.NotNull(players);
+            Assert.Equal(names, players.Select(p => p.Name));
+        }
+    }
+
+    [Fact]
+    public void Packet_zero_tells_the_split_format()
+    {
+        byte[] whole = Single(Players("a", "b"));
+        byte[] goldZero = new byte[] { 0xFE, 0xFF, 0xFF, 0xFF, 78, 0, 0, 0, 0x02 }.Concat(whole).ToArray();
+        byte[] goldOne = new byte[] { 0xFE, 0xFF, 0xFF, 0xFF, 78, 0, 0, 0, 0x12, 1, 2, 3, 4, 5 };
+        byte[] sourceZero = new byte[] { 0xFE, 0xFF, 0xFF, 0xFF, 77, 0, 0, 0, 2, 0, 0xE0, 0x04 }.Concat(whole).ToArray();
+        Assert.True(A2S.SplitKind(goldZero));
+        Assert.Null(A2S.SplitKind(goldOne));
+        Assert.False(A2S.SplitKind(sourceZero));
+    }
+
+    [Fact]
     public async Task A_player_list_that_says_more_than_it_sends_still_reads()
     {
         byte[] list = Players("Alice", "Bob");

@@ -225,11 +225,25 @@ namespace WindowsGSM.GameServer.Query
         private byte[] ReassembleSplit(UdpClientHandler udp, byte[] firstPacket)
         {
             // NEXT: GoldSource (Half-Life 1 engine) servers split differently — one byte packs the packet number and
-            // count, and there's no size field. Told apart by where the inner -1 header sits in packet 0.
-            bool goldSource = IsGoldSourceSplit(firstPacket);
-            if (!TryParseSplitPacket(firstPacket, goldSource, out int id, out byte total, out byte number, out byte[] chunk))
-                return null;
+            // count, and there's no size field. Told apart by where the inner -1 header sits in packet 0 — so the
+            // format is decided by packet 0 whenever it arrives. Before, it was decided by whichever packet came
+            // first: a GoldSource reply arriving out of order was read as Source, and the query gave up.
+            var early = new List<byte[]> { firstPacket };
+            bool? goldSource = SplitKind(firstPacket) ?? (CompleteAsSource(early) ? false : null);
+            while (goldSource == null)
+            {
+                byte[] pkt = udp.ReceiveMore(_timeout);
+                if (pkt == null || pkt.Length < 4) return null;
+                if (BitConverter.ToInt32(pkt, 0) != -2) continue; // ignore stray single-packet replies
+                early.Add(pkt);
+                if (early.Count > 255) return null; // more parts than either format allows: not a reply we know
+                // Packet 0 decides; failing that, a full set that reads as Source (a server leaving out packet 0's
+                // inner header) is Source.
+                goldSource = SplitKind(pkt) ?? (CompleteAsSource(early) ? false : null);
+            }
 
+            byte[] zero = early.FirstOrDefault(p => SplitKind(p) != null) ?? early[0];
+            if (!TryParseSplitPacket(zero, goldSource.Value, out int id, out byte total, out _, out _)) return null;
             if (total == 0) return null;
             if ((id & 0x80000000) != 0)
             {
@@ -239,30 +253,27 @@ namespace WindowsGSM.GameServer.Query
 
             var chunks = new byte[total][];
             var seen = new bool[total];
+            int receivedCount = 0;
 
-            if (number >= total) return null;
-            chunks[number] = chunk;
-            seen[number] = true;
-            int receivedCount = 1;
+            bool Take(byte[] pkt)
+            {
+                if (!TryParseSplitPacket(pkt, goldSource.Value, out int pid, out byte ptotal, out byte pnumber, out byte[] pchunk)) { return false; }
+                if (pid != id || ptotal != total || pnumber >= total || seen[pnumber]) { return true; } // not ours, or a repeat
+                chunks[pnumber] = pchunk;
+                seen[pnumber] = true;
+                receivedCount++;
+                return true;
+            }
+
+            foreach (byte[] pkt in early) { if (!Take(pkt)) return null; }
 
             // Pull remaining packets via ReceiveMore (no resend)
             while (receivedCount < total)
             {
                 byte[] pkt = udp.ReceiveMore(_timeout);
                 if (pkt == null || pkt.Length < 4) return null;
-
-                int hdr = BitConverter.ToInt32(pkt, 0);
-                if (hdr != -2) continue; // ignore stray single-packet replies
-
-                if (!TryParseSplitPacket(pkt, goldSource, out int pid, out byte ptotal, out byte pnumber, out byte[] pchunk))
-                    return null;
-
-                if (pid != id || ptotal != total || pnumber >= total) continue;
-                if (seen[pnumber]) continue;
-
-                chunks[pnumber] = pchunk;
-                seen[pnumber] = true;
-                receivedCount++;
+                if (BitConverter.ToInt32(pkt, 0) != -2) continue; // ignore stray single-packet replies
+                if (!Take(pkt)) return null;
             }
 
             // Concatenate chunks in order
@@ -288,12 +299,32 @@ namespace WindowsGSM.GameServer.Query
             return assembled;
         }
 
-        private static bool IsGoldSourceSplit(byte[] pkt)
+        /// <summary>True when <paramref name="packets"/> are every part of one Source-format split reply.</summary>
+        private static bool CompleteAsSource(List<byte[]> packets)
+        {
+            var parsed = new List<(int Id, byte Total, byte Number)>();
+            foreach (byte[] p in packets)
+            {
+                if (!TryParseSplitPacket(p, false, out int id, out byte total, out byte number, out _)) { return false; }
+                parsed.Add((id, total, number));
+            }
+            byte count = parsed[0].Total;
+            return count > 0 && parsed.All(p => p.Id == parsed[0].Id && p.Total == count && p.Number < count)
+                && parsed.Select(p => p.Number).Distinct().Count() == count;
+        }
+
+        /// <summary>
+        /// For packet 0 of a split reply: true for GoldSource, false for Source. Null for any other packet (its format
+        /// can't be told on its own).
+        /// </summary>
+        internal static bool? SplitKind(byte[] pkt)
         {
             // Source: -2, id(4), total(1), number(1), size(2), payload — packet 0's payload starts at 12 with FF FF FF FF.
             // GoldSource: -2, id(4), number<<4|total(1), payload — packet 0's payload starts at 9.
             bool ffAt(int i) => pkt.Length >= i + 4 && pkt[i] == 0xFF && pkt[i + 1] == 0xFF && pkt[i + 2] == 0xFF && pkt[i + 3] == 0xFF;
-            return pkt.Length > 9 && (pkt[8] >> 4) == 0 && ffAt(9) && !ffAt(12);
+            if (pkt.Length > 9 && (pkt[8] >> 4) == 0 && (pkt[8] & 0x0F) > 0 && ffAt(9) && !ffAt(12)) { return true; }
+            if (pkt.Length > 12 && pkt[8] > 0 && pkt[9] == 0 && ffAt(12)) { return false; }
+            return null;
         }
 
         private static bool TryParseSplitPacket(byte[] pkt, bool goldSource, out int id, out byte total, out byte number, out byte[] chunk)
