@@ -233,6 +233,7 @@ namespace WindowsGSM.Engine.Services
             bool graceful = await BeginStopAsync(s, p).ConfigureAwait(false);
             _log.Write(s.Id, "Server: Stopped");
             if (!graceful) { _log.Write(s.Id, "[NOTICE] Server fail to stop gracefully"); }
+            await RunAfterStopScriptAsync(s, job).ConfigureAwait(false);
             s.SetState(ServerState.Stopped);
             return null;
         }
@@ -246,6 +247,7 @@ namespace WindowsGSM.Engine.Services
             _log.Write(s.Id, "Action: Restart");
             job.Report(stage: "Stopping server");
             await BeginStopAsync(s, p).ConfigureAwait(false);
+            await RunAfterStopScriptAsync(s, job).ConfigureAwait(false);
             await Task.Delay(RestartPause).ConfigureAwait(false);
 
             s.ReloadConfig();
@@ -278,7 +280,9 @@ namespace WindowsGSM.Engine.Services
             if (s.Process == null || s.State != ServerState.Running) { return $"{s.Name} isn't running."; }
             if (!ConsoleWindows.Exists(s.ConsoleWindow))
             {
-                return s.Config.EmbedConsole
+                bool captured;
+                try { captured = s.Process.StartInfo.RedirectStandardOutput; } catch { captured = s.Config.EmbedConsole; } // re-adopted: not ours to ask
+                return captured
                     ? "This server's console is captured into the panel, so it has no window. Turn off \"Capture the console here\" and restart the server to get one."
                     : "This server has no console window it can show. Restart the server to give it one.";
             }
@@ -313,7 +317,10 @@ namespace WindowsGSM.Engine.Services
         {
             // NEXT: game files on a drive that isn't connected: say so, rather than let the game fail oddly.
             if (ServerLocation.Problem(s.Id) is string missing) { return missing; }
-            dynamic? game = _plugins.Create(s.Game, s.Config);
+            // The plugin gets the settings without the before-start script: the engine runs it (below), for every
+            // game. Legacy left it to the plugin, and only Rust's ran it — it would run twice.
+            var startConfig = new ServerConfig(s.Id) { BatchFile = string.Empty };
+            dynamic? game = _plugins.Create(s.Game, startConfig);
             if (game == null) { return $"Unknown game \"{s.Game}\" — is its plugin installed and loading?"; }
 
             // Anything left over from a previous run of this server (a crashed wrapper, an orphaned child).
@@ -339,7 +346,23 @@ namespace WindowsGSM.Engine.Services
             }
             catch (Exception ex) { _log.Write(s.Id, $"[NOTICE] Couldn't check Windows Firewall: {ex.Message}"); }
 
-            Dyn.TrySet((object)game, "AllowsEmbedConsole", s.Config.EmbedConsole);
+            // NEXT: the server's before-start script (rotate logs, clean up…), for every game.
+            string beforeStart = ServerScripts.BeforeStart(s.Config);
+            if (beforeStart.Length > 0)
+            {
+                job.Report(stage: "Running the before-start script");
+                bool ran = await ServerScripts.RunAsync(s, beforeStart, "before start", _log).ConfigureAwait(false);
+                if (!ran && ServerScripts.BlocksStart(s.Config))
+                {
+                    return "The before-start script didn't finish successfully, so the server wasn't started (its log says why; Settings → Scripts).";
+                }
+                job.Report(stage: "Starting server");
+            }
+
+            // NEXT: like legacy, only games whose plugin allows it are captured. Asking one that can't (Rust) to
+            // capture left it with neither its output in the panel nor a window of its own.
+            bool capture = s.Config.EmbedConsole && GameCatalog.CanCapture((object)game);
+            Dyn.TrySet((object)game, "AllowsEmbedConsole", capture);
 
             // NEXT: fresh console per run. Legacy cleared it on stop, which threw away the last output —
             // exactly what you need to see after a server stops unexpectedly. Clients resync via the
@@ -355,7 +378,7 @@ namespace WindowsGSM.Engine.Services
             IntPtr ownWindow = IntPtr.Zero;
             try
             {
-                if (s.Config.EmbedConsole) { p = await game.Start(); }
+                if (capture) { p = await game.Start(); }
                 else { (p, ownWindow) = await ConsoleHost.StartInOwnConsoleAsync<Process?>(async () => (Process?)await game.Start()).ConfigureAwait(false); }
             }
             catch (Exception ex) { return "The game plugin failed to start the server: " + ex.Message; }
@@ -374,11 +397,42 @@ namespace WindowsGSM.Engine.Services
 
             // Settle the console window in the background, like legacy.
             bool showConsole = s.Config.ShowConsole;
-            _ = Task.Run(() =>
+            _ = Task.Run(async () =>
             {
                 IntPtr hWnd = ConsoleHost.Confirm(ownWindow, p);
                 if (hWnd != IntPtr.Zero) { ConsoleWindows.Prime(hWnd, showConsole); }
+                else if (ownWindow != IntPtr.Zero && ConsoleHost.TakeOverHome(p.Id, out _) is var moved && moved != IntPtr.Zero)
+                {
+                    hWnd = moved; // it already left its own console for the agent's (see below)
+                    ConsoleWindows.Prime(hWnd, showConsole);
+                }
                 else { hWnd = ConsoleWindows.Settle(p, showConsole); }
+                UseWindow(hWnd, showConsole);
+
+                // NEXT: some games leave the console they were started in and join their parent's — the agent's
+                // hidden one. Rust does, a few seconds in (Facepunch's console: FreeConsole, then AttachConsole to
+                // the parent): its real console never showed, and the window WindowsGSM had was left empty. When that
+                // happens the agent hands its console to the game and moves to a new one; the game's window then
+                // shows, hides and takes commands like any other.
+                // Checked often at first (that's when games do it), so another server doing the same moments later
+                // finds a fresh console rather than sharing this one.
+                if (ownWindow == IntPtr.Zero) { return; }
+                var started = DateTime.UtcNow;
+                while (DateTime.UtcNow - started < TimeSpan.FromMinutes(2) && s.Process == p && !SafeHasExited(p))
+                {
+                    await Task.Delay(DateTime.UtcNow - started < TimeSpan.FromSeconds(30) ? 50 : 1000).ConfigureAwait(false);
+                    IntPtr taken = ConsoleHost.TakeOverHome(p.Id, out int others);
+                    if (taken == IntPtr.Zero) { continue; }
+                    ConsoleWindows.Prime(taken, s.Config.ShowConsole);
+                    UseWindow(taken, s.Config.ShowConsole);
+                    _log.Write(s.Id, "Console window: the game moved to the agent's console; it's the game's own now");
+                    if (others > 0) { _log.Write(s.Id, $"[NOTICE] {others} other program(s) share this server's console (another server that did the same at the same moment?). Restart one of them to separate them."); }
+                    return;
+                }
+            });
+
+            void UseWindow(IntPtr hWnd, bool shown)
+            {
                 if (hWnd != IntPtr.Zero && s.Process == p)
                 {
                     ConsoleWindows.Adopt(p, hWnd);
@@ -387,10 +441,10 @@ namespace WindowsGSM.Engine.Services
                     s.ConsoleWindow = hWnd;
                     // The setting may have changed while the window was being set up: the latest one wins.
                     s.ConsoleWindowVisible = s.Config.ShowConsole;
-                    if (s.ConsoleWindowVisible != showConsole) { ConsoleWindows.SetVisible(hWnd, s.ConsoleWindowVisible); }
+                    if (s.ConsoleWindowVisible != shown) { ConsoleWindows.SetVisible(hWnd, s.ConsoleWindowVisible); }
                 }
                 try { ServerCache.SaveWindowsIntPtr(s.Id, hWnd); } catch { /* cache is best effort */ }
-            });
+            }
 
             if (p.HasExited)
             {
@@ -414,6 +468,15 @@ namespace WindowsGSM.Engine.Services
             string notice = Dyn.Get((object)game, "Notice") as string ?? string.Empty;
             if (!string.IsNullOrWhiteSpace(notice)) { _log.Write(s.Id, "[Notice] " + notice); }
             return null;
+        }
+
+        /// <summary>The server's after-stop script, if it has one (after a stop or a restart's stop — not Force stop).</summary>
+        private async Task RunAfterStopScriptAsync(ServerInstance s, JobContext job)
+        {
+            string afterStop = ServerScripts.AfterStop(s.Config);
+            if (afterStop.Length == 0) { return; }
+            job.Report(stage: "Running the after-stop script");
+            await ServerScripts.RunAsync(s, afterStop, "after stop", _log).ConfigureAwait(false);
         }
 
         /// <summary>Runs before a normal stop (not Kill), while the game still listens: the engine saves the world here.</summary>
@@ -641,6 +704,11 @@ namespace WindowsGSM.Engine.Services
             StartReason.AutoRestart => " | Auto Restart",
             _ => string.Empty,
         };
+
+        private static bool SafeHasExited(Process p)
+        {
+            try { return p.HasExited; } catch { return true; }
+        }
 
         private static string SafeExitCode(Process p)
         {

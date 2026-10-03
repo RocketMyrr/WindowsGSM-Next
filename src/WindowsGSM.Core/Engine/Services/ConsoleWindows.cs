@@ -51,10 +51,13 @@ namespace WindowsGSM.Engine.Services
 
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<IntPtr, int> Games = new();
 
-        /// <summary>Records that <paramref name="hWnd"/> is <paramref name="p"/>'s own console window (see <see cref="GameOf"/>).</summary>
+        /// <summary>
+        /// Records that <paramref name="hWnd"/> is <paramref name="p"/>'s own console window (see <see cref="GameOf"/>).
+        /// Only classic console windows: a game's graphical window (found the legacy way) isn't a console to type into.
+        /// </summary>
         public static void Register(IntPtr hWnd, Process p)
         {
-            if (hWnd == IntPtr.Zero) { return; }
+            if (hWnd == IntPtr.Zero || !Functions.ConsoleHost.IsConsoleWindow(hWnd)) { return; }
             try { Games[hWnd] = p.Id; } catch { /* gone */ }
         }
 

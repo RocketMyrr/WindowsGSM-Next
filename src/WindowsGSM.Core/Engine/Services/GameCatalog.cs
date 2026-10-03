@@ -12,8 +12,12 @@ namespace WindowsGSM.Engine.Services
     /// <summary>A game this machine can install.</summary>
     /// <param name="Icon">Built-in: the legacy image path ("Images/Games/mc.png"). Plugin: the plugin's PNG on disk, or null.</param>
     /// <param name="Consents">Questions the install may ask (UserPrompt keys) — the wizard offers them up front.</param>
+    /// <param name="CanCapture">
+    /// The game's output can be captured into the panel (its plugin's AllowsEmbedConsole, as shipped). Games that
+    /// can't — Rust, ARK, DayZ… — always run in a console window of their own; legacy greyed the option out for them.
+    /// </param>
     public sealed record GameInfo(string Name, bool IsPlugin, string? AppId, bool LoginAnonymous, string? Icon,
-        string? Description, string? Author, string? Version, string? Color, IReadOnlyList<string> Consents)
+        string? Description, string? Author, string? Version, string? Color, IReadOnlyList<string> Consents, bool CanCapture = true)
     {
         public bool IsSteam => !string.IsNullOrWhiteSpace(AppId);
     }
@@ -119,8 +123,11 @@ namespace WindowsGSM.Engine.Services
 
             return new GameInfo(name, plugin != null, string.IsNullOrWhiteSpace(appId) ? null : appId, loginAnonymous, icon,
                 plugin?.Plugin?.description, plugin?.Plugin?.author, plugin?.Plugin?.version, plugin?.Plugin?.color,
-                ConsentsFor(name, plugin));
+                ConsentsFor(name, plugin), CanCapture(server));
         }
+
+        /// <summary>Whether a plugin instance, as created (before WindowsGSM sets anything), allows capturing its console.</summary>
+        internal static bool CanCapture(object server) => Member(server, "AllowsEmbedConsole") is not bool allows || allows;
 
         private static IReadOnlyList<string> ConsentsFor(string name, PluginMetadata? plugin)
         {

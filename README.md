@@ -7,7 +7,7 @@ WindowsGSM Next is the rebuild of [WindowsGSM](https://github.com/WindowsGSM/Win
 whether or not any window is open, every existing game plugin keeps working, and your current WindowsGSM folder —
 servers, backups, accounts, schedules, Discord bot — carries straight over.
 
-> **Status: 2.0.0-alpha.4 (pre-release).** Everything below is built and tested, but it's an alpha: keep backups,
+> **Status: 2.0.0-alpha.5 (pre-release).** Everything below is built and tested, but it's an alpha: keep backups,
 > and try it on a copy of your WindowsGSM folder first if you're switching from the old app.
 
 ---
@@ -15,6 +15,7 @@ servers, backups, accounts, schedules, Discord bot — carries straight over.
 ## Contents
 
 - [Highlights](#highlights)
+- [What's new in 2.0.0-alpha.5](#whats-new-in-200-alpha5)
 - [What's new in 2.0.0-alpha.4](#whats-new-in-200-alpha4)
 - [Requirements](#requirements)
 - [Install](#install)
@@ -46,6 +47,28 @@ servers, backups, accounts, schedules, Discord bot — carries straight over.
 - **Safe by default.** Accounts with roles and per-server permissions, two-factor sign-in and passkeys, an audit
   log of who did what, and secrets stored encrypted.
 - **Help built in.** A ? next to settings, page tips and a searchable Help page.
+
+## What's new in 2.0.0-alpha.5
+
+**Scripts before start and after stop**
+- Settings → **Scripts**: your own `.bat` or `.ps1` before every start (restarts and crash restarts too) and after
+  every stop — rotate logs, clean up files. For every game, not just Rust as in the old app (whose setting carries
+  over). Only admins can choose a script, and only those two kinds of file. Output goes to the server's log; a time
+  limit stops a script that hangs; optionally, a failing before-start script stops the start.
+
+**Rust's console (and games like it)**
+- Rust leaves the console it's started in and joins the console of the program that started it. WindowsGSM now
+  follows it, so **Show window**, commands from the Console tab and a clean `quit` on stop all work — before, its
+  real console stayed hidden and stops ended in a kill. Several such servers starting together each get their own.
+- Commands are typed straight into a game's console instead of being sent to its (often hidden) window, where they
+  could sit unread.
+- Games whose plugin can't capture the console (Rust, ARK, DayZ…) are no longer asked to: Settings greys the option
+  out, as the old app did.
+
+**Fixes**
+- 7 Days to Die commands from the Console tab work again, and simulated key presses only go to a game's window when
+  it's really in front — never into another app.
+- Many servers starting at once no longer tie up the agent while their consoles are set up.
 
 ## What's new in 2.0.0-alpha.4
 
@@ -139,6 +162,7 @@ two bots don't answer at once.
 ### Running servers
 - Start, stop, restart, force stop, with the world saved first (known save commands for Rust, ARK, 7 Days to Die,
   Palworld, Project Zomboid, Terraria, Unturned and Minecraft, or your own).
+- **Scripts** of your own (`.bat` / `.ps1`) before every start and after every stop — rotate logs, clean up files.
 - **Auto-restart** after a crash, with back-off. It pauses itself if a server keeps crashing, rather than looping.
 - **Memory guard**: a clean restart when a server's memory stays too high.
 - CPU priority and core affinity, per server.

@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Management;
@@ -34,6 +35,25 @@ namespace WindowsGSM.Functions
         [DllImport("kernel32.dll", SetLastError = true)] private static extern bool FreeConsole();
         [DllImport("kernel32.dll")] private static extern IntPtr GetConsoleWindow();
         [DllImport("kernel32.dll")] private static extern bool SetConsoleCtrlHandler(IntPtr handler, bool add);
+        [DllImport("kernel32.dll")] private static extern uint GetConsoleProcessList(uint[] list, uint count);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern IntPtr CreateFileW(string name, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool WriteConsoleInputW(IntPtr input, InputRecord[] records, uint count, out uint written);
+        [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern short VkKeyScanW(char c);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern uint MapVirtualKeyW(uint code, uint mapType);
+
+        /// <summary>INPUT_RECORD holding a KEY_EVENT_RECORD.</summary>
+        [StructLayout(LayoutKind.Explicit, CharSet = CharSet.Unicode)]
+        private struct InputRecord
+        {
+            [FieldOffset(0)] public ushort EventType;
+            [FieldOffset(4)] public int KeyDown;
+            [FieldOffset(8)] public ushort RepeatCount;
+            [FieldOffset(10)] public ushort VirtualKeyCode;
+            [FieldOffset(12)] public ushort VirtualScanCode;
+            [FieldOffset(14)] public char UnicodeChar;
+            [FieldOffset(16)] public uint ControlKeyState;
+        }
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr CreateJobObject(IntPtr attributes, string? name);
         [DllImport("kernel32.dll")] private static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref JobLimits info, int length);
         [DllImport("kernel32.dll")] private static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
@@ -48,6 +68,8 @@ namespace WindowsGSM.Functions
         private static readonly TimeSpan GateWait = TimeSpan.FromSeconds(60);
         private static bool _enabled;
         private static Process? _home; // the placeholder holding the agent's hidden home console
+        private static Process? _spare; // a hidden console made ahead, so a hand-over (TakeOverHome) is instant
+        private static readonly object SpareLock = new object();
         private static IntPtr _job;
 
         public static bool Active => _enabled;
@@ -65,6 +87,45 @@ namespace WindowsGSM.Functions
             Gate.Wait();
             try { GoHome(); }
             finally { Gate.Release(); }
+            PrepareSpare();
+        }
+
+        private static int _preparing;
+
+        /// <summary>
+        /// Makes a spare hidden console in the background, if there isn't one ready. Made outside the lock (it takes a
+        /// moment), so taking the spare never waits for the next one.
+        /// </summary>
+        private static void PrepareSpare()
+        {
+            if (Interlocked.Exchange(ref _preparing, 1) == 1) { return; }
+            Task.Run(() =>
+            {
+                try
+                {
+                    lock (SpareLock) { if (_spare != null && !HasExited(_spare)) { return; } }
+                    var made = NewHiddenConsole();
+                    lock (SpareLock)
+                    {
+                        if (_spare == null || HasExited(_spare)) { End(_spare); _spare = made; made = null; }
+                    }
+                    End(made); // one was made meanwhile
+                }
+                finally { Interlocked.Exchange(ref _preparing, 0); }
+            });
+        }
+
+        /// <summary>The spare console's placeholder (taken: the next one is made in the background), or a new one now.</summary>
+        private static Process? TakeSpare()
+        {
+            Process? spare;
+            lock (SpareLock)
+            {
+                spare = _spare != null && !HasExited(_spare) ? _spare : null;
+                _spare = null;
+            }
+            PrepareSpare();
+            return spare ?? NewHiddenConsole();
         }
 
         /// <summary>
@@ -135,6 +196,85 @@ namespace WindowsGSM.Functions
         }
 
         /// <summary>
+        /// If <paramref name="pid"/> has joined the agent's own hidden console — a game that leaves the console it was
+        /// started in for its parent's (Rust) — that console becomes the game's: the agent moves to a new home and the
+        /// old one's window is returned, now the game's to show and hide. Zero if the game isn't there.
+        /// </summary>
+        /// <param name="others">Other programs left in that console besides the game (and the agent's placeholder).</param>
+        public static IntPtr TakeOverHome(int pid, out int others)
+        {
+            others = 0;
+            // Asked every 50 ms after a start: if the console is busy (another start), skip this time rather than wait.
+            if (!_enabled || !Gate.Wait(TimeSpan.FromMilliseconds(100))) { return IntPtr.Zero; }
+            try
+            {
+                IntPtr home = GetConsoleWindow();
+                if (!IsConsoleWindow(home)) { return IntPtr.Zero; }
+                var list = new uint[64];
+                int count = (int)Math.Min(GetConsoleProcessList(list, (uint)list.Length), (uint)list.Length);
+                var inHome = list.Take(count).ToList();
+                if (!inHome.Contains((uint)pid)) { return IntPtr.Zero; }
+                int self = Environment.ProcessId, placeholder = _home?.Id ?? 0;
+                others = inHome.Count(id => id != pid && id != self && id != placeholder);
+
+                // Straight into a console made ahead: the agent must not linger here (another game making the same
+                // move now would share this console) nor be without one (a game finding no console to join opens one
+                // WindowsGSM can't manage — on Windows 11, in Windows Terminal).
+                var fresh = TakeSpare();
+                var old = _home;
+                FreeConsole();
+                if (fresh != null && AttachConsole((uint)fresh.Id)) { _home = fresh; }
+                else { End(fresh); _home = null; GoHome(); }
+                End(old); // the game keeps that console (and its window) alive
+                return home;
+            }
+            finally { Gate.Release(); }
+        }
+
+        /// <summary>
+        /// Types <paramref name="text"/> into <paramref name="pid"/>'s console ('\r' or '\n' is Enter) by writing key
+        /// presses straight into its input, as the window itself does with real ones. NEXT: plugins type by posting
+        /// key messages to the window, and a hidden console window can sit on those for a long time — a Rust server's
+        /// "quit" never arrived and it had to be killed. False if this isn't active or the console couldn't be reached
+        /// (the caller then falls back to posting).
+        /// </summary>
+        public static bool TypeInto(int pid, string text, IntPtr window = default)
+        {
+            if (string.IsNullOrEmpty(text)) { return true; }
+            var records = new List<InputRecord>(text.Length * 2);
+            foreach (char c in text)
+            {
+                // As a keyboard would send it: the key's code and scan code, with Shift where the character needs it —
+                // games that read key by key (Unity's console, Rust's) look at those, not just the character.
+                bool enter = c is '\r' or '\n';
+                short scan = enter ? (short)0x0D : VkKeyScanW(c);
+                ushort vk = scan == -1 ? (ushort)0 : (ushort)(scan & 0xFF);
+                uint state = scan != -1 && (scan & 0x100) != 0 ? 0x10u : 0u; // SHIFT_PRESSED
+                foreach (int down in new[] { 1, 0 })
+                {
+                    records.Add(new InputRecord
+                    {
+                        EventType = 1, // KEY_EVENT
+                        KeyDown = down,
+                        RepeatCount = 1,
+                        VirtualKeyCode = vk,
+                        VirtualScanCode = (ushort)(vk == 0 ? 0 : MapVirtualKeyW(vk, 0)), // MAPVK_VK_TO_VSC
+                        UnicodeChar = enter ? '\r' : c,
+                        ControlKeyState = state,
+                    });
+                }
+            }
+            return Visit(pid, theirs =>
+            {
+                if (window != IntPtr.Zero && theirs != window) { return false; } // not the console behind that window
+                IntPtr input = CreateFileW("CONIN$", 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero); // read/write, shared, open existing
+                if (input == new IntPtr(-1)) { return false; }
+                try { return WriteConsoleInputW(input, records.ToArray(), (uint)records.Count, out uint written) && written == records.Count; }
+                finally { CloseHandle(input); }
+            });
+        }
+
+        /// <summary>
         /// Runs <paramref name="action"/> while joined to <paramref name="pid"/>'s console (for sending it Ctrl+C).
         /// False if it couldn't join, or the console is the agent's own — Ctrl+C there would reach everything in it.
         /// </summary>
@@ -176,7 +316,7 @@ namespace WindowsGSM.Functions
             End(_home);
             _home = null;
             FreeConsole();
-            var waiter = NewHiddenConsole();
+            var waiter = TakeSpare(); // ready-made when possible: the agent shouldn't be without a console for long
             if (waiter != null && AttachConsole((uint)waiter.Id)) { _home = waiter; }
             else { End(waiter); }
         }

@@ -33,6 +33,16 @@ public class ConsoleWindowTests
     }
 
     [Fact]
+    public void Games_whose_plugin_cant_capture_are_never_captured()
+    {
+        // As legacy did: the plugin's AllowsEmbedConsole, as shipped, says whether capturing can work at all.
+        Assert.False(GameCatalog.CanCapture(new WindowsGSM.GameServer.RUST(null!)));
+        Assert.False(GameCatalog.CanCapture(new WindowsGSM.GameServer.ARKSE(null!)));
+        Assert.True(GameCatalog.CanCapture(new WindowsGSM.GameServer.MC(null!)));
+        Assert.True(GameCatalog.CanCapture(new object())); // a plugin that doesn't say: allowed, as before
+    }
+
+    [Fact]
     public void Only_the_agent_turns_on_console_hosting()
     {
         // Tests (and anything else using the engine) start games the old way unless the agent enables it.

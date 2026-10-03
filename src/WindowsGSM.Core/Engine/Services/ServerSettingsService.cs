@@ -16,7 +16,7 @@ namespace WindowsGSM.Engine.Services
     /// <param name="Values">Every editable standard setting (see <see cref="ServerSettingsService.EditableKeys"/>) → value.</param>
     /// <param name="CustomReplacesBuiltIns">The game supplies a full schema; hide name/map/GSLT like legacy did.</param>
     public sealed record ServerSettings(string ServerId, string Game, bool IsSteam, string? SteamBranchLastInstalled,
-        IReadOnlyDictionary<string, string> Values, IReadOnlyList<CustomSettingValue> Custom, bool CustomReplacesBuiltIns);
+        IReadOnlyDictionary<string, string> Values, IReadOnlyList<CustomSettingValue> Custom, bool CustomReplacesBuiltIns, bool CanCapture = true);
 
     /// <summary>
     /// Reads and writes a server's WindowsGSM.cfg for editors. Only known keys can be written — the standard
@@ -35,6 +35,7 @@ namespace WindowsGSM.Engine.Services
             ServerConfig.SettingName.AutoIpUpdateAlert, ServerConfig.SettingName.RestartCrontabAlert, ServerConfig.SettingName.CrashAlert,
             ServerConfig.SettingName.SkipUserSetup, ServerConfig.SettingName.MemoryGuard, SteamContentPolicy.SteamCmdOverrideSetting,
             "perfsample", // ask the game for FPS/TPS over RCON (absent = on)
+            ServerScripts.BlocksStartKey,
         };
 
         private static readonly string[] Ports =
@@ -45,7 +46,7 @@ namespace WindowsGSM.Engine.Services
         private static readonly string[] PositiveNumbers =
         {
             ServerConfig.SettingName.ServerMaxPlayer, ServerConfig.SettingName.MemoryGuardThresholdMb, ServerConfig.SettingName.MemoryGuardSustainMinutes,
-            WorldSave.WaitKey, WorldSave.StopTimeoutKey,
+            WorldSave.WaitKey, WorldSave.StopTimeoutKey, ServerScripts.TimeoutKey,
         };
 
         private static readonly string[] Text =
@@ -57,11 +58,13 @@ namespace WindowsGSM.Engine.Services
             ServerConfig.SettingName.CrontabFormat, ServerConfig.SettingName.RconIp, ServerConfig.SettingName.RconPassword,
             ServerConfig.SettingName.CPUPriority, ServerConfig.SettingName.CPUAffinity,
             WorldSave.CommandKey,
+            ServerScripts.BeforeStartKey, ServerScripts.AfterStopKey, // admins only (checked by the API), .bat / .ps1 only
         };
 
         /// <summary>
-        /// Standard settings an editor may change. Deliberately absent: the game, the batch file (would let an
-        /// editor point a server at any program) and bookkeeping values the engine maintains itself.
+        /// Standard settings an editor may change. Deliberately absent: the game and bookkeeping values the engine
+        /// maintains itself. The scripts (which run a program) are here, but only admins may change them — the API
+        /// checks — and only .bat / .ps1 files that exist.
         /// </summary>
         public static IReadOnlyList<string> EditableKeys { get; } = Text.Concat(Ports).Concat(PositiveNumbers).Concat(Bools).ToArray();
 
@@ -90,7 +93,7 @@ namespace WindowsGSM.Engine.Services
             var schema = _games.Settings(s.Game, out bool replaces);
             var custom = schema.Select(g => new CustomSettingValue(g.Key, g.Label, cfg.GetCustomSetting(g.Key, g.DefaultValue), g.Options)).ToList();
             var game = _games.Get(s.Game);
-            return new ServerSettings(s.Id, s.Game, game?.IsSteam ?? false, cfg.SteamBranchLastInstalled, values, custom, replaces);
+            return new ServerSettings(s.Id, s.Game, game?.IsSteam ?? false, cfg.SteamBranchLastInstalled, values, custom, replaces, game?.CanCapture ?? true);
         }
 
         /// <summary>
@@ -124,6 +127,11 @@ namespace WindowsGSM.Engine.Services
                 else if (Ports.Contains(canonical))
                 {
                     if (value.Length > 0 && (!int.TryParse(value, out int port) || port < 1 || port > 65535)) { errors.Add($"{canonical}: expected a port between 1 and 65535."); continue; }
+                }
+                else if (ServerScripts.AdminKeys.Contains(canonical, StringComparer.OrdinalIgnoreCase))
+                {
+                    if (ServerScripts.Validate(value) is string bad) { errors.Add($"{canonical}: {bad}"); continue; }
+                    value = ServerScripts.Clean(value);
                 }
                 else if (PositiveNumbers.Contains(canonical))
                 {

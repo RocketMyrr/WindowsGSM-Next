@@ -160,6 +160,13 @@ The panel's own port (8971) gets its rule when you turn on *Reachable from other
 - **Appearance** (Your account, per browser): dark/light, an accent colour, a compact server list, and the
   console's text size and line wrapping (also on the Console tab: A−, A+, Wrap). The browser tab shows
   **(⚠ n)** when something needs you (auto-restart gave up, a machine offline) or **(n)** for unread notifications.
+- **Scripts** (Settings → Scripts, admins): your own `.bat` or `.ps1` run before every start (restarts and crash
+  restarts too) and after every stop (not Force stop) — rotate logs, clean up files. Only those two kinds of file.
+  The script runs hidden in the server's game files folder with `WGSM_SERVER_ID`, `WGSM_SERVER_NAME`,
+  `WGSM_SERVER_GAME`, `WGSM_SERVER_FILES` and `WGSM_SCRIPT_WHEN` (`start`/`stop`); its output goes to the server's
+  log; it's stopped after a time limit (60 s by default). A failing before-start script doesn't stop the start
+  unless you say so. The old app's Rust "batch file" setting carries over as the before-start script, now for every
+  game.
 - **Console windows**: servers whose output isn't captured into the panel run in their own console window on the
   server's screen — **Show window / Hide window** on the Console tab, or **Show the console window on this machine**
   in Settings (applies as soon as you save). Commands typed in the Console tab go into that window, and the window

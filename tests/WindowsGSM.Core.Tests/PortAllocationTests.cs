@@ -7,7 +7,9 @@ namespace WindowsGSM.Core.Tests;
 /// New servers get a port block no other configured server uses. The legacy version read ports off the
 /// WPF grid and compared against them in a single pass, so it could hand out a port that was taken.
 /// </summary>
-[Collection("DataRoot-servers")] // these tests create server folders; keep them serial
+// These read every server folder, and the Lifecycle tests create and copy servers: running both at once, one of
+// theirs could take the very port checked here. One collection runs them one after another.
+[Collection("Lifecycle")]
 public class PortAllocationTests
 {
     private static void Server(string id, string port, string queryPort)

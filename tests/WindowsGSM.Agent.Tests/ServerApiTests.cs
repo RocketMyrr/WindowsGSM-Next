@@ -85,7 +85,7 @@ public class ServerApiTests
         var owner = _f.Owner;
         var before = await owner.GetJsonAsync<ServerSettingsDto>(_f.ServerUrl("102", "/settings"));
         Assert.Equal("Test 102", before.Values["servername"]);
-        Assert.DoesNotContain("batchfile", before.Values.Keys);
+        Assert.Equal(string.Empty, before.Values["batchfile"]); // the before-start script: none
 
         var bad = await owner.PatchAsync(_f.ServerUrl("102", "/settings"), new SettingsUpdateRequest(new Dictionary<string, string?>
         {

@@ -54,7 +54,8 @@ public sealed record LogDto(IReadOnlyList<string> Lines);
 public sealed record CustomSettingDto(string Key, string Label, string Value, IReadOnlyList<string> Options);
 
 public sealed record ServerSettingsDto(string Machine, string Id, string Game, bool IsSteam, string? SteamBranchLastInstalled,
-    IReadOnlyDictionary<string, string> Values, IReadOnlyList<CustomSettingDto> Custom, bool CustomReplacesBuiltIns, string? KnownSaveCommand = null);
+    IReadOnlyDictionary<string, string> Values, IReadOnlyList<CustomSettingDto> Custom, bool CustomReplacesBuiltIns, string? KnownSaveCommand = null,
+    bool CanCapture = true);
 
 /// <summary>Only the keys present are changed. All-or-nothing: one bad value and nothing is written.</summary>
 public sealed record SettingsUpdateRequest(IReadOnlyDictionary<string, string?> Values);

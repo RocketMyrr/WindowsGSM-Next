@@ -86,20 +86,17 @@ namespace WindowsGSM.Functions
                 {
                     await Task.Run(() =>
                     {
-                        if (!process.HasExited && process.ProcessName == "7DaysToDieServer")
+                        // NEXT: 7 Days to Die's graphical window needs legacy's keyboard dance. It now goes through
+                        // SetMainWindow, so the keys are aimed at that window (and only sent when it's in front);
+                        // a console window of its own is typed into like any other.
+                        if (!process.HasExited && process.ProcessName == "7DaysToDieServer" && Engine.Services.ConsoleWindows.GameOf(mainWindow) == null)
                         {
-                            SetForegroundWindow(mainWindow);
-                            var current = GetForegroundWindow();
-                            var wgsmWindow = Process.GetCurrentProcess().MainWindowHandle;
-                            if (current != wgsmWindow)
-                            {
-                                SendWaitToMainWindow("{TAB}");
-                                SendWaitToMainWindow(text);
-                                SendWaitToMainWindow("{TAB}");
-                                SendWaitToMainWindow(text);
-                                SendWaitToMainWindow("{ENTER}");
-                                SetForegroundWindow(wgsmWindow);
-                            }
+                            SetMainWindow(mainWindow);
+                            SendWaitToMainWindow("{TAB}");
+                            SendWaitToMainWindow(text);
+                            SendWaitToMainWindow("{TAB}");
+                            SendWaitToMainWindow(text);
+                            SendWaitToMainWindow("{ENTER}");
                         }
                         else
                         {
@@ -244,6 +241,9 @@ namespace WindowsGSM.Functions
 
         public static void SendMessageToMainWindow(IntPtr hWnd, string message)
         {
+            // NEXT: a game's own console window: the text goes straight into its console's input (see ConsoleHost.TypeInto).
+            if (Engine.Services.ConsoleWindows.GameOf(hWnd) is int pid && ConsoleHost.TypeInto(pid, message + "\r", hWnd)) { return; }
+
             // Here is a minor error on PostMessage, when it sends repeated char, some char may disappear. Example: send 1111111, windows may receive 1111 or 11111
             for (int i = 0; i < message.Length; i++)
             {
@@ -283,9 +283,11 @@ namespace WindowsGSM.Functions
                 SendKeysToConsole(_keysTarget, pid, keys);
                 return;
             }
-            // No window picked (the game has none WindowsGSM knows): simulated keys would go to whatever app is in
-            // front — a Ctrl+C or "stop" typed into someone's work. The stop falls back to Ctrl+C / kill instead.
-            if (_keysTarget == IntPtr.Zero) { return; }
+            // Simulated keys go to whatever window is in front. Only send them when that's the game's: with no window
+            // picked, or Windows refusing to bring it forward (it usually does for a program in the background), they'd
+            // land in whatever app the person at the PC is using — a Ctrl+C or "stop" typed into someone's work. The
+            // stop then falls back to Ctrl+C / kill instead.
+            if (_keysTarget == IntPtr.Zero || GetForegroundWindow() != _keysTarget) { return; }
             try
             {
                 SendKeys.SendWait(keys);
@@ -308,6 +310,22 @@ namespace WindowsGSM.Functions
         /// <summary>The SendKeys notation plugins use, delivered to a game's console window: ^c, {ENTER}/~, {TAB}, text.</summary>
         internal static void SendKeysToConsole(IntPtr hWnd, int pid, string keys)
         {
+            // Typed text collects here ('\r' = Enter) and goes in one piece, before a Ctrl+C and at the end.
+            var typed = new System.Text.StringBuilder();
+            void Flush()
+            {
+                if (typed.Length == 0) { return; }
+                string text = typed.ToString();
+                typed.Clear();
+                if (ConsoleHost.TypeInto(pid, text, hWnd)) { return; }
+                for (int k = 0; k < text.Length; k++) // fallback: post it to the window
+                {
+                    if (text[k] == '\r') { PostMessage(hWnd, WM_KEYDOWN, (IntPtr)Keys.Enter, IntPtr.Zero); continue; }
+                    if (k > 0 && text[k] == text[k - 1]) { PostMessage(hWnd, WM_KEYDOWN, (IntPtr)Keys.None, IntPtr.Zero); } // see SendMessageToMainWindow
+                    PostMessage(hWnd, WM_CHAR, (IntPtr)text[k], IntPtr.Zero);
+                }
+            }
+
             int i = 0;
             while (i < keys.Length)
             {
@@ -316,7 +334,7 @@ namespace WindowsGSM.Functions
                     // ^c, ^C, ^(c): Ctrl+C. Other Ctrl combinations aren't something a console game needs.
                     string rest = keys.Substring(i + 1);
                     int used = rest.StartsWith("(c)", StringComparison.OrdinalIgnoreCase) ? 3 : rest.StartsWith("c", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
-                    if (used > 0) { ProcessManagement.SendCtrlC(pid); }
+                    if (used > 0) { Flush(); ProcessManagement.SendCtrlC(pid); }
                     i += 1 + used;
                     continue;
                 }
@@ -325,18 +343,18 @@ namespace WindowsGSM.Functions
                     int end = keys.IndexOf('}', i + 2); // "{}}" is a literal }
                     if (end < 0) { break; }
                     string key = keys.Substring(i + 1, end - i - 1).ToUpperInvariant();
-                    if (key == "ENTER") { PostMessage(hWnd, WM_KEYDOWN, (IntPtr)Keys.Enter, IntPtr.Zero); }
-                    else if (key == "TAB") { PostMessage(hWnd, WM_CHAR, (IntPtr)'\t', IntPtr.Zero); }
-                    else if (key.Length == 1) { PostMessage(hWnd, WM_CHAR, (IntPtr)keys[i + 1], IntPtr.Zero); } // {+}, {^}, {%}…
+                    if (key == "ENTER") { typed.Append('\r'); }
+                    else if (key == "TAB") { typed.Append('\t'); }
+                    else if (key.Length == 1) { typed.Append(keys[i + 1]); } // {+}, {^}, {%}…
                     i = end + 1;
                     continue;
                 }
-                if (keys[i] == '~') { PostMessage(hWnd, WM_KEYDOWN, (IntPtr)Keys.Enter, IntPtr.Zero); i++; continue; }
+                if (keys[i] == '~') { typed.Append('\r'); i++; continue; }
                 if (keys[i] is '+' or '%') { i++; continue; } // Shift/Alt modifiers: the typed character already carries its case
-                if (i > 0 && keys[i] == keys[i - 1]) { PostMessage(hWnd, WM_KEYDOWN, (IntPtr)Keys.None, IntPtr.Zero); } // see SendMessageToMainWindow
-                PostMessage(hWnd, WM_CHAR, (IntPtr)keys[i], IntPtr.Zero);
+                typed.Append(keys[i]);
                 i++;
             }
+            Flush();
         }
 
         public void StartRecorder()

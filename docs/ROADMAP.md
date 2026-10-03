@@ -200,3 +200,13 @@ servers on either from a single login, including from a phone.
 **Exit test:** both machines run Next in production; the legacy app is retired.
 Start with: `.\tools\publish.ps1`, run the zip's `WindowsGSM.exe` on one machine pointed at a **copy** of its
 data folder, live with it, then switch that machine over, then the other.
+
+## Later — ideas, not scheduled
+
+- [ ] **Single-app mode** ("Only while the app is open"): run the agent's engine and panel inside
+      `WindowsGSM.exe` itself — one program, one window, the same panel, nothing served beyond its own window.
+      Offered at setup beside the default "Run in the background". Trade-off to make clear in the UI: while the
+      app is closed nothing looks after the servers (they keep running and are re-adopted on reopen, but no
+      crash restarts, memory guard, schedules, backups, auto-updates, automations, Discord bot, notifications,
+      hub or phone access); minimising to the tray keeps it all going. Mostly re-uses `AgentApp` in-process from
+      the desktop app; updates would restart the app rather than the agent.

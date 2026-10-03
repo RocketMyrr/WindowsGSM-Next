@@ -7,6 +7,7 @@ import { store } from "../../store.js";
 import { toast, toastError, field, input, select, toggle, busy, confirm } from "../../ui.js";
 import { setLeaveGuard } from "../../router.js";
 import { historyDialog } from "./history.js";
+import { isAdmin } from "../../perms.js";
 
 const PRIORITIES = [
     { value: "0", label: "Low" }, { value: "1", label: "Below normal" }, { value: "2", label: "Normal" },
@@ -120,6 +121,13 @@ export default async function settingsTab(host, { id, machine, key, server, scop
     const captureToggle = onOff("embedconsole", "Capture the console here", "Shows the game's output in the Console tab.", ["On: the game's output appears in the Console tab and you type commands there, from anywhere. There's no separate window.", "Off: the game runs in its own window on this PC's screen (Console tab → Show window). Some games only work properly this way — if a game misbehaves with it on, turn it off.", "Takes effect the next time the server starts."]);
     const windowToggle = onOff("showconsole", "Show the console window on this machine", "", ["For servers that aren't captured: whether their own window is visible on this PC's screen. Saving applies it straight away to a running server, and to every start after.", "You can also show or hide it any time from the Console tab (Show window)."]);
     const windowHint = windowToggle.querySelector(".switch-text small") || windowToggle.querySelector(".switch-text").appendChild(h("small"));
+    // Some games can't be captured (their plugin says so — Rust, ARK, DayZ…): they always get a window of their own.
+    if (settings.canCapture === false) {
+        captureToggle.input.checked = false;
+        captureToggle.input.disabled = true;
+        const captureHint = captureToggle.querySelector(".switch-text small") || captureToggle.querySelector(".switch-text").appendChild(h("small"));
+        captureHint.textContent = "Not available for this game: its plugin handles the console itself (Rust and similar run in a window of their own). RCON sends commands from the Console tab.";
+    }
     const paintWindowToggle = () => {
         const captured = captureToggle.input.checked;
         windowToggle.input.disabled = captured;
@@ -167,13 +175,31 @@ export default async function settingsTab(host, { id, machine, key, server, scop
             text("savewait", "Wait after saving (seconds)", { type: "number", placeholder: "10", help: "How long to give the game to finish writing its save before asking it to stop. Big worlds may need 30 or more." }),
             text("stoptimeout", "Wait for a clean shutdown (seconds)", { type: "number", placeholder: "30", hint: "Then the process is ended. Big worlds save on shutdown — give them time." })));
 
+    // The server's own scripts. Choosing one is for admins (it runs a program on this PC); .bat and .ps1 only.
+    const admin = isAdmin();
+    const whenHelp = [
+        "Runs your own .bat or .ps1 file, hidden, in the server's game files folder. What it prints goes to the server's log (Logs tab), with how it finished. Exit code 0 counts as success.",
+        "Before every start: each start, restart and automatic restart after a crash — e.g. rotate logs or clear out old files. After every stop: each stop and the stop half of a restart (not Force stop, not a crash).",
+        "The script can use WGSM_SERVER_ID, WGSM_SERVER_NAME, WGSM_SERVER_GAME, WGSM_SERVER_FILES (the game files folder) and WGSM_SCRIPT_WHEN (start or stop).",
+    ];
+    const pathHint = admin ? "Full path to a .bat or .ps1 file. Explorer's “Copy as path” works." : "Only admins can choose scripts — they run a program on this PC.";
+    const scripts = section("Scripts", "Your own .bat or .ps1, run before every start and after every stop.",
+        h("div", { class: "form-grid" },
+            text("batchfile", "Before every start", { mono: true, placeholder: "e.g. D:\\Scripts\\rotate-logs.bat", hint: pathHint, help: whenHelp }),
+            text("afterstopscript", "After every stop", { mono: true, placeholder: "e.g. D:\\Scripts\\clean-up.ps1", hint: pathHint, help: whenHelp }),
+            text("scripttimeout", "Time limit (seconds)", { type: "number", placeholder: "60", hint: "A script still running then is stopped.", help: "How long a script may run before it's stopped (and counted as failed). Between 5 seconds and 30 minutes; 60 if left empty." })),
+        h("div", { class: "toggles" },
+            onOff("scriptblocksstart", "Don't start if the before-start script fails", "Otherwise the server starts anyway; the log says what went wrong.",
+                "When the before-start script finishes with an error (an exit code other than 0), is stopped for taking too long, or can't be found, the server isn't started — for scripts that must finish first, like a backup or a check.")));
+    if (!admin) { for (const key of ["batchfile", "afterstopscript"]) { const el = controls.get(key)?.querySelector("input"); if (el) el.disabled = true; } }
+
     const advanced = section("Advanced", null,
         h("div", { class: "toggles" }, onOff("steamcmd_override", "Use SteamCMD instead of DepotDownloader", "Only if this game won't update with DepotDownloader.", "DepotDownloader is faster and supports roll back. A few games install extra things only SteamCMD does — if updates fail or the server misses files, try this. Roll back isn't available with SteamCMD.")));
 
     // Every save keeps the settings it replaced: compare, or put an earlier set back.
     const tools = h("div", { class: "row settings-tools" }, h("span", { class: "spacer" }),
         h("button", { class: "btn sm", title: "Earlier versions of these settings — compare or put one back", onclick: () => historyDialog({ machine, id, path: "settings", title: "Settings history", onRestored: () => location.reload() }) }, icon("clock"), "History"));
-    host.append(tools, h("div", { class: "settings-grid" }, general, game, steam, automation, stopping, alerts, consoleSec, performance, advanced), saveBar);
+    host.append(tools, h("div", { class: "settings-grid" }, general, game, steam, automation, stopping, scripts, alerts, consoleSec, performance, advanced), saveBar);
 
     // Steam branches load in the background (asks Steam directly).
     if (settings.isSteam) {

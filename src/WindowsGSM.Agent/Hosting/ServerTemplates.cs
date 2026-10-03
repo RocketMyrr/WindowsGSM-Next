@@ -40,6 +40,8 @@ public sealed class ServerTemplates
         ServerConfig.SettingName.RconPort, ServerConfig.SettingName.RconPassword, ServerConfig.SettingName.ServerGSLT,
         ServerConfig.SettingName.SteamBranchPassword, ServerConfig.SettingName.SteamBranchLastInstalled, ServerConfig.SettingName.DiscordWebhook,
         "updatehold", "upnp",
+        // Scripts run a program on a particular PC, and choosing one is for admins.
+        WindowsGSM.Engine.Services.ServerScripts.BeforeStartKey, WindowsGSM.Engine.Services.ServerScripts.AfterStopKey,
     };
 
     private const long MaxFileBytes = 256 * 1024, MaxTotalBytes = 2 * 1024 * 1024;

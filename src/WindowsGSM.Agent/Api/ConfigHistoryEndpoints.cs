@@ -32,7 +32,24 @@ public static class ConfigHistoryEndpoints
             string id = Scopes.Server(http).Id;
             try
             {
+                // Putting back older settings mustn't let someone who isn't an admin bring back (or change) a script:
+                // for them, the scripts stay as they are now.
+                Dictionary<string, string>? keep = null;
+                if (!Scopes.User(http).IsAdmin)
+                {
+                    var now = new WindowsGSM.Functions.ServerConfig(id);
+                    keep = new()
+                    {
+                        [WindowsGSM.Engine.Services.ServerScripts.BeforeStartKey] = now.BatchFile ?? string.Empty,
+                        [WindowsGSM.Engine.Services.ServerScripts.AfterStopKey] = now.GetCustomSetting(WindowsGSM.Engine.Services.ServerScripts.AfterStopKey, string.Empty),
+                    };
+                }
                 string path = history.Restore(ctx, id, version, Scopes.User(http).Username);
+                if (keep != null && path == ConfigHistory.SettingsPath)
+                {
+                    foreach (var (key, value) in keep) { WindowsGSM.Functions.ServerConfig.SetSetting(id, key, value); }
+                    ctx.Engine.Servers.Get(id)?.ReloadConfig();
+                }
                 ctx.Record(http, "config-restore", id, true, path);
                 return Results.NoContent();
             }

@@ -138,7 +138,7 @@ public static class ServerEndpoints
             if (settings == null) { return ApiResults.NotFound("No such server."); }
             return Results.Json(new ServerSettingsDto(ctx.MachineId, settings.ServerId, settings.Game, settings.IsSteam, settings.SteamBranchLastInstalled,
                 settings.Values, settings.Custom.Select(c => new CustomSettingDto(c.Key, c.Label, c.Value, c.Options)).ToList(), settings.CustomReplacesBuiltIns,
-                KnownSaveCommand(ctx, Scopes.Server(http))));
+                KnownSaveCommand(ctx, Scopes.Server(http)), settings.CanCapture));
         }).Needs(Capability.EditConfig);
 
         // The game's own save command, shown as the default (a server can set its own, or "-" for none).
@@ -152,6 +152,12 @@ public static class ServerEndpoints
         server.MapPatch("/settings", (HttpContext http, AgentContext ctx, WindowsGSM.Agent.Hosting.ConfigHistory history, SettingsUpdateRequest body) =>
         {
             var s = Scopes.Server(http);
+            // The scripts run a program on this PC: choosing or changing one is for admins.
+            if (!Scopes.User(http).IsAdmin && (body.Values?.Keys ?? Enumerable.Empty<string>()).Any(k => WindowsGSM.Engine.Services.ServerScripts.AdminKeys.Contains(k, StringComparer.OrdinalIgnoreCase)))
+            {
+                ctx.Record(http, "settings", s.Id, false, "scripts: admins only");
+                return ApiResults.Forbidden("Only admins can choose the scripts a server runs (they run a program on the PC).");
+            }
             history.Keep(s.Id, WindowsGSM.Agent.Hosting.ConfigHistory.SettingsPath, WindowsGSM.Functions.ServerPath.GetServersConfigs(s.Id, "WindowsGSM.cfg"), Scopes.User(http).Username, "Settings");
             var problems = ctx.Engine.Settings.Update(s.Id, body.Values ?? new Dictionary<string, string?>());
             // Log which settings changed, never their values (webhooks and passwords live here).

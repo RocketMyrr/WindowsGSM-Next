@@ -118,6 +118,12 @@ const TOPICS = [
         "Then it asks the game to stop and waits (30 s by default) before ending it. Force stop ends it at once, without saving.",
     ], []],
 
+    ["scripts", "Scripts before start & after stop", "file", "script batch bat ps1 powershell rotate logs clean up before start after stop", [
+        "Settings → Scripts runs your own .bat or .ps1 file before every start (including restarts and automatic restarts after a crash) and after every stop — e.g. rotate logs or clear out old files. Only those two kinds of file, and only admins can choose them, since they run a program on the PC.",
+        "The script runs hidden in the server's game files folder, with WGSM_SERVER_ID, WGSM_SERVER_NAME, WGSM_SERVER_GAME, WGSM_SERVER_FILES and WGSM_SCRIPT_WHEN (start or stop). What it prints shows in the server's Logs tab. A script still running after the time limit (60 s unless you set another) is stopped.",
+        "If a before-start script fails, the server starts anyway — unless you turn on \"Don't start if the before-start script fails\". Force stop doesn't run the after-stop script.",
+    ], []],
+
     ["console", "Console, RCON & performance", "console", "console rcon window hidden command fps tps lag performance", [
         "Captured consoles show in the Console tab. Games that need their own window run hidden; Console → Show window brings it up on the machine's screen.",
         "RCON is the game's remote console. Set the same port and password in Settings and in the game's config; WindowsGSM then uses it for commands — and, for Rust, Minecraft and Source games, asks for the server's FPS or TPS every 5 minutes (Overview → Game performance; it can be turned off per server in Settings), so lag shows even when CPU looks fine.",
