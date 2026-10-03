@@ -16,7 +16,7 @@ const TIPS = {
     "/users": ["users", "Give friends their own sign-in instead of sharing yours. Operators run servers; Viewers only look; access can be limited to particular servers."],
     "/machines": ["machines", "Several PCs? Make one the hub and connect the others — every server, one panel. A machine that goes offline keeps running its servers."],
     "/logs": ["trouble", "Everything WindowsGSM did and every error, newest first. The Activity tab shows who did what; Crash logs keep each crash's details."],
-    "/storage": ["trouble", "What each server takes, and safe clean-up of old logs, crash dumps and unfinished downloads. Your servers' files and backups are never offered for clean-up."],
+    "/storage": ["drives", "What each server takes, and safe clean-up of old logs, crash dumps and unfinished downloads. Running out of room? A server's ⋯ menu can move its files to another drive."],
     "/health": ["trouble", "Checks that tools, plugins, ports and disk space are all in order. Run it after changing settings or when something won't start."],
     "/settings": ["network", "To use the panel from your phone or another PC, turn on “Reachable from other computers”. Opening it to the internet? Turn on HTTPS first."],
     "/account": ["users", "Turn on two-factor or add a passkey (Windows Hello, your phone) to keep your servers safe — it only takes a minute."],

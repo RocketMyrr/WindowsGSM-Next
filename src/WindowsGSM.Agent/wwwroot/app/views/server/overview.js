@@ -1,7 +1,8 @@
 // Server overview tab: CPU/RAM/players chart (live for the last hour, from the machine's history for longer
 // ranges), key facts, recent activity and a quick health check.
 
-import { h, icon, clear, append, fmtMb, fmtDateTime, gameLabel } from "../../dom.js";
+import { h, icon, clear, append, fmtMb, fmtBytes, fmtDateTime, gameLabel } from "../../dom.js";
+import { moveFilesDialog, openFolderButton } from "../../places.js";
 import { get, post, srv } from "../../api.js";
 import { store } from "../../store.js";
 import { metricsChart, isRunning, segmented, modal, loading, busy, toast } from "../../ui.js";
@@ -140,6 +141,22 @@ export default async function overviewTab(host, { id, machine, key, server, scop
             ...parts.flatMap(([label, v], i) => [i ? h("span", { class: "faint", text: " · " }) : null, h("b", { class: tone(v), text: pct(v) }), h("span", { class: "muted", text: ` ${label}` })]).filter(Boolean),
             agent != null && agent < 99.5 ? h("div", { class: "tiny faint", text: `WindowsGSM itself was running ${pct(agent)} of the last ${uptime.agentWeek != null ? "7 days" : "24 h"} — time it was off counts as down.` }) : null);
     }
+    // Where the game files are (another drive?), for Details.
+    let filesAt = null;
+    async function loadFilesAt() {
+        try { filesAt = await get(srv(machine, id, "/files-location")); paintFacts(); } catch { /* older agent */ }
+    }
+    function filesText() {
+        if (!filesAt) return "—";
+        if (filesAt.problem) return h("span", { class: "rose-text" }, icon("warn"), " ", filesAt.problem);
+        const open = filesAt.canOpen ? openFolderButton(machine, id) : null;
+        const move = isAdmin() ? h("button", { class: "btn ghost sm", title: "Move the game files to another drive", onclick: () => moveFilesDialog(server()) }, icon("disk"), "Move…") : null;
+        return h("span", { class: "files-at" },
+            h("span", { class: "mono small", title: filesAt.path, text: filesAt.path }),
+            h("span", { class: "faint small", text: `${filesAt.elsewhere ? "on another drive · " : ""}${filesAt.free != null ? `${filesAt.drive} has ${fmtBytes(filesAt.free)} free` : ""}` }),
+            open, move);
+    }
+
     async function loadUptime() {
         try { uptime = await get(srv(machine, id, "/uptime")); paintFacts(); } catch { /* history off or offline */ }
     }
@@ -155,6 +172,7 @@ export default async function overviewTab(host, { id, machine, key, server, scop
             ...row("Max players", s.maxPlayers ?? "—"),
             ...row("Started", isRunning(s) && s.startedAt ? fmtDateTime(s.startedAt) : "Not running"),
             ...row("Uptime", uptimeText()),
+            ...row("Game files", filesText()),
             ...row("Auto-start", onOff(s.autoStart, "with the agent")),
             ...row("Auto-restart", onOff(s.autoRestart, "after a crash")),
             ...row("Auto-update", onOff(s.autoUpdate, "checks every 30 min")));
@@ -257,6 +275,8 @@ export default async function overviewTab(host, { id, machine, key, server, scop
     loadRange();
     paintFacts();
     scope.every(5 * 60000, loadUptime);
+    loadFilesAt();
+    scope.add(store.on("jobFinished", j => { if (j.serverId === id && j.kind === "move-files") loadFilesAt(); }));
     scope.every(60000, loadGamePerf, { now: false });
     paintChecks();
     paintFirewall();

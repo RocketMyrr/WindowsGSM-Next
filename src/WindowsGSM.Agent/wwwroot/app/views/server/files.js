@@ -6,6 +6,7 @@ import { get, post, put, srv, upload } from "../../api.js";
 import { toast, toastError, confirm, promptText, showMenu, empty, loading, progressBar, setProgress } from "../../ui.js";
 import { setLeaveGuard } from "../../router.js";
 import { historyDialog } from "./history.js";
+import { openFolderButton } from "../../places.js";
 
 const TEXT_EXT = /\.(cfg|ini|txt|json|xml|yml|yaml|properties|conf|config|lua|cs|js|log|md|bat|cmd|ps1|sh|toml|csv|vdf|acf)$/i;
 
@@ -15,9 +16,13 @@ export default async function filesTab(host, { id, machine, key, scope }) {
     const listHost = h("div", { class: "file-list" });
     const uploads = h("div", { class: "uploads" });
     const fileInput = h("input", { type: "file", multiple: true, hidden: true });
+    // On the server's own PC: open this folder in Windows Explorer (the agent opens it — a web page can't).
+    const explorerSlot = h("span", { class: "explorer-slot" });
+    get(srv(machine, id, "/files-location")).then(w => { if (w.canOpen) explorerSlot.append(openFolderButton(machine, id, "Open in Explorer")); }).catch(() => { /* older agent */ });
     const drop = h("div", { class: "drop-overlay", hidden: true }, icon("upload"), h("b", { text: "Drop files to upload" }), h("span", { class: "small muted", text: "They'll go into the folder you're viewing." }));
     const panel = h("section", { class: "panel files-panel" },
         h("div", { class: "panel-head" }, crumbs, h("span", { class: "spacer" }),
+            explorerSlot,
             h("button", { class: "btn sm", onclick: newFolder }, icon("folderPlus"), "New folder"),
             h("button", { class: "btn sm primary", onclick: () => fileInput.click() }, icon("upload"), "Upload"),
             h("button", { class: "btn ghost sm icon-only", "aria-label": "Refresh", onclick: () => load() }, icon("refresh"))),

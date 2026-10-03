@@ -71,7 +71,7 @@ public sealed record GameDto(string Name, bool IsPlugin, bool IsSteam, string? A
 public sealed record BrokenPluginDto(string FileName, string? Error);
 
 public sealed record InstallRequest(string Game, string Name, string? SteamBranch = null, string? SteamBranchPassword = null,
-    IReadOnlyList<string>? Consents = null, string? Template = null);
+    IReadOnlyList<string>? Consents = null, string? Template = null, string? FilesFolder = null);
 
 public sealed record ImportRequest(string Game, string Name, string Folder);
 

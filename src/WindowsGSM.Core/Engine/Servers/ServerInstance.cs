@@ -24,6 +24,8 @@ namespace WindowsGSM.Engine.Servers
         BackingUp,
         Restoring,
         Deleting,
+        /// <summary>NEXT: its game files are being moved to another folder or drive.</summary>
+        Moving,
     }
 
     /// <summary>

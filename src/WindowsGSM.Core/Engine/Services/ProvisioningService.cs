@@ -16,7 +16,10 @@ namespace WindowsGSM.Engine.Services
 {
     /// <summary>What to install.</summary>
     /// <param name="Consents">Answers given up front to the plugin's questions (e.g. <see cref="UserPrompt.Keys.Eula"/>).</param>
-    public sealed record InstallRequest(string Game, string Name, string? SteamBranch = null, string? SteamBranchPassword = null, IReadOnlyList<string>? Consents = null);
+    /// <param name="FilesFolder">NEXT: a folder to keep the game files in instead of the WindowsGSM folder (e.g. on another
+    /// drive) — the server gets its own folder inside it (see <see cref="ServerLocation"/>). Null = the usual place.</param>
+    public sealed record InstallRequest(string Game, string Name, string? SteamBranch = null, string? SteamBranchPassword = null, IReadOnlyList<string>? Consents = null,
+        string? FilesFolder = null);
 
     /// <summary>
     /// Creating, importing and deleting servers. Port of the legacy install/import/delete flows.
@@ -55,6 +58,7 @@ namespace WindowsGSM.Engine.Services
         {
             if (string.IsNullOrWhiteSpace(request.Name)) { return OperationRequest.Rejected("Give the server a name."); }
             if (_plugins.Create(request.Game, new ServerConfig("0")) == null) { return OperationRequest.Rejected($"Unknown game \"{request.Game}\"."); }
+            if (!string.IsNullOrWhiteSpace(request.FilesFolder) && ServerLocation.Validate(request.FilesFolder) is string where) { return OperationRequest.Rejected(where); }
 
             string? id = ReserveId();
             if (id == null) { return OperationRequest.Rejected($"No free server slots (the limit is {WgsmEnvironment.MaxServers})."); }
@@ -79,6 +83,14 @@ namespace WindowsGSM.Engine.Services
             var config = new ServerConfig(id);
             config.CreateServerDirectory();
             _log.Write(id, $"Action: Install {request.Game} \"{request.Name}\"");
+            if (!string.IsNullOrWhiteSpace(request.FilesFolder))
+            {
+                // The game files go to a folder of their own in the chosen place; serverfiles links to it.
+                string target = ServerLocation.FolderFor(request.FilesFolder, id, request.Name);
+                try { ServerLocation.Link(id, target); }
+                catch (Exception ex) { return Fail(id, request, $"Couldn't use {target}: {ex.Message}", null); }
+                _log.Write(id, $"Game files: {target}");
+            }
 
             dynamic? game = _plugins.Create(request.Game, config);
             if (game == null) { return Fail(id, request, "The game's plugin couldn't be loaded.", null); }
@@ -140,6 +152,7 @@ namespace WindowsGSM.Engine.Services
                 config.SteamBranchPassword = request.SteamBranchPassword?.Trim() ?? string.Empty;
                 config.SteamBranchLastInstalled = branch;
                 config.CreateWindowsGSMConfig();
+                if (ServerLocation.IsElsewhere(id)) { ServerConfig.SetSetting(id, ServerLocation.SettingKey, ServerLocation.RealPath(id)); } // now the config exists
 
                 try
                 {
@@ -453,6 +466,7 @@ namespace WindowsGSM.Engine.Services
                     _log.Write(id, "Action: Delete");
                     try { new WindowsFirewall(null, ServerPath.GetServers(id)).RemoveRuleEx(); } catch { /* best effort */ }
                     GameFirewall.RemoveFor(id, ServerPath.GetServers(id));
+                    if (ServerLocation.IsElsewhere(id)) { GameFirewall.RemoveFor(id, ServerLocation.RealPath(id)); }
                     await LifecycleService.EndLeftoverProcessesAsync(id).ConfigureAwait(false);
                     await Task.Delay(500).ConfigureAwait(false);
 
@@ -460,6 +474,9 @@ namespace WindowsGSM.Engine.Services
                     string? error = null;
                     await Task.Run(() =>
                     {
+                        // NEXT: game files on another drive go too (deleting the folder alone only removes the link to them).
+                        try { ServerLocation.DeleteElsewhereFiles(id); }
+                        catch (Exception ex) { error = ex.Message; return; }
                         try { if (Directory.Exists(dir)) { Directory.Delete(dir, recursive: true); } }
                         catch (Exception ex) { error = ex.Message; }
                     }).ConfigureAwait(false);
@@ -477,6 +494,110 @@ namespace WindowsGSM.Engine.Services
                     return null;
                 }
             }));
+        }
+
+        // ─────────────────────────────── Move the game files ───────────────────────────────
+
+        /// <summary>
+        /// NEXT: moves a stopped server's game files into <paramref name="baseFolder"/> (it gets a folder of its own
+        /// there), or back to the usual place with null. Copies first and checks every file arrived; only then
+        /// switches over and removes the old copy — so an interrupted move leaves the server as it was.
+        /// </summary>
+        public OperationRequest MoveFiles(string id, string? baseFolder)
+        {
+            var s = _servers.Get(id);
+            if (s == null) { return OperationRequest.Rejected($"Server {id} doesn't exist."); }
+            if (s.State != ServerState.Stopped) { return OperationRequest.Rejected($"Stop {s.Name} before moving its files."); }
+            if (ServerLocation.Problem(id) is string missing) { return OperationRequest.Rejected(missing); }
+            bool toUsual = string.IsNullOrWhiteSpace(baseFolder);
+            if (toUsual && !ServerLocation.IsElsewhere(id)) { return OperationRequest.Rejected("Its files are already in the usual place."); }
+            if (!toUsual && ServerLocation.Validate(baseFolder!, id) is string problem) { return OperationRequest.Rejected(problem); }
+
+            string from = ServerLocation.RealPath(id);
+            string target = toUsual ? ServerLocation.LinkPath(id) + ".wgsm-incoming" : ServerLocation.FolderFor(baseFolder!, id, s.Name);
+            if (!toUsual && ServerLocation.Within(target, from)) { return OperationRequest.Rejected("That's where its files already are."); }
+            if (!TryFreeSpace(target, Size(from), out string? space)) { return OperationRequest.Rejected(space!); }
+            if (!_gate.TryBegin(id, OperationKind.Restore, "Move files", out var lease, out var blockedBy)) { return OperationRequest.Rejected($"{s.Name} is busy: {blockedBy}."); }
+
+            return OperationRequest.Running(_jobs.Start("move-files", id, toUsual ? $"Move {s.Name}'s files back" : $"Move {s.Name}'s files", async ctx =>
+            {
+                using (lease)
+                {
+                    s.SetState(ServerState.Moving);
+                    _log.Write(id, $"Action: Move game files {from} → {(toUsual ? ServerLocation.LinkPath(id) : target)}");
+                    try
+                    {
+                        await Task.Run(() => CopyTree(from, target, ctx), ctx.Cancellation).ConfigureAwait(false);
+                        ctx.Report(98, "Checking the copy");
+                        var (fromCount, fromBytes) = Count(from);
+                        var (toCount, toBytes) = Count(target);
+                        if (fromCount != toCount || fromBytes != toBytes)
+                        {
+                            throw new IOException($"The copy doesn't match ({toCount} of {fromCount} files, {toBytes:N0} of {fromBytes:N0} bytes) — nothing was switched.");
+                        }
+
+                        ctx.Report(99, "Switching over");
+                        string link = ServerLocation.LinkPath(id);
+                        if (toUsual)
+                        {
+                            ServerLocation.Unlink(id);
+                            Directory.Move(target, link);
+                        }
+                        else if (ServerLocation.IsElsewhere(id)) { ServerLocation.Link(id, target); }
+                        else
+                        {
+                            string aside = link + ".wgsm-moving";
+                            Directory.Move(link, aside); // the original stays until the link is in place
+                            try { ServerLocation.Link(id, target); }
+                            catch { Directory.Move(aside, link); throw; }
+                            from = aside;
+                        }
+                        s.ReloadConfig();
+
+                        ctx.Report(100, "Removing the old copy");
+                        try { Directory.Delete(from, recursive: true); }
+                        catch (Exception ex) { _log.Write(id, $"[NOTICE] The old copy in {from} couldn't be removed ({ex.Message}) — delete it by hand."); }
+                        _log.Write(id, $"Server: Game files moved to {ServerLocation.RealPath(id)}");
+                        return null;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Nothing switched: the copy goes, the server keeps using its files where they were.
+                        if (!ServerLocation.Within(ServerLocation.RealPath(id), target)) { try { if (Directory.Exists(target)) { Directory.Delete(target, recursive: true); } } catch { } }
+                        _log.Write(id, "[ERROR] Moving the game files failed: " + ex.Message);
+                        if (ex is OperationCanceledException) { throw; }
+                        return ex.Message;
+                    }
+                    finally { s.SetState(ServerState.Stopped); }
+                }
+            }));
+        }
+
+        private static long Size(string dir) => Count(dir).Bytes;
+
+        private static (int Files, long Bytes) Count(string dir)
+        {
+            if (!Directory.Exists(dir)) { return (0, 0); }
+            int n = 0; long bytes = 0;
+            foreach (var f in new DirectoryInfo(dir).EnumerateFiles("*", SearchOption.AllDirectories)) { n++; bytes += f.Length; }
+            return (n, bytes);
+        }
+
+        private static bool TryFreeSpace(string target, long needed, out string? problem)
+        {
+            problem = null;
+            try
+            {
+                var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(target))!);
+                long margin = 1L << 30; // keep 1 GB spare
+                if (drive.IsReady && drive.AvailableFreeSpace < needed + margin)
+                {
+                    problem = $"Not enough space on {drive.Name.TrimEnd('\\')}: the files take {needed / 1073741824.0:0.#} GB and {drive.AvailableFreeSpace / 1073741824.0:0.#} GB is free.";
+                    return false;
+                }
+            }
+            catch { /* unknown: let the copy find out */ }
+            return true;
         }
 
         // ─────────────────────────────── Helpers ───────────────────────────────
@@ -530,7 +651,11 @@ namespace WindowsGSM.Engine.Services
             try
             {
                 string dir = Path.Combine(WgsmEnvironment.DataRoot, "servers", id);
-                if (Directory.Exists(dir) && !File.Exists(Path.Combine(dir, "configs", "WindowsGSM.cfg"))) { Directory.Delete(dir, recursive: true); }
+                if (Directory.Exists(dir) && !File.Exists(Path.Combine(dir, "configs", "WindowsGSM.cfg")))
+                {
+                    try { ServerLocation.DeleteElsewhereFiles(id); } catch { /* best effort */ }
+                    Directory.Delete(dir, recursive: true);
+                }
             }
             catch { /* in use — a later install skips the folder */ }
         }

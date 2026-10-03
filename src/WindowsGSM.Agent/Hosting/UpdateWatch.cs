@@ -55,7 +55,7 @@ public sealed class UpdateWatch : IDisposable
             foreach (var s in _ctx.Engine.Servers.All.ToList())
             {
                 if (token.IsCancellationRequested) { return; }
-                if (s.State is ServerState.Updating or ServerState.Installing or ServerState.Deleting) { continue; }
+                if (s.State is ServerState.Updating or ServerState.Installing or ServerState.Deleting or ServerState.Moving) { continue; }
                 await CheckNowAsync(s.Id);
             }
             try { await Task.Delay(Every, token); } catch (OperationCanceledException) { return; }

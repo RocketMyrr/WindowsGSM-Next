@@ -108,7 +108,7 @@ export default async function settingsTab(host, { id, machine, key, server, scop
             onOff("updateaddonsonstart", "Update add-ons before starting", null, "Updates the add-ons in the Add-ons tab (e.g. Oxide) before each start, so they keep up with game updates.")));
 
     const alerts = section("Discord alerts", "This server only. For alerts about every server and machine in one place, use Notifications in the sidebar.",
-        onOff("discordalert", "Send alerts to Discord", null, "This server's own Discord webhook, for the events ticked below. For alerts about every server in one place, use Notifications → channels instead."),
+        h("div", { class: "toggles" }, onOff("discordalert", "Send alerts to Discord", null, "This server's own Discord webhook, for the events ticked below. For alerts about every server in one place, use Notifications → channels instead.")),
         h("div", { class: "form-grid" },
             secret("discordwebhook", "Webhook URL", { span: true, mono: true, hint: "Discord → Server settings → Integrations → Webhooks.", help: "In Discord: Server settings → Integrations → Webhooks → New webhook, pick the channel, Copy webhook URL, and paste it here. Anyone with the URL can post to that channel, so it's kept secret." }),
             text("discordmessage", "Mention", { placeholder: "@here or <@&role id>", help: "Who gets pinged with each alert: @here, @everyone, or a role as <@&role id> (in Discord, turn on Developer Mode, then right-click the role → Copy role ID)." })),
@@ -116,10 +116,21 @@ export default async function settingsTab(host, { id, machine, key, server, scop
             onOff("crashalert", "Crashes"), onOff("autorestartalert", "Automatic restarts"), onOff("autostartalert", "Auto-starts"),
             onOff("autoupdatealert", "Automatic updates"), onOff("restartcrontabalert", "Scheduled restarts"), onOff("autoipupdatealert", "IP changes")));
 
+    // A captured console has no window of its own, so "Show the window" only means something with capture off.
+    const captureToggle = onOff("embedconsole", "Capture the console here", "Shows the game's output in the Console tab.", ["On: the game's output appears in the Console tab and you type commands there, from anywhere. There's no separate window.", "Off: the game runs in its own window on this PC's screen (Console tab → Show window). Some games only work properly this way — if a game misbehaves with it on, turn it off.", "Takes effect the next time the server starts."]);
+    const windowToggle = onOff("showconsole", "Show the console window on this machine", "", ["For servers that aren't captured: whether their own window is visible on this PC's screen. Saving applies it straight away to a running server, and to every start after.", "You can also show or hide it any time from the Console tab (Show window)."]);
+    const windowHint = windowToggle.querySelector(".switch-text small") || windowToggle.querySelector(".switch-text").appendChild(h("small"));
+    const paintWindowToggle = () => {
+        const captured = captureToggle.input.checked;
+        windowToggle.input.disabled = captured;
+        windowHint.textContent = captured ? "Only for servers that aren't captured — turn off \"Capture the console here\" (then restart the server) to give it a window." : "Applies as soon as you save — no restart needed.";
+    };
+    captureToggle.input.addEventListener("change", paintWindowToggle);
+    paintWindowToggle();
+
     const consoleSec = section("Console & RCON", "Captured: the game's output shows in the Console tab and commands go in there. Not captured: the game runs in its own window on this PC (Console tab → Show window).",
         h("div", { class: "toggles" },
-            onOff("embedconsole", "Capture the console here", "Shows the game's output in the Console tab.", ["On: the game's output appears in the Console tab and you type commands there, from anywhere.", "Off: the game runs in its own window on this PC's screen (Console tab → Show window). Some games only work properly this way — if a game misbehaves with it on, turn it off. Takes effect on the next start."]),
-            onOff("showconsole", "Show the console window on this machine", null, "For servers that aren't captured: whether their window is visible on this PC's screen when they start. You can still show or hide it any time from the Console tab."),
+            captureToggle, windowToggle,
             // On unless turned off ("0"): absent means on.
             toggle("Measure game performance over RCON", values.perfsample !== "0", { hint: "Server FPS / TPS every 5 minutes, for the Overview. The game logs each RCON visit — turn off if that clutters its console.", onChange: on => set("perfsample", on ? "1" : "0") })),
         h("div", { class: "form-grid" },
@@ -141,8 +152,8 @@ export default async function settingsTab(host, { id, machine, key, server, scop
     paintCores();
     const performance = section("Performance", null,
         h("div", { class: "form-grid" }, choice("cpupriority", "Process priority", PRIORITIES, "Higher can smooth out lag on a busy machine.", "How Windows shares the CPU when it's busy. Above normal or High gives this server first pick — good for your main server on a shared PC. Realtime can freeze the machine; avoid it.")),
-        h("div", { class: "field" }, h("span", { class: "label", text: "CPU cores it may use" }), affinity, h("div", { class: "hint", text: "Pin busy servers to different cores. All on = no restriction." })),
-        onOff("memoryguard", "Restart if memory stays too high", "Stops runaway memory use from taking the machine down.", "Some servers slowly use more and more memory (a leak) until the whole PC struggles. With this on, the server is restarted cleanly — world saved first — once it stays above the limit below for the time below."),
+        h("div", { class: "field span-all" }, h("span", { class: "label", text: "CPU cores it may use" }), affinity, h("div", { class: "hint", text: "Pin busy servers to different cores. All on = no restriction." })),
+        h("div", { class: "toggles" }, onOff("memoryguard", "Restart if memory stays too high", "Stops runaway memory use from taking the machine down.", "Some servers slowly use more and more memory (a leak) until the whole PC struggles. With this on, the server is restarted cleanly — world saved first — once it stays above the limit below for the time below.")),
         h("div", { class: "form-grid" },
             text("memoryguardthresholdmb", "Memory limit (MB)", { type: "number", help: "Look at the server's usual memory on its Overview chart and set this comfortably above it — e.g. 12000 for a server that normally uses 8 GB." }),
             text("memoryguardsustainminutes", "For at least (minutes)", { type: "number", help: "Short spikes (a big save, many players joining) are normal; this waits until memory has stayed high this long before restarting." })));
@@ -157,7 +168,7 @@ export default async function settingsTab(host, { id, machine, key, server, scop
             text("stoptimeout", "Wait for a clean shutdown (seconds)", { type: "number", placeholder: "30", hint: "Then the process is ended. Big worlds save on shutdown — give them time." })));
 
     const advanced = section("Advanced", null,
-        onOff("steamcmd_override", "Use SteamCMD instead of DepotDownloader", "Only if this game won't update with DepotDownloader.", "DepotDownloader is faster and supports roll back. A few games install extra things only SteamCMD does — if updates fail or the server misses files, try this. Roll back isn't available with SteamCMD."));
+        h("div", { class: "toggles" }, onOff("steamcmd_override", "Use SteamCMD instead of DepotDownloader", "Only if this game won't update with DepotDownloader.", "DepotDownloader is faster and supports roll back. A few games install extra things only SteamCMD does — if updates fail or the server misses files, try this. Roll back isn't available with SteamCMD.")));
 
     // Every save keeps the settings it replaced: compare, or put an earlier set back.
     const tools = h("div", { class: "row settings-tools" }, h("span", { class: "spacer" }),

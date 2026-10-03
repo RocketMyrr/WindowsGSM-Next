@@ -369,3 +369,18 @@ a.sched-line:hover { color: var(--text); background: var(--hover); }
 .switch-help-row > .switch { flex: 1; min-width: 0; }
 .switch-help-row > .help-btn { margin-top: 2px; }
 .page-body:focus { outline: none; }
+
+/* Where game files go: drive cards */
+.place-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.place-card { display: flex; align-items: center; gap: 10px; padding: 10px 12px; text-align: left; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--raised); color: var(--text); cursor: pointer; font: inherit; }
+.place-card:hover { background: var(--hover); }
+.place-card.active { border-color: var(--accent-line); background: var(--accent-soft); }
+.place-card b { display: block; }
+.place-card small { display: block; color: var(--text-3); font-size: var(--fs-xs); }
+.place-card > .ico { flex: none; color: var(--text-2); }
+.place-box { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 14px; }
+.place-box > summary { cursor: pointer; display: flex; align-items: center; gap: 8px; list-style: none; font-weight: 600; }
+.place-box[open] > summary { margin-bottom: 12px; }
+.files-at { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.files-at .mono { overflow-wrap: anywhere; }
+.explorer-slot:empty { display: none; }

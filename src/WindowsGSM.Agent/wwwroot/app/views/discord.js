@@ -31,6 +31,10 @@ export default async function discordBot(host, { scope }) {
     append(host, [
         h("div", { class: "page-head" },
             h("div", {}, h("h1", { text: "Discord bot" }), h("p", { text: "Control your servers from Discord with /panel, check them with /list and /stats." }))),
+        // A member machine: the hub's bot covers it — one bot per token, on the hub.
+        cfg.memberOf ? h("div", { class: "callout info" }, icon("machine"), h("span", {},
+            h("b", { text: `This machine reports to ${cfg.memberOf}. ` }),
+            "Set up the Discord bot on that hub instead: its bot controls this machine's servers too (with the same people and permissions), and a second bot on the same token would race it to answer.")) : null,
         cfg.importedFromLegacy ? h("div", { class: "callout info" }, icon("info"), h("span", {},
             h("b", { text: "Your old bot's setup was brought over " }), `(token and ${cfg.admins.length} admin${cfg.admins.length === 1 ? "" : "s"}). It's switched off so it doesn't answer twice while the old WindowsGSM's bot is still running — turn that one off first, then switch this on.`)) : null,
         h("div", { class: "discord-layout" },
@@ -59,12 +63,13 @@ export default async function discordBot(host, { scope }) {
             : s.state === "Connecting" ? "Connecting to Discord…"
                 : s.state === "Error" ? (s.error || "Couldn't connect.")
                     : "Off.";
-        clear(statusBox).append(h("div", { class: ["callout", tone] }, icon(s.state === "Online" ? "checkCircle" : s.state === "Error" ? "warn" : "info"),
+        clear(statusBox).append(s.warning ? h("div", { class: "callout warn" }, icon("warn"), h("span", { text: s.warning })) : "", h("div", { class: ["callout", tone] }, icon(s.state === "Online" ? "checkCircle" : s.state === "Error" ? "warn" : "info"),
             h("div", { class: "grow" }, h("span", { text }),
                 s.state === "Online" && s.guilds.length === 0 ? h("div", { class: "small", text: "It isn't in any Discord server yet — invite it with the button." }) : null),
             s.inviteUrl ? h("a", { class: "btn sm", href: s.inviteUrl, target: "_blank", rel: "noopener" }, icon("link"), "Invite to a server") : null));
     }
     paintStatus(cfg.status);
+    if (cfg.memberOf && !cfg.enabled) { enabled.input.disabled = true; }
 
     function paintAdmins() {
         clear(adminList);
@@ -175,6 +180,6 @@ export default async function discordBot(host, { scope }) {
                     step(2, "Add the people", "Add each person's Discord user ID and pick what they can control."),
                     step(3, "Switch it on and save", "Then use Invite to a server to add it to your Discord."),
                     step(4, "Use it", "Type /panel for a private control panel, /list for the servers, /stats for CPU, memory, disk and players.")),
-                h("p", { class: "tiny faint", text: "It runs inside WindowsGSM on this machine and covers every machine this panel controls. Only one copy should use a token — if the old WindowsGSM's bot is on, turn it off first." })));
+                h("p", { class: "tiny faint", text: "It runs inside WindowsGSM on this machine and covers every machine this panel controls — with several machines, run it on the hub (machines that report to a hub don't run their own). Only one copy should use a token — if the old WindowsGSM's bot is on, turn it off first." })));
     }
 }

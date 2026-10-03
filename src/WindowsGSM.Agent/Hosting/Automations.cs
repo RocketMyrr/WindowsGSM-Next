@@ -103,6 +103,7 @@ public sealed class Automations : IDisposable
     {
         var roots = new[] { global::WindowsGSM.Hosting.WgsmEnvironment.DataRoot }
             .Concat(_ctx.Engine.Servers.All.Select(s => WindowsGSM.Functions.ServerPath.GetServers(s.Id)))
+            .Concat(_ctx.Engine.Servers.All.Select(s => WindowsGSM.Functions.ServerLocation.RealPath(s.Id))) // game files on another drive
             .Select(p => { try { return Path.GetPathRoot(Path.GetFullPath(p)); } catch { return null; } })
             .Where(p => !string.IsNullOrEmpty(p)).Distinct(StringComparer.OrdinalIgnoreCase);
         foreach (string root in roots!)

@@ -118,7 +118,9 @@ public static class MachineEndpoints
             {
                 return ApiResults.BadRequest("That template isn't for this game (or was deleted).");
             }
-            var request = ctx.Engine.Provisioning.Install(new EngineInstall(body.Game, body.Name.Trim(), body.SteamBranch, body.SteamBranchPassword, body.Consents));
+            // Game files in another folder (another drive): admins only — it writes wherever they point.
+            if (!string.IsNullOrWhiteSpace(body.FilesFolder) && !user.IsAdmin) { return ApiResults.Forbidden("Only admins can put a server's files outside the WindowsGSM folder."); }
+            var request = ctx.Engine.Provisioning.Install(new EngineInstall(body.Game, body.Name.Trim(), body.SteamBranch, body.SteamBranchPassword, body.Consents, string.IsNullOrWhiteSpace(body.FilesFolder) ? null : body.FilesFolder.Trim()));
             if (request.Accepted && request.Job != null && template != null) { templates.ApplyAfter(request.Job, template); }
             ctx.Record(http, "install", null, request.Accepted, request.Accepted ? $"{body.Game} / {body.Name}" : request.Error);
             return ApiResults.FromRequest(request, ctx);

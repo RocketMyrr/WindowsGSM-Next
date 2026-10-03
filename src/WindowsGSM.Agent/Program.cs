@@ -67,6 +67,10 @@ void Say(string message) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {messa
 // notification centre on the next start. Game servers keep running either way.
 CrashLog.Install(dataRoot, "agent");
 
+// Game servers whose console isn't captured get a console window of their own that "Show the console window"
+// can show and hide (an agent run from a terminal keeps sharing that terminal instead).
+WindowsGSM.Functions.ConsoleHost.Enable();
+
 WgsmEngine engine;
 try { engine = await WgsmEngine.StartAsync(dataRoot); }
 catch (DataRootInUseException ex) { Say(ex.Message); return 2; }

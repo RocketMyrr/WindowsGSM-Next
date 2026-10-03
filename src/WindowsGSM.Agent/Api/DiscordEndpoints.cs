@@ -39,6 +39,10 @@ public static class DiscordEndpoints
             string token = body.Token == null ? bot.Settings.Token : body.Token.Trim();
             if (body.Enabled && string.IsNullOrWhiteSpace(token)) { return ApiResults.BadRequest("Paste the bot's token first."); }
             if (body.BotName is { Length: > 32 }) { return ApiResults.BadRequest("Discord names are 32 characters at most."); }
+            if (body.Enabled && bot.MemberOf is { } hub)
+            {
+                return ApiResults.BadRequest($"This machine reports to {hub}. Turn the bot on there instead — it covers this machine and every other one, and a second copy on the same token would race it to answer.");
+            }
 
             await bot.ApplyAsync(new DiscordBotSettings
             {
@@ -65,7 +69,8 @@ public static class DiscordEndpoints
             postActions = s.PostActions,
             admins = s.Admins.Select(a => new { discordId = a.DiscordId, name = a.Name, servers = a.Servers }),
             importedFromLegacy = s.ImportedFromLegacy,
-            status = new { state = bot.State.ToString(), error = bot.LastError, botUser = bot.BotUser, guilds = bot.Guilds, inviteUrl = bot.InviteUrl },
+            memberOf = bot.MemberOf,
+            status = new { state = bot.State.ToString(), error = bot.LastError, warning = bot.Warning, botUser = bot.BotUser, guilds = bot.Guilds, inviteUrl = bot.InviteUrl },
         };
     }
 }

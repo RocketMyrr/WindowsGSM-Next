@@ -87,20 +87,22 @@ public static class HubEndpoints
             });
         });
 
-        api.MapPost("/link", async (HttpContext http, AgentContext ctx, MemberLink member, MachineRegistry registry, JoinRequest body) =>
+        api.MapPost("/link", async (HttpContext http, AgentContext ctx, MemberLink member, MachineRegistry registry, WindowsGSM.Agent.Discord.DiscordBotService bot, JoinRequest body) =>
         {
             if (ctx.CurrentUser(http) is not { IsOwner: true }) { return ApiResults.Forbidden("Only owners can join a hub."); }
             if (registry.Any) { return ApiResults.Conflict("Other machines report to this one, so it's a hub — it can't also join another hub. Remove its machines first."); }
             string? problem = await member.JoinAsync(body.HubUrl, body.Code);
+            if (problem == null) { await bot.StandDownAsync(); } // the hub's bot covers this machine now
             ctx.Record(http, "hub-join", null, problem == null, problem ?? body.HubUrl);
             return problem == null ? Results.NoContent() : ApiResults.BadRequest(problem);
         });
 
-        api.MapDelete("/link", async (HttpContext http, AgentContext ctx, MemberLink member) =>
+        api.MapDelete("/link", async (HttpContext http, AgentContext ctx, MemberLink member, WindowsGSM.Agent.Discord.DiscordBotService bot) =>
         {
             if (ctx.CurrentUser(http) is not { IsOwner: true }) { return ApiResults.Forbidden("Only owners can leave a hub."); }
             string? hub = ctx.Settings.HubName;
             await member.LeaveAsync();
+            await bot.StartAsync(); // on its own again: its bot (if it was set up) comes back
             ctx.Record(http, "hub-leave", null, true, hub);
             return Results.NoContent();
         });

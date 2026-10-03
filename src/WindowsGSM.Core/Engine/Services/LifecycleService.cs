@@ -58,6 +58,16 @@ namespace WindowsGSM.Engine.Services
             _log = log;
             _events = events;
             CrashLoop = crashLoop ?? new CrashLoopOptions();
+            // NEXT: "Show the console window" takes effect straight away on a running server, not at its next start.
+            _events.Subscribe<ServerConfigChanged>(c =>
+            {
+                if (!c.Keys.Any(k => string.Equals(k, ServerConfig.SettingName.ShowConsole, StringComparison.OrdinalIgnoreCase))) { return; }
+                var s = _servers.Get(c.ServerId);
+                if (s?.Process != null && s.State == ServerState.Running && s.ConsoleWindow != IntPtr.Zero)
+                {
+                    SetConsoleWindowVisible(s.Id, s.Config.ShowConsole);
+                }
+            });
         }
 
         public CrashLoopOptions CrashLoop { get; }
@@ -157,7 +167,13 @@ namespace WindowsGSM.Engine.Services
                 // processes obtained by PID), so after a WindowsGSM restart crash detection and auto-restart
                 // silently stopped working for every server that was already running.
                 if (!Watch(s, p)) { continue; }
-                s.ConsoleWindow = ServerCache.GetWindowsIntPtr(s.Id);
+                // Its console window: asked of the console itself when we can (a cached handle can be stale, and
+                // after a reboot could even name some other window).
+                IntPtr window = ConsoleHost.Active ? ConsoleHost.WindowOf(pid) : ServerCache.GetWindowsIntPtr(s.Id);
+                s.ConsoleWindow = ConsoleHost.IsConsoleWindow(window) ? window : IntPtr.Zero;
+                s.ConsoleWindowVisible = ConsoleWindows.IsVisible(s.ConsoleWindow);
+                ConsoleWindows.Adopt(p, s.ConsoleWindow);
+                ConsoleWindows.Register(s.ConsoleWindow, p);
                 try { s.StartedAt = p.StartTime; } catch { s.StartedAt = DateTimeOffset.Now; }
                 s.Reattached = true;
                 s.SetState(ServerState.Running);
@@ -260,7 +276,12 @@ namespace WindowsGSM.Engine.Services
             var s = _servers.Get(id);
             if (s == null) { return "No such server."; }
             if (s.Process == null || s.State != ServerState.Running) { return $"{s.Name} isn't running."; }
-            if (s.ConsoleWindow == IntPtr.Zero) { return s.Config.EmbedConsole ? "This server's console is captured into the panel, so it has no window." : "This server has no console window."; }
+            if (!ConsoleWindows.Exists(s.ConsoleWindow))
+            {
+                return s.Config.EmbedConsole
+                    ? "This server's console is captured into the panel, so it has no window. Turn off \"Capture the console here\" and restart the server to get one."
+                    : "This server has no console window it can show. Restart the server to give it one.";
+            }
             ConsoleWindows.SetVisible(s.ConsoleWindow, visible);
             s.ConsoleWindowVisible = visible;
             _log.Write(id, visible ? "Console window shown" : "Console window hidden");
@@ -290,6 +311,8 @@ namespace WindowsGSM.Engine.Services
         /// <summary>Launches the game process. Returns an error message, or null once it's up.</summary>
         private async Task<string?> BeginStartAsync(ServerInstance s, JobContext job)
         {
+            // NEXT: game files on a drive that isn't connected: say so, rather than let the game fail oddly.
+            if (ServerLocation.Problem(s.Id) is string missing) { return missing; }
             dynamic? game = _plugins.Create(s.Game, s.Config);
             if (game == null) { return $"Unknown game \"{s.Game}\" — is its plugin installed and loading?"; }
 
@@ -322,9 +345,19 @@ namespace WindowsGSM.Engine.Services
             // exactly what you need to see after a server stops unexpectedly. Clients resync via the
             // console generation, so they know a new run began.
             s.Console.Clear();
+            // Last run's window is gone; the new one (if any) is set once it's found, below.
+            s.ConsoleWindow = IntPtr.Zero;
+            s.ConsoleWindowVisible = false;
 
+            // NEXT: a game whose console isn't captured gets a console window of its own (ConsoleHost) — before, it
+            // shared the agent's invisible one, so "Show the console window" had nothing to show.
             Process? p;
-            try { p = await game.Start(); }
+            IntPtr ownWindow = IntPtr.Zero;
+            try
+            {
+                if (s.Config.EmbedConsole) { p = await game.Start(); }
+                else { (p, ownWindow) = await ConsoleHost.StartInOwnConsoleAsync<Process?>(async () => (Process?)await game.Start()).ConfigureAwait(false); }
+            }
             catch (Exception ex) { return "The game plugin failed to start the server: " + ex.Message; }
             if (p == null)
             {
@@ -343,14 +376,20 @@ namespace WindowsGSM.Engine.Services
             bool showConsole = s.Config.ShowConsole;
             _ = Task.Run(() =>
             {
-                IntPtr hWnd = ConsoleWindows.Settle(p, showConsole);
-                if (hWnd != IntPtr.Zero)
+                IntPtr hWnd = ConsoleHost.Confirm(ownWindow, p);
+                if (hWnd != IntPtr.Zero) { ConsoleWindows.Prime(hWnd, showConsole); }
+                else { hWnd = ConsoleWindows.Settle(p, showConsole); }
+                if (hWnd != IntPtr.Zero && s.Process == p)
                 {
-                    s.ConsoleWindow = hWnd;
-                    s.ConsoleWindowVisible = showConsole;
+                    ConsoleWindows.Adopt(p, hWnd);
+                    ConsoleWindows.Register(hWnd, p);
                     ConsoleWindows.SetTitle(hWnd, s.Name);
-                    try { ServerCache.SaveWindowsIntPtr(s.Id, hWnd); } catch { /* cache is best effort */ }
+                    s.ConsoleWindow = hWnd;
+                    // The setting may have changed while the window was being set up: the latest one wins.
+                    s.ConsoleWindowVisible = s.Config.ShowConsole;
+                    if (s.ConsoleWindowVisible != showConsole) { ConsoleWindows.SetVisible(hWnd, s.ConsoleWindowVisible); }
                 }
+                try { ServerCache.SaveWindowsIntPtr(s.Id, hWnd); } catch { /* cache is best effort */ }
             });
 
             if (p.HasExited)
@@ -393,8 +432,12 @@ namespace WindowsGSM.Engine.Services
             }
             s.ClearProcessIf(p); // this exit is expected, not a crash
 
+            // Plugins type their stop command into p.MainWindowHandle; make sure it's the game's window.
+            if (ConsoleWindows.Exists(s.ConsoleWindow)) { ConsoleWindows.Adopt(p, s.ConsoleWindow); }
+
             dynamic? game = _plugins.Create(s.Game, s.Config);
             int timeout = WorldSave.StopTimeout(s);
+            bool sentCtrlC = false;
             try
             {
                 if (game == null) { throw new InvalidOperationException("no plugin"); }
@@ -404,9 +447,23 @@ namespace WindowsGSM.Engine.Services
             {
                 // No usable Stop() — try a console Ctrl+C, then kill.
                 // NEXT: and wait for it like a plugin stop; checking straight away killed the game mid-shutdown.
+                sentCtrlC = true;
                 try { ProcessManagement.StopProcess(p); } catch { /* fall through to kill */ }
             }
             for (int i = 0; i < timeout && !p.HasExited; i++) { await Task.Delay(1000).ConfigureAwait(false); }
+
+            // NEXT: the plugin's own way didn't work (e.g. it types "quit" into a window the game doesn't have): most
+            // console games also shut down cleanly on Ctrl+C — one more chance to save before the kill.
+            if (!sentCtrlC && !p.HasExited)
+            {
+                bool sent = false;
+                try { sent = ProcessManagement.SendCtrlC(p.Id); } catch { /* no console to reach */ }
+                if (sent)
+                {
+                    _log.Write(s.Id, "[NOTICE] The game didn't stop in time; sent it Ctrl+C");
+                    for (int i = 0; i < 10 && !p.HasExited; i++) { await Task.Delay(1000).ConfigureAwait(false); }
+                }
+            }
 
             ClearPidCache(s.Id);
             s.StartedAt = null;
@@ -537,12 +594,13 @@ namespace WindowsGSM.Engine.Services
         internal static Task EndLeftoverProcessesAsync(string id) => Task.Run(() =>
         {
             string prefix = Path.Combine(WgsmEnvironment.DataRoot, "servers", id) + Path.DirectorySeparatorChar;
+            string elsewhere = ServerLocation.ProcessFolder(id); // game files on another drive run from there
             foreach (var p in Process.GetProcesses())
             {
                 try
                 {
                     string? file = p.MainModule?.FileName;
-                    if (file != null && file.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) { p.Kill(entireProcessTree: true); }
+                    if (file != null && (file.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || file.StartsWith(elsewhere, StringComparison.OrdinalIgnoreCase))) { p.Kill(entireProcessTree: true); }
                 }
                 catch { /* no access / already gone */ }
                 finally { p.Dispose(); }

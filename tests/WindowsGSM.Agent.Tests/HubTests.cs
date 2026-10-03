@@ -122,6 +122,69 @@ public class HubTests
     }
 
     [Fact]
+    public async Task The_hubs_Discord_bot_controls_the_other_machine_with_each_admins_permissions()
+    {
+        var (link, _) = await PairAndConnect();
+        try
+        {
+            var bot = new WindowsGSM.Agent.Discord.DiscordBotService(_f.Context,
+                new WindowsGSM.Agent.Hosting.LocalApi(_f.Context, () => new HttpClient(_f.Server.CreateHandler()) { BaseAddress = _f.Server.BaseAddress }), _ => { });
+
+            // Someone allowed everything sees both machines…
+            var all = WindowsGSM.Agent.Discord.DiscordBotSettings.ActingUser(new WindowsGSM.Agent.Discord.DiscordAdmin { DiscordId = "1", Name = "Ann", Servers = new() { "*" } });
+            var fleet = await bot.FleetAsync(all);
+            Assert.True(fleet.MultiMachine);
+            Assert.Contains(fleet.Servers, s => s.Machine == _f.MachineId);
+            Assert.True(fleet.Servers.Any(s => s.Machine == Remote), $"machines: {string.Join(",", fleet.Machines.Select(m => m.Id + ":" + m.Online))} not answering: {string.Join(",", fleet.NotAnswering)} servers: {string.Join(",", fleet.Servers.Select(s => s.Machine + "/" + s.Id))}");
+
+            // …someone given one server on the other machine sees just that, and can act on it there.
+            var bob = WindowsGSM.Agent.Discord.DiscordBotSettings.ActingUser(new WindowsGSM.Agent.Discord.DiscordAdmin { DiscordId = "2", Name = "Bob", Servers = new() { $"{Remote}/102" } });
+            var his = await bot.FleetAsync(bob);
+            var only = Assert.Single(his.Servers);
+            Assert.Equal((Remote, "102"), (only.Machine, only.Id));
+            Assert.NotNull(await bot.ActAsync(bob, only with { Id = "103" }, "start")); // not his
+            string? error = only.State == "Stopped" ? await bot.ActAsync(bob, only, "start") : await bot.ActAsync(bob, only, "restart");
+            Assert.Null(error);
+            await EngineFixture.WaitUntil(() => _f.Owner.GetJsonAsync<List<AuditDto>>("/api/v2/audit").GetAwaiter().GetResult()
+                .Any(e => e.User.StartsWith("Bob (Discord)") && e.Server == "102"), "the member's audit log to name Bob (Discord)");
+            await EngineFixture.WaitUntil(() => _f.Context.Engine.Servers.Get("102")!.State is WindowsGSM.Engine.Servers.ServerState.Running or WindowsGSM.Engine.Servers.ServerState.Stopped, "102 to settle");
+            await _f.Owner.PostAsync(_f.ServerUrl("102", "/stop"));
+            await EngineFixture.WaitUntil(() => _f.Context.Engine.Servers.Get("102")!.State == WindowsGSM.Engine.Servers.ServerState.Stopped, "102 to stop");
+
+            // The other machine goes offline: its servers still show (last known), without buttons that can't work.
+            await link.StopAsync();
+            await EngineFixture.WaitUntil(() => MachineOnline(false), "the remote machine to go offline");
+            var offline = await bot.FleetAsync(all);
+            Assert.False(offline.IsOnline(Remote));
+            Assert.Contains(offline.Servers, s => s.Machine == Remote);
+            Assert.Contains("offline", WindowsGSM.Agent.Discord.DiscordEmbeds.ServerList(offline).Fields.First(f => f.Name.Contains("Remote Box")).Name);
+        }
+        finally
+        {
+            await link.StopAsync();
+            await _f.Owner.DeleteAsync($"/api/v2/hub/machines/{Remote}");
+        }
+    }
+
+    [Fact]
+    public async Task A_machine_that_reports_to_a_hub_leaves_the_bot_to_the_hub()
+    {
+        var settings = _f.Context.Settings;
+        string? url = settings.HubUrl, credential = settings.HubCredential, name = settings.HubName;
+        settings.HubUrl = "http://hub.test"; settings.HubCredential = "x"; settings.HubName = "Main hub";
+        try
+        {
+            var res = await _f.Owner.Http.PutAsJsonAsync("/api/v2/discord-bot", new { enabled = true, token = "abc.def.ghi", postActions = true, admins = Array.Empty<object>() });
+            Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+            Assert.Contains("Main hub", await res.Content.ReadAsStringAsync());
+            var status = await _f.Owner.GetJsonAsync<JsonElement>("/api/v2/discord-bot");
+            Assert.Equal("Main hub", status.GetProperty("memberOf").GetString());
+            Assert.False(status.GetProperty("enabled").GetBoolean());
+        }
+        finally { settings.HubUrl = url; settings.HubCredential = credential; settings.HubName = name; }
+    }
+
+    [Fact]
     public async Task Events_are_relayed_and_an_offline_machine_shows_its_last_state()
     {
         var grace = WindowsGSM.Agent.Notifications.NotificationCentre.OfflineGrace;

@@ -16,6 +16,9 @@ export default async function consoleTab(host, { id, machine, key, server, scope
     // Kept running through an agent restart (e.g. an update): its captured console can't be reconnected.
     const reattachedText = h("span");
     const reattached = h("div", { class: "console-banner", hidden: true }, icon("info"), reattachedText);
+    // Not captured: the game's output goes to its own window on the server PC, so this view stays quiet.
+    const windowedText = h("span");
+    const windowed = h("div", { class: "console-banner", hidden: true }, icon("monitor"), windowedText);
     const notRunning = h("div", { class: "console-banner", hidden: true }, icon("info"), h("span", { text: "The server isn't running — showing its last output. Commands need a running server." }));
     const cmd = h("input", { class: "input mono", placeholder: "Type a command and press Enter…", autocomplete: "off", spellcheck: "false", "aria-label": "Console command" });
     const sendBtn = h("button", { class: "btn primary", type: "submit" }, icon("send"), "Send");
@@ -32,6 +35,10 @@ export default async function consoleTab(host, { id, machine, key, server, scope
         try { w = await get(srv(machine, id, "/console-window")); } catch { windowBtn.hidden = true; return; }
         windowBtn.hidden = !w.hasWindow;
         reattached.hidden = !(w.reattached && w.captured);
+        windowed.hidden = !w.running || w.captured;
+        windowedText.textContent = w.hasWindow
+            ? "This server runs in its own console window on the server PC, so its output shows there rather than here. Commands you send from here are typed into that window — Show window puts it on the server's screen."
+            : "This server's output isn't captured here, and it has no console window WindowsGSM can show. Restarting the server gives it one — or turn on \"Capture the console here\" in Settings to see its output in this tab.";
         if (!reattached.hidden) {
             reattachedText.textContent = "This server kept running while WindowsGSM restarted (e.g. for an update), so its new output can't be shown here until the server's next restart. "
                 + (w.rcon ? "Commands go over RCON meanwhile." : "Set up RCON in Settings to send commands meanwhile.");
@@ -67,6 +74,7 @@ export default async function consoleTab(host, { id, machine, key, server, scope
             wrapBtn),
         notRunning,
         reattached,
+        windowed,
         h("div", { class: "console-wrap" }, out, jump),
         h("form", { class: "console-input", onsubmit: e => { e.preventDefault(); send(); } },
             h("span", { class: "prompt mono", text: "›" }), cmd, routeToggle, sendBtn)));

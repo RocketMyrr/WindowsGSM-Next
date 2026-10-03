@@ -145,6 +145,13 @@ The panel's own port (8971) gets its rule when you turn on *Reachable from other
   several ARK servers sharing `-clusterid` and a `-ClusterDirOverride` folder.
 - **Low disk space** (Automations): notifies when a drive WindowsGSM uses has less than the space you set.
 - **Help** (sidebar): short answers to common questions, searchable.
+- **Game files on another drive** (admins): when installing, *Where to put the game files* picks a drive and folder
+  (e.g. `E:\GameServers`; each server gets its own folder inside); later, a server's ⋯ menu → *Move files to
+  another drive…* copies, checks, switches over and removes the old copy (and moves them back). Under the hood
+  `servers\<id>\serverfiles` becomes a junction to that folder, so plugins, updates, backups and the file manager
+  work unchanged; settings, logs and the backup list stay in the WindowsGSM folder. Local drives only (not network
+  shares). A disconnected drive is named and the server won't start until it's back; deleting the server deletes
+  its files there too.
 - **Passkeys** (Your account): sign in with a fingerprint, face or phone. Browsers only allow them on the panel's
   HTTPS address (or localhost), and a passkey works on the address it was made on.
 - **Uptime** (a server's Overview → Details): the share of the last 24 hours, 7 days and 30 days it was running,
@@ -154,7 +161,10 @@ The panel's own port (8971) gets its rule when you turn on *Reachable from other
   console's text size and line wrapping (also on the Console tab: A−, A+, Wrap). The browser tab shows
   **(⚠ n)** when something needs you (auto-restart gave up, a machine offline) or **(n)** for unread notifications.
 - **Console windows**: servers whose output isn't captured into the panel run in their own console window on the
-  server's screen — **Show window / Hide window** on the Console tab.
+  server's screen — **Show window / Hide window** on the Console tab, or **Show the console window on this machine**
+  in Settings (applies as soon as you save). Commands typed in the Console tab go into that window, and the window
+  is found again after the agent restarts. Its close button is greyed out (closing it would end the game without
+  saving) — stop the server from the panel. Captured servers have no separate window.
 
 ## Uninstall
 

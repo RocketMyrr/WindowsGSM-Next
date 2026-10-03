@@ -57,7 +57,8 @@ export default async function storage(host, { query, scope }) {
         else servers.append(h("table", { class: "table" },
             h("thead", {}, h("tr", {}, h("th", { text: "Server" }), h("th", { class: "num", text: "Files" }), h("th", { class: "num", text: "Backups" }), h("th", { class: "num hide-sm", text: "Logs" }))),
             h("tbody", {}, ...r.servers.map(s => h("tr", {},
-                h("td", {}, h("a", { href: serverPath(machine, s.id), text: s.name })),
+                h("td", {}, h("a", { href: serverPath(machine, s.id), text: s.name }),
+                    s.filesAt ? h("div", { class: "tiny faint mono", title: "Its game files are on another drive", text: "→ " + s.filesAt }) : null),
                 h("td", { class: "num", text: fmtBytes(s.files) }),
                 h("td", { class: "num", text: fmtBytes(s.backups) }),
                 h("td", { class: "num muted hide-sm", text: fmtBytes(s.logs) }))))));

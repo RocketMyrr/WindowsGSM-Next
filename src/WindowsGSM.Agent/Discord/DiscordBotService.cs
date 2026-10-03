@@ -43,6 +43,23 @@ public sealed class DiscordBotService : IAsyncDisposable
     public IReadOnlyList<string> Guilds { get; private set; } = Array.Empty<string>();
     public ulong? ApplicationId { get; private set; }
 
+    /// <summary>
+    /// Something worth knowing while it runs — e.g. another copy answering with the same token. Shown on the page.
+    /// </summary>
+    public string? Warning { get; private set; }
+
+    /// <summary>
+    /// The hub this machine reports to, if it's a member. A member doesn't run the bot: the hub's bot already
+    /// covers it (and every other machine), while a member's would see only its own servers — and two copies on
+    /// one token race to answer every command.
+    /// </summary>
+    public string? MemberOf => !string.IsNullOrWhiteSpace(_ctx.Settings.HubUrl) && !string.IsNullOrWhiteSpace(_ctx.Settings.HubCredential)
+        ? (string.IsNullOrWhiteSpace(_ctx.Settings.HubName) ? _ctx.Settings.HubUrl : _ctx.Settings.HubName)
+        : null;
+
+    /// <summary>How long one machine may take to answer before the panel shows the rest without it.</summary>
+    internal static TimeSpan MachineTimeout { get; set; } = TimeSpan.FromSeconds(10);
+
     private static readonly object BotLogLock = new();
 
     /// <summary>
@@ -73,7 +90,21 @@ public sealed class DiscordBotService : IAsyncDisposable
 
     public async Task StartAsync()
     {
+        if (_client != null) { return; } // already running
+        if (Settings.Enabled && MemberOf is { } hub)
+        {
+            _log($"Discord bot: not started — this machine reports to {hub}, and the bot there covers it.");
+            return;
+        }
         if (Settings.Enabled && !string.IsNullOrWhiteSpace(Settings.Token)) { await ConnectAsync(); }
+    }
+
+    /// <summary>This machine just joined a hub: its bot stands down (the hub's covers it). Settings are kept for if it leaves.</summary>
+    public async Task StandDownAsync()
+    {
+        if (_client == null) { return; }
+        await DisconnectAsync();
+        _log($"Discord bot: stopped — this machine now reports to {MemberOf ?? "a hub"}, whose bot covers it.");
     }
 
     /// <summary>Saves new settings and reconnects if anything that matters changed.</summary>
@@ -95,6 +126,7 @@ public sealed class DiscordBotService : IAsyncDisposable
         {
             State = BotState.Connecting;
             LastError = null;
+            Warning = null;
             var client = new DiscordSocketClient(new DiscordSocketConfig { GatewayIntents = GatewayIntents.Guilds, LogLevel = LogSeverity.Warning });
             client.Log += m => { if (m.Severity <= LogSeverity.Warning) { _log($"Discord bot: {m.Message} {m.Exception?.Message}".Trim()); } return Task.CompletedTask; };
             client.Ready += () => OnReadyAsync(client);
@@ -246,6 +278,13 @@ public sealed class DiscordBotService : IAsyncDisposable
             BotLog($"{Describe(i)} by {Who(i)}");
             await run();
         }
+        catch (Exception ex) when (AlreadyAnswered(ex))
+        {
+            // Discord gave the interaction to someone else first: another program is logged in with this token.
+            if (Warning == null) { _log("Discord bot: another copy is answering with this bot's token (the old WindowsGSM, or this on another machine). Keep it on in one place only."); }
+            Warning = "Another copy is answering commands with this bot's token — the old WindowsGSM's bot, or this bot switched on on another machine too. Keep it on in one place only (on the hub, if you have several machines), or people get answers from whichever is quicker.";
+            BotLog($"{Describe(i)} by {Who(i)} was answered by another copy using this token");
+        }
         catch (Exception ex)
         {
             BotLog($"Error in {Describe(i)} by {Who(i)}: {ex.Message}");
@@ -258,6 +297,11 @@ public sealed class DiscordBotService : IAsyncDisposable
             catch { /* the interaction expired */ }
         }
     });
+
+    /// <summary>Discord's "Interaction has already been acknowledged" (40060) / unknown interaction (10062).</summary>
+    internal static bool AlreadyAnswered(Exception ex) =>
+        ex is global::Discord.Net.HttpException http && (http.DiscordCode is DiscordErrorCode.InteractionHasAlreadyBeenAcknowledged or DiscordErrorCode.UnknownInteraction)
+        || ex.Message.Contains("already been acknowledged", StringComparison.OrdinalIgnoreCase);
 
     private static string Describe(SocketInteraction i) => i switch
     {
@@ -304,6 +348,7 @@ public sealed class DiscordBotService : IAsyncDisposable
         var user = ActingUser(c);
 
         if (id == DiscordEmbeds.RefreshId) { await ShowPanel(c, user); return; }
+        if (id.StartsWith(DiscordEmbeds.PageId) && int.TryParse(id[DiscordEmbeds.PageId.Length..], out int page)) { await ShowPanel(c, user, page); return; }
         if (id == DiscordEmbeds.ListId)
         {
             var fleet = await FleetAsync(user);
@@ -368,10 +413,10 @@ public sealed class DiscordBotService : IAsyncDisposable
         }
     }
 
-    private async Task ShowPanel(SocketMessageComponent c, AgentUser user)
+    private async Task ShowPanel(SocketMessageComponent c, AgentUser user, int page = 0)
     {
         var fleet = await FleetAsync(user);
-        await c.ModifyOriginalResponseAsync(m => { m.Content = ""; m.Embed = DiscordEmbeds.Panel(fleet); m.Components = DiscordEmbeds.PanelComponents(fleet); });
+        await c.ModifyOriginalResponseAsync(m => { m.Content = ""; m.Embed = DiscordEmbeds.Panel(fleet); m.Components = DiscordEmbeds.PanelComponents(fleet, page); });
     }
 
     private async Task ShowServer(SocketMessageComponent c, AgentUser user, string key)
@@ -388,26 +433,39 @@ public sealed class DiscordBotService : IAsyncDisposable
 
     // ───────────────────────────── The agent's API, as the admin ─────────────────────────────
 
+    /// <summary>
+    /// Every machine's servers, asked all at once. NEXT: one at a time with no limit, a machine that was slow to
+    /// answer held up the whole panel; now a machine gets <see cref="MachineTimeout"/> and the panel says which
+    /// one didn't answer.
+    /// </summary>
     public async Task<BotFleet> FleetAsync(AgentUser user)
     {
         using var http = _api.Client();
         var machines = await GetAsync<List<MachineDto>>(http, "/machines", user) ?? new();
-        var servers = new List<ServerDto>();
-        foreach (var m in machines)
+        var asks = machines.Select(async m =>
         {
-            try { servers.AddRange(await GetAsync<List<ServerDto>>(http, $"/machines/{Uri.EscapeDataString(m.Id)}/servers", user) ?? new()); }
-            catch { /* that machine is unreachable right now */ }
-        }
+            using var limit = new CancellationTokenSource(MachineTimeout);
+            try
+            {
+                var list = await GetAsync<List<ServerDto>>(http, $"/machines/{Uri.EscapeDataString(m.Id)}/servers", user, limit.Token) ?? new();
+                // Labelled with the machine that was asked, so buttons always go back to the right one.
+                return (m.Id, Servers: list.Select(s => s with { Machine = m.Id }).ToList());
+            }
+            catch { return (m.Id, Servers: (List<ServerDto>?)null); }
+        }).ToList();
+        var answers = await Task.WhenAll(asks);
         var order = machines.Select(m => m.Id).ToList();
-        return new BotFleet(machines, servers.OrderBy(s => order.IndexOf(s.Machine)).ThenBy(s => int.TryParse(s.Id, out int n) ? n : int.MaxValue).ToList());
+        var servers = answers.Where(a => a.Servers != null).SelectMany(a => a.Servers!)
+            .OrderBy(s => order.IndexOf(s.Machine)).ThenBy(s => int.TryParse(s.Id, out int n) ? n : int.MaxValue).ToList();
+        return new BotFleet(machines, servers) { NotAnswering = answers.Where(a => a.Servers == null).Select(a => a.Id).ToList() };
     }
 
-    private async Task<T?> GetAsync<T>(HttpClient http, string path, AgentUser user)
+    private async Task<T?> GetAsync<T>(HttpClient http, string path, AgentUser user, CancellationToken token = default)
     {
         using var req = _api.Request(HttpMethod.Get, path, user, "Discord");
-        using var res = await http.SendAsync(req);
+        using var res = await http.SendAsync(req, token);
         res.EnsureSuccessStatusCode();
-        return await res.Content.ReadFromJsonAsync<T>(Json);
+        return await res.Content.ReadFromJsonAsync<T>(Json, token);
     }
 
     /// <summary>Runs a panel action. Returns the reason it didn't happen, or null.</summary>

@@ -25,6 +25,20 @@ namespace WindowsGSM.Functions
         //this should work for most if not all servers to close cleanly with hopefully a save before (most servers implement that to be compatible with OS reboots and stuff)
         public static bool SendStopSignal(Process p)
         {
+            // NEXT: the agent lives in a hidden console of its own (ConsoleHost), so it has to leave that console to
+            // join the game's, and come back after. It never sends Ctrl+C into a console it shares with others.
+            if (ConsoleHost.Active)
+            {
+                bool sent = ConsoleHost.InConsoleOf(p.Id, () =>
+                {
+                    if (!GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)) { return false; }
+                    p.WaitForExit(500); // the signal is on its way; the rest of the wait needn't hold up other servers
+                    return true;
+                });
+                if (sent) { p.WaitForExit(10000); }
+                return sent;
+            }
+
             if (AttachConsole((uint)p.Id))
             {
                 SetConsoleCtrlHandler(null, true);
@@ -42,6 +56,16 @@ namespace WindowsGSM.Functions
                 return true;
             }
             return false;
+        }
+
+        /// <summary>NEXT: just the Ctrl+C (no waiting) — a plugin "pressing" Ctrl+C in a game's console window.</summary>
+        internal static bool SendCtrlC(int pid)
+        {
+            if (ConsoleHost.Active) { return ConsoleHost.InConsoleOf(pid, () => { bool sent = GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0); System.Threading.Thread.Sleep(200); return sent; }); }
+            if (!AttachConsole((uint)pid)) { return false; }
+            SetConsoleCtrlHandler(null, true);
+            try { return GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0); }
+            finally { System.Threading.Thread.Sleep(200); SetConsoleCtrlHandler(null, false); FreeConsole(); }
         }
 
         //Try to gracefully shutdown the process and kills it if it fails to do so

@@ -2,12 +2,13 @@
 
 import { h, icon, clear, append, gameLabel, gameTile, gameBanner, copyText, fmtDuration } from "../dom.js";
 import { tip } from "../tips.js";
+import { moveFilesDialog } from "../places.js";
 import { store, key as keyOf } from "../store.js";
 import { setCrumbs } from "../shell.js";
 import { navigate, serverPath, render, hasLeaveGuard } from "../router.js";
 import { statusPill, showMenu, toast, tabs, progressBar, setProgress, isRunning, isStopped, empty, loading } from "../ui.js";
 import { ACTIONS, runAction, deleteServer, editTags, cloneServer, moveServer, rollbackServer, saveTemplate, applyTemplate } from "../actions.js";
-import { can } from "../perms.js";
+import { can, isAdmin } from "../perms.js";
 import { Scope } from "../router.js";
 
 const TABS = [
@@ -131,6 +132,7 @@ export default async function serverPage(host, { params, scope }) {
             { label: "Tags…", icon: "filter", hidden: !can(s, "EditConfig"), onClick: () => editTags(s) },
             { label: "Save as template…", icon: "save", hidden: !can(s, "EditConfig"), onClick: () => saveTemplate(s) },
             { label: "Apply a template…", icon: "sliders", hidden: !can(s, "EditConfig"), disabled: !isStopped(s), onClick: () => applyTemplate(s) },
+            { label: "Move files to another drive…", icon: "disk", hidden: !isAdmin(), disabled: !isStopped(s), onClick: () => moveFilesDialog(s) },
             { label: "Copy server…", icon: "copy", hidden: !can(s, "Files"), disabled: !isStopped(s), onClick: () => cloneServer(s) },
             { label: "Move to another machine…", icon: "machine", hidden: !store.multiMachine || !can(s, "Files"), disabled: !isStopped(s), onClick: () => moveServer(s) },
             { label: "Copy address", icon: "copy", hidden: !s.port, onClick: () => copyText([s.ip, s.port].filter(Boolean).join(":")).then(() => toast("Address copied", { type: "good", timeout: 2500 })) },

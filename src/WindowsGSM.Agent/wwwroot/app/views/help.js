@@ -61,6 +61,16 @@ const TOPICS = [
         "• Esc closes dialogs and menus.",
     ], []],
 
+    ["drives", "Game files on another drive", "disk", "drive disk space ssd hdd another drive move location folder storage spread", [
+        "Each server's game files can live on any drive in this PC — handy to spread big servers over two drives, or keep them on a fast SSD. Admins can choose:",
+        "• When installing: \"Where to put the game files\" → pick a drive and a folder (e.g. E:\GameServers). Each server gets a folder of its own inside it.",
+        "• Later: the server's ⋯ menu → Move files to another drive… (the server must be stopped). The files are copied and checked first; only then does it switch over and remove the old copy. The same menu moves them back.",
+        "The server's settings, logs and backups list stay with WindowsGSM; only the game files move. Backups, restores, updates, the file manager and plugins all work as usual.",
+        "• Use drives inside this PC (or a USB drive that stays connected) — network shares can't be used.",
+        "• If that drive isn't connected, the server says so and won't start until it's back.",
+        "• Deleting the server deletes its files on that drive too.",
+    ], [["/storage", "Storage"]]],
+
     ["reach", "Players can't connect", "globe", "port forward firewall router upnp nat join connect lan internet public ip", [
         "Open the server's Overview and press \"Can players reach it?\" — it checks that the game is listening, the address, Windows Firewall, your router and (for Steam games) Steam's public server list, and says what to fix.",
         "• Windows Firewall: \"Allow through firewall\" on the Overview adds a rule for the game (one Windows prompt on the machine).",

@@ -86,9 +86,14 @@ public static class ServerEndpoints
         server.MapGet("/console-window", (HttpContext http, AgentContext ctx) =>
         {
             var s = ctx.Engine.Servers.Get(Scopes.Server(http).Id)!;
+            var p = s.Process;
+            bool hasWindow = p != null && WindowsGSM.Engine.Services.ConsoleWindows.Exists(s.ConsoleWindow);
+            // How this run was started (the setting may have changed since; it applies from the next start).
+            bool captured = s.Config.EmbedConsole;
+            try { if (p != null) { captured = p.StartInfo.RedirectStandardOutput; } } catch { /* re-adopted: not ours to ask */ }
             return Results.Json(new
             {
-                hasWindow = s.ConsoleWindow != IntPtr.Zero && s.Process != null, visible = s.ConsoleWindowVisible, captured = s.Config.EmbedConsole,
+                running = p != null, hasWindow, visible = hasWindow && WindowsGSM.Engine.Services.ConsoleWindows.IsVisible(s.ConsoleWindow), captured,
                 // Kept running through an agent restart: a captured console can't be reconnected until it restarts.
                 reattached = s.Reattached && s.Process != null,
                 rcon = WindowsGSM.Engine.Services.ConsoleService.RconConfigured(s.Config, out _, out _),

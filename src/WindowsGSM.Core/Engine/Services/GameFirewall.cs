@@ -51,7 +51,8 @@ namespace WindowsGSM.Engine.Services
                 if (game == null) { return null; }
                 string startPath = Dyn.Get((object)game, "StartPath")?.ToString() ?? string.Empty;
                 if (string.IsNullOrWhiteSpace(startPath)) { return null; }
-                return Path.GetFullPath(ServerPath.GetServersServerFiles(s.Id, startPath));
+                // The real path: on another drive, Windows sees the game run from there (not through the link).
+                return Path.GetFullPath(Path.Combine(ServerLocation.RealPath(s.Id), startPath));
             }
             catch { return null; }
         }

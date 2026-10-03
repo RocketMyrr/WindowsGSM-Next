@@ -478,7 +478,9 @@ namespace WindowsGSM.Engine.Backups
         private static List<RestoreItem> Plan(string id, string staging, bool includeConfig)
         {
             var settings = BackupSettings.Load(id);
-            string serverFiles = Path.GetFullPath(ServerPath.GetServersServerFiles(id));
+            // NEXT: the real folder — for game files on another drive, a restore swaps and writes there, so the link keeps
+            // pointing at the restored files (restoring onto the link itself would put them back on this drive).
+            string serverFiles = ServerLocation.RealPath(id);
             string configs = Path.GetFullPath(ServerPath.GetServersConfigs(id));
             var allowedExternal = new HashSet<string>(
                 settings.ExternalLocations.Select(l => Path.GetFullPath(Environment.ExpandEnvironmentVariables(l)).TrimEnd('\\')),

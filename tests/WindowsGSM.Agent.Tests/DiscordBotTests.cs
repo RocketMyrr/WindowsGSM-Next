@@ -95,13 +95,31 @@ public class DiscordBotTests
         Assert.Contains(list.Fields, f => f.Name.Contains("Box B") && f.Name.Contains("offline"));
 
         var stats = DiscordEmbeds.Stats(fleet);
-        Assert.Contains(stats.Fields, f => f.Name == "CPU" && f.Value.Contains("42%"));
+        Assert.Contains(stats.Fields, f => f.Name.Contains("Box A") && f.Value.Contains("CPU") && f.Value.Contains("42%"));
         Assert.Contains(stats.Fields, f => f.Name.Contains("Box B") && f.Value == "Offline");
 
-        // Discord allows 25 options in a dropdown.
-        Assert.Equal(25, DiscordEmbeds.PanelComponents(fleet).Components.OfType<global::Discord.ActionRowComponent>().SelectMany(r => r.Components).OfType<global::Discord.SelectMenuComponent>().Single().Options.Count);
-
+        // Discord allows 25 options in a dropdown: the rest are on further pages — the other machine's server included.
         string Ids(global::Discord.MessageComponent c) => string.Join(",", c.Components.OfType<global::Discord.ActionRowComponent>().SelectMany(r => r.Components).OfType<global::Discord.IInteractableComponent>().Select(x => x.CustomId));
+        global::Discord.SelectMenuComponent Menu(int page) => DiscordEmbeds.PanelComponents(fleet, page).Components.OfType<global::Discord.ActionRowComponent>().SelectMany(r => r.Components).OfType<global::Discord.SelectMenuComponent>().Single();
+        Assert.Equal(25, Menu(0).Options.Count);
+        Assert.Contains("wgsm:page:1", Ids(DiscordEmbeds.PanelComponents(fleet, 0)));
+        Assert.Contains(Menu(2).Options, o => o.Value == "m-b/1");
+        Assert.Equal(11, Menu(2).Options.Count);
+        Assert.Contains("Box B", Menu(2).Placeholder);
+        Assert.Equal(Menu(2).Options.Count, Menu(99).Options.Count); // past the end: the last page
+
+        // A big fleet still fits one message (Discord refuses more than 25 fields or 6000 characters).
+        var many = new BotFleet(
+            Enumerable.Range(1, 30).Select(i => new MachineDto($"m-{i}", $"Machine number {i}", i == 1, true, "2", null, new HostMetricsDto(10, 20, 64, 30, 2000, 16, "Some long CPU name here", DateTimeOffset.UtcNow), 20)).ToList(),
+            Enumerable.Range(1, 30).SelectMany(m => Enumerable.Range(1, 20).Select(i => S($"m-{m}", i.ToString(), "Running", Capability.All))).ToList())
+        { NotAnswering = new[] { "m-7" } };
+        foreach (var embed in new[] { DiscordEmbeds.ServerList(many), DiscordEmbeds.Stats(many) })
+        {
+            Assert.True(embed.Fields.Length <= 25, $"{embed.Title}: {embed.Fields.Length} fields");
+            Assert.True(embed.Title.Length + embed.Description.Length + embed.Fields.Sum(f => f.Name.Length + f.Value.Length) + (embed.Footer?.Text.Length ?? 0) <= 6000, embed.Title);
+            Assert.Contains("Machine number 7", embed.Description); // didn't answer in time
+            Assert.Contains(embed.Fields, f => f.Value.Contains("more"));
+        }
         Assert.Contains("wgsm:do:start:m-a/1", Ids(DiscordEmbeds.ServerActions(fleet, servers[0])));
         Assert.Contains("wgsm:confirm:stop:m-a/2", Ids(DiscordEmbeds.ServerActions(fleet, servers[1])));
         Assert.DoesNotContain("stop", Ids(DiscordEmbeds.ServerActions(fleet, servers[1] with { Can = Capability.View | Capability.Start })));

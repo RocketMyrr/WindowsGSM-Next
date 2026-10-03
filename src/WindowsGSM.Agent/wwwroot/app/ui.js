@@ -188,6 +188,7 @@ const STATES = {
     UpdatingAddons: ["st-busy", "Updating add-ons"],
     BackingUp: ["st-busy", "Backing up"],
     Restoring: ["st-busy", "Restoring"],
+    Moving: ["st-busy", "Moving files"],
     Deleting: ["st-busy", "Deleting"],
     Stopped: ["", "Stopped"],
 };
@@ -281,14 +282,24 @@ export function metricsChart(points, { height = 180, ramPercent = false, disk = 
     const steps = points.slice(1).map((p, i) => p.at - points[i].at).sort((a, b) => a - b);
     const gap = Math.max(steps[Math.floor(steps.length / 2)] * 3, 1);
 
+    // The right-hand labels are where each scale tops out (the top grid line) — not current values; the legend
+    // above the chart has those. Each says so when hovered.
     const rightLabels = [];
     const ramMax = ramPercent ? 100 : Math.max(...points.map(p => p.ram || 0), 1) * 1.15;
-    if (!ramPercent) rightLabels.push(ramMax >= 1024 ? (ramMax / 1024).toFixed(1) + " GB" : Math.round(ramMax) + " MB");
-    const playerMax = players ? Math.max(...points.map(p => Math.max(p.maxPlayers || 0, p.players || 0)), 1) : 1;
-    if (players) rightLabels.push(`${playerMax} pl.`);
-    rightLabels.forEach((text, i) => {
+    if (!ramPercent) rightLabels.push([ramMax >= 1024 ? (ramMax / 1024).toFixed(1) + " GB" : Math.round(ramMax) + " MB", "Top of the memory scale (not current use — that's in the legend above)"]);
+    const slots = Math.max(...points.map(p => p.maxPlayers || 0), 0);
+    const peak = Math.max(...points.map(p => p.players || 0), 0);
+    const playerMax = players ? Math.max(slots, peak, 1) : 1;
+    // NEXT: with no slot count and nobody ever on, the scale's top of 1 read as "1 pl." — as if someone had played.
+    if (players && (slots > 0 || peak > 0)) {
+        rightLabels.push([slots >= peak ? `${playerMax} slots` : `${playerMax} pl.`, slots >= peak ? `Top of the players scale: the server's ${slots} slots` : `Top of the players scale: the most players seen (${peak})`]);
+    }
+    rightLabels.forEach(([text, hint], i) => {
         const l = svg("text", { class: "axis-label", x: W - padR + 6, y: padT + 8 + i * 13 });
         l.textContent = text;
+        const tip = svg("title");
+        tip.textContent = hint;
+        l.append(tip);
         root.append(l);
     });
 

@@ -261,13 +261,31 @@ namespace WindowsGSM.Functions
             PostMessage(hWnd, WM_KEYDOWN, (IntPtr)Keys.Enter, (IntPtr)(0 << 29 | 0));
         }
 
+        // The window a plugin last picked with SetMainWindow (per thread: plugins pick, then press, on one thread).
+        [ThreadStatic] private static IntPtr _keysTarget;
+
         public static void SetMainWindow(IntPtr hWnd)
         {
+            _keysTarget = hWnd;
+            // NEXT: a game's own console window (often hidden) is reached directly — see SendWaitToMainWindow.
+            if (Engine.Services.ConsoleWindows.GameOf(hWnd) != null) { return; }
             SetForegroundWindow(hWnd);
         }
 
         public static void SendWaitToMainWindow(string keys)
         {
+            // NEXT: legacy simulated the keyboard (SendKeys), which only works if the game's window could be brought to
+            // the front. A hidden window can't, and Windows often refuses a background program anyway — so a plugin's
+            // Ctrl+C or "stop" could land in whatever app the person at the PC was using. For a game's own console
+            // window the keys are delivered to that console instead: Ctrl+C as a real Ctrl+C, the rest as typing.
+            if (Engine.Services.ConsoleWindows.GameOf(_keysTarget) is int pid)
+            {
+                SendKeysToConsole(_keysTarget, pid, keys);
+                return;
+            }
+            // No window picked (the game has none WindowsGSM knows): simulated keys would go to whatever app is in
+            // front — a Ctrl+C or "stop" typed into someone's work. The stop falls back to Ctrl+C / kill instead.
+            if (_keysTarget == IntPtr.Zero) { return; }
             try
             {
                 SendKeys.SendWait(keys);
@@ -284,6 +302,40 @@ namespace WindowsGSM.Functions
 
                     https://github.com/WindowsGSM/WindowsGSM/issues/14
                 */
+            }
+        }
+
+        /// <summary>The SendKeys notation plugins use, delivered to a game's console window: ^c, {ENTER}/~, {TAB}, text.</summary>
+        internal static void SendKeysToConsole(IntPtr hWnd, int pid, string keys)
+        {
+            int i = 0;
+            while (i < keys.Length)
+            {
+                if (keys[i] == '^')
+                {
+                    // ^c, ^C, ^(c): Ctrl+C. Other Ctrl combinations aren't something a console game needs.
+                    string rest = keys.Substring(i + 1);
+                    int used = rest.StartsWith("(c)", StringComparison.OrdinalIgnoreCase) ? 3 : rest.StartsWith("c", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+                    if (used > 0) { ProcessManagement.SendCtrlC(pid); }
+                    i += 1 + used;
+                    continue;
+                }
+                if (keys[i] == '{')
+                {
+                    int end = keys.IndexOf('}', i + 2); // "{}}" is a literal }
+                    if (end < 0) { break; }
+                    string key = keys.Substring(i + 1, end - i - 1).ToUpperInvariant();
+                    if (key == "ENTER") { PostMessage(hWnd, WM_KEYDOWN, (IntPtr)Keys.Enter, IntPtr.Zero); }
+                    else if (key == "TAB") { PostMessage(hWnd, WM_CHAR, (IntPtr)'\t', IntPtr.Zero); }
+                    else if (key.Length == 1) { PostMessage(hWnd, WM_CHAR, (IntPtr)keys[i + 1], IntPtr.Zero); } // {+}, {^}, {%}…
+                    i = end + 1;
+                    continue;
+                }
+                if (keys[i] == '~') { PostMessage(hWnd, WM_KEYDOWN, (IntPtr)Keys.Enter, IntPtr.Zero); i++; continue; }
+                if (keys[i] is '+' or '%') { i++; continue; } // Shift/Alt modifiers: the typed character already carries its case
+                if (i > 0 && keys[i] == keys[i - 1]) { PostMessage(hWnd, WM_KEYDOWN, (IntPtr)Keys.None, IntPtr.Zero); } // see SendMessageToMainWindow
+                PostMessage(hWnd, WM_CHAR, (IntPtr)keys[i], IntPtr.Zero);
+                i++;
             }
         }
 

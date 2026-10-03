@@ -8,7 +8,8 @@ import { setCrumbs } from "../shell.js";
 import { navigate, serverPath, setLeaveGuard } from "../router.js";
 import { field, input, select, segmented, empty, loading, toastError, progressBar, setProgress, busy, confirm } from "../ui.js";
 import { runAction } from "../actions.js";
-import { installMachines } from "../perms.js";
+import { installMachines, isAdmin } from "../perms.js";
+import { placePicker } from "../places.js";
 import { machinePicker } from "./machines.js";
 
 const CONSENT_TEXT = {
@@ -111,6 +112,11 @@ export default async function install(host, { scope, query }) {
             const wanted = query.get("template");
             if (wanted && mine.some(t => t.id === wanted)) template.value = wanted;
         }).catch(() => { /* older agent or no access: no templates */ });
+        // Admins: the game files can go on another drive (each server gets its own folder there).
+        const place = isAdmin() ? placePicker(machine) : null;
+        const placeBox = place ? h("details", { class: "place-box" },
+            h("summary", {}, icon("disk"), h("span", { text: "Where to put the game files" }), h("span", { class: "small muted", text: " — with WindowsGSM unless you choose another drive" })),
+            place.el) : null;
         const err = h("div", { class: "callout bad", hidden: true, role: "alert" }, icon("warn"), h("span"));
         const go = h("button", { class: "btn primary lg", onclick: () => start() }, icon("download"), "Install");
 
@@ -124,6 +130,7 @@ export default async function install(host, { scope, query }) {
             h("div", { class: "form-grid" }, nameField, templateField, game.isSteam ? branchField : null, game.isSteam ? branchPwField : null),
             consents.length ? h("div", { class: "stack tight" }, h("span", { class: "upper", text: "Agreements" }), ...consents,
                 h("p", { class: "tiny faint", text: "Unticked questions are asked while installing instead — you can answer them from the activity panel." })) : null,
+            placeBox,
             h("div", { class: "callout info" }, icon("sparkles"), h("span", { text: "Ports are chosen automatically so this server won't clash with your others. You can change them in the server's settings." })),
             h("div", { class: "row" }, h("span", { class: "spacer" }), h("button", { class: "btn", onclick: () => chooseGame() }, "Back"), go)));
         name.focus();
@@ -141,6 +148,7 @@ export default async function install(host, { scope, query }) {
 
         async function start() {
             if (!name.value.trim()) { nameField.setError("Give the server a name."); name.focus(); return; }
+            if (place && place.problem()) { placeBox.open = true; err.lastChild.textContent = "Game files: " + place.problem(); err.hidden = false; return; }
             await busy(go, async () => {
                 try {
                     const res = await post(onMachine("/servers"), {
@@ -148,6 +156,7 @@ export default async function install(host, { scope, query }) {
                         steamBranch: branch.value || null, steamBranchPassword: branchPw.value || null,
                         consents: consents.filter(c => c.box.checked).map(c => c.key),
                         template: template.value || null,
+                        filesFolder: place ? place.value() : null,
                     });
                     store.trackJob(res.job, machine);
                     watch(game, { ...res.job, machine });

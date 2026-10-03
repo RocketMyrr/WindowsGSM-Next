@@ -197,7 +197,7 @@ namespace WindowsGSM.Engine.Services
                 if (!info.Attributes.HasFlag(FileAttributes.ReparsePoint)) { continue; }
                 FileSystemInfo? target;
                 try { target = info.ResolveLinkTarget(returnFinalTarget: true); } catch { target = null; }
-                if (target != null && !IsWithin(root, Path.GetFullPath(target.FullName)))
+                if (target != null && !IsWithin(root, Path.GetFullPath(target.FullName)) && !IsWithin(ServerLocation.RealPath(id), Path.GetFullPath(target.FullName)))
                 {
                     throw new FileOperationException("That's a link to somewhere outside the server folder, which the file manager doesn't follow.", FileProblem.Invalid);
                 }

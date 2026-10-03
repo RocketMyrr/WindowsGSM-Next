@@ -7,7 +7,8 @@ using WindowsGSM.Functions;
 namespace WindowsGSM.Agent.Hosting;
 
 public sealed record DriveDto(string Name, long Total, long Free);
-public sealed record ServerUsageDto(string Id, string Name, long Files, long Backups, long Logs);
+/// <param name="FilesAt">Where the game files are when they're not in the usual place (another drive).</param>
+public sealed record ServerUsageDto(string Id, string Name, long Files, long Backups, long Logs, string? FilesAt = null);
 public sealed record CleanupDto(string Key, string Label, string Description, int Count, long Bytes, bool Suggested);
 public sealed record DiskReportDto(IReadOnlyList<DriveDto> Drives, IReadOnlyList<ServerUsageDto> Servers, IReadOnlyList<CleanupDto> Cleanup, DateTimeOffset At);
 
@@ -82,7 +83,7 @@ public sealed class DiskSpace
             long backups = 0;
             try { backups = Size(BackupSettings.Load(s.Id).ResolveLocation()); } catch { /* unreachable share */ }
             long serverLogs = Size(Path.Combine(Root, "logs", "servers", s.Id));
-            usage.Add(new ServerUsageDto(s.Id, s.Name, files, backups, serverLogs));
+            usage.Add(new ServerUsageDto(s.Id, s.Name, files, backups, serverLogs, ServerLocation.IsElsewhere(s.Id) ? ServerLocation.RealPath(s.Id) : null));
         }
 
         var paths = new Dictionary<string, List<string>>();
@@ -155,7 +156,7 @@ public sealed class DiskSpace
             Dirs(Path.Combine(Root, "cache"), "art", SearchOption.TopDirectoryOnly).Concat(Dirs(Path.Combine(Root, "cache"), "plugin-icons", SearchOption.TopDirectoryOnly)), suggested: false);
 
         var drives = new List<DriveDto>();
-        foreach (string path in new[] { Root }.Concat(servers.Select(s => ServerPath.GetServers(s.Id))))
+        foreach (string path in new[] { Root }.Concat(servers.Select(s => ServerPath.GetServers(s.Id)).Concat(servers.Select(s => ServerLocation.RealPath(s.Id)))))
         {
             try
             {

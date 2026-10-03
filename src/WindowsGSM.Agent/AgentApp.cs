@@ -97,8 +97,14 @@ public static class AgentApp
         }
 
         // Cookies survive restarts: the data-protection keys live with the agent's settings.
+        // NEXT: encrypted for this Windows user (DPAPI, like the agent's other secrets) — they were written in plain
+        // text, so anyone able to read the folder could forge a sign-in cookie. Plain ones from before are retired
+        // now rather than left valid until they expire (everyone signs in once more); a data folder copied to another
+        // user or PC likewise just signs everyone out once.
+        RetirePlainKeys(Path.Combine(configDir, "keys"));
         builder.Services.AddDataProtection()
             .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(configDir, "keys")))
+            .ProtectKeysWithDpapi()
             .SetApplicationName("WindowsGSM.Agent");
 
         builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(o =>
@@ -233,6 +239,7 @@ public static class AgentApp
         TemplateEndpoints.Map(api, server);
         MinecraftEndpoints.Map(server);
         ArkEndpoints.Map(api, server);
+        LocationEndpoints.Map(api, server);
         PluginEndpoints.Map(api);
         AdminEndpoints.Map(api);
         HubEndpoints.Map(api);
@@ -275,6 +282,30 @@ public static class AgentApp
             options.Log($"First run: open the agent on this machine to create the owner account, or use setup code {app.Services.GetRequiredService<SetupTokens>().Current} from another computer.");
         }
         return app;
+    }
+
+    /// <summary>
+    /// Removes sign-in cookie keys written in plain text (before they were encrypted). A fresh, encrypted key is made
+    /// in their place; cookies made with the old one stop working, so people sign in again once.
+    /// </summary>
+    internal static int RetirePlainKeys(string keysDir)
+    {
+        int retired = 0;
+        if (!Directory.Exists(keysDir)) { return 0; }
+        foreach (string file in Directory.GetFiles(keysDir, "key-*.xml"))
+        {
+            try
+            {
+                string xml = File.ReadAllText(file);
+                if (xml.Contains("<masterKey", StringComparison.Ordinal) && !xml.Contains("encryptedSecret", StringComparison.Ordinal))
+                {
+                    File.Delete(file);
+                    retired++;
+                }
+            }
+            catch { /* unreadable: leave it to data protection */ }
+        }
+        return retired;
     }
 
     /// <summary>
