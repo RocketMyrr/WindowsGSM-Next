@@ -173,7 +173,11 @@ export default async function settingsTab(host, { id, machine, key, server, scop
             text("savecommand", "Save command", { mono: true, help: ["Before a stop, restart or update, WindowsGSM tells the game to save its world, then waits a moment — so you don't lose what happened since the game's last autosave.", "Known for Rust, ARK, 7 Days to Die, Palworld, Project Zomboid, Terraria, Unturned and Minecraft. Force stop never saves."], placeholder: known ? `${known} (this game's)` : "none known — type one, e.g. save",
                 hint: known ? `Leave empty to use “${known}”. “-” turns saving off.` : "Sent to the console (or RCON) before stopping. “-” turns it off." }),
             text("savewait", "Wait after saving (seconds)", { type: "number", placeholder: "10", help: "How long to give the game to finish writing its save before asking it to stop. Big worlds may need 30 or more." }),
-            text("stoptimeout", "Wait for a clean shutdown (seconds)", { type: "number", placeholder: "30", hint: "Then the process is ended. Big worlds save on shutdown — give them time." })));
+            text("stoptimeout", "Wait for a clean shutdown (seconds)", { type: "number", placeholder: "30", hint: "Then the process is ended. Big worlds save on shutdown — give them time." })),
+        settings.stopsByKilling ? h("div", { class: "callout warn" }, icon("warn"), h("span", { text: "This game's plugin stops it by ending the process, which doesn't give the game a chance to save. Set a save command above, or turn on “Send Ctrl+C before the game's own stop” — most servers save and shut down properly on Ctrl+C." })) : null,
+        h("div", { class: "toggles" },
+            onOff("stopctrlcfirst", "Send Ctrl+C before the game's own stop", "Waits for a clean shutdown (above) before the plugin's own way.",
+                ["Most game servers save and shut down properly when they get Ctrl+C. With this on, WindowsGSM sends it first and waits; only if the game is still running does the plugin's own stop follow.", "Worth turning on for games whose plugin just ends the process. Not for Force stop, which ends it at once."])));
 
     // The server's own scripts. Choosing one is for admins (it runs a program on this PC); .bat and .ps1 only.
     const admin = isAdmin();

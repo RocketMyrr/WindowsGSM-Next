@@ -8,6 +8,7 @@ import { setCrumbs } from "../shell.js";
 import { field, input, toggle, toast, toastError, busy, segmented, confirm, helpButton } from "../ui.js";
 import { updatesPanel } from "./updates.js";
 import { steamPanel } from "./steam.js";
+import { offsitePanel } from "./offsite.js";
 
 export default async function settings(host, { scope }) {
     setCrumbs({ label: "Agent settings" });
@@ -88,6 +89,7 @@ export default async function settings(host, { scope }) {
             h("section", { class: "panel settings-section" }, h("div", { class: "panel-head" }, icon("lock"), h("h3", { text: "HTTPS" }), httpsHelp),
                 h("div", { class: "panel-body stack" }, httpsHelp.helpBox, modes, httpsDetails)),
             steamPanel(store.localId),
+            offsitePanel(store.localId),
             h("section", { class: "panel settings-section" }, h("div", { class: "panel-head" }, icon("update"), h("h3", { text: "Updates" })),
                 h("div", { class: "panel-body" }, updatesPanel(store.localId, scope)))),
         h("div", { class: "row" }, h("span", { class: "spacer" }), save));

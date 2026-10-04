@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    wgsm-console-harness: the console handling (ConsoleHost) only runs in a process without a visible console — the
+    way the agent runs — so it can't be switched on inside the test host. ConsoleHostScenarioTests starts this
+    program windowless, it drives the real engine through the scenarios, and the test checks what it reports.
+    The same program is also the stand-in game the scenarios start ("game" mode).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>wgsm-console-harness</AssemblyName>
+    <RootNamespace>WindowsGSM.ConsoleHarness</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- The engine compiles the scenario's game plugin at run time from the host's compile context. -->
+    <PreserveCompilationContext>true</PreserveCompilationContext>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\WindowsGSM.Core\WindowsGSM.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -16,7 +16,8 @@ namespace WindowsGSM.Engine.Services
     /// <param name="Values">Every editable standard setting (see <see cref="ServerSettingsService.EditableKeys"/>) → value.</param>
     /// <param name="CustomReplacesBuiltIns">The game supplies a full schema; hide name/map/GSLT like legacy did.</param>
     public sealed record ServerSettings(string ServerId, string Game, bool IsSteam, string? SteamBranchLastInstalled,
-        IReadOnlyDictionary<string, string> Values, IReadOnlyList<CustomSettingValue> Custom, bool CustomReplacesBuiltIns, bool CanCapture = true);
+        IReadOnlyDictionary<string, string> Values, IReadOnlyList<CustomSettingValue> Custom, bool CustomReplacesBuiltIns, bool CanCapture = true,
+        bool StopsByKilling = false);
 
     /// <summary>
     /// Reads and writes a server's WindowsGSM.cfg for editors. Only known keys can be written — the standard
@@ -35,7 +36,7 @@ namespace WindowsGSM.Engine.Services
             ServerConfig.SettingName.AutoIpUpdateAlert, ServerConfig.SettingName.RestartCrontabAlert, ServerConfig.SettingName.CrashAlert,
             ServerConfig.SettingName.SkipUserSetup, ServerConfig.SettingName.MemoryGuard, SteamContentPolicy.SteamCmdOverrideSetting,
             "perfsample", // ask the game for FPS/TPS over RCON (absent = on)
-            ServerScripts.BlocksStartKey,
+            ServerScripts.BlocksStartKey, LifecycleService.CtrlCFirstKey,
         };
 
         private static readonly string[] Ports =
@@ -93,7 +94,7 @@ namespace WindowsGSM.Engine.Services
             var schema = _games.Settings(s.Game, out bool replaces);
             var custom = schema.Select(g => new CustomSettingValue(g.Key, g.Label, cfg.GetCustomSetting(g.Key, g.DefaultValue), g.Options)).ToList();
             var game = _games.Get(s.Game);
-            return new ServerSettings(s.Id, s.Game, game?.IsSteam ?? false, cfg.SteamBranchLastInstalled, values, custom, replaces, game?.CanCapture ?? true);
+            return new ServerSettings(s.Id, s.Game, game?.IsSteam ?? false, cfg.SteamBranchLastInstalled, values, custom, replaces, game?.CanCapture ?? true, game?.StopsByKilling ?? false);
         }
 
         /// <summary>

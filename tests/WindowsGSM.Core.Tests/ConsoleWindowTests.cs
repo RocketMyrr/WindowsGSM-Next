@@ -43,6 +43,29 @@ public class ConsoleWindowTests
     }
 
     [Fact]
+    public void A_readopted_process_can_be_told_how_it_was_started()
+    {
+        Assert.True(ConsoleWindows.CanAdoptStartInfo, "Process._startInfo changed: update ConsoleWindows.AdoptStartInfo.");
+        using var p = Process.GetProcessById(Environment.ProcessId); // found by id: StartInfo would throw
+        Assert.Throws<InvalidOperationException>(() => p.StartInfo);
+        ConsoleWindows.AdoptStartInfo(p);
+        Assert.False(p.StartInfo.RedirectStandardInput);
+        Assert.False(p.StartInfo.CreateNoWindow);
+    }
+
+    [Fact]
+    public void Plugins_that_stop_their_game_by_killing_it_are_spotted()
+    {
+        Assert.True(GameCatalog.StopKillsOnly("public async Task Stop(Process p) { await Task.Run(() => { p.Kill(); }); }"));
+        // Anything gentler first doesn't count, even with a kill as the last resort.
+        Assert.False(GameCatalog.StopKillsOnly("public async Task Stop(Process p) { await Task.Run(() => { ServerConsole.SetMainWindow(p.MainWindowHandle); ServerConsole.SendWaitToMainWindow(\"^c\"); p.WaitForExit(2000); if (!p.HasExited) { p.Kill(); } }); }"));
+        Assert.False(GameCatalog.StopKillsOnly("public async Task Stop(Process p) { if (p.StartInfo.RedirectStandardInput) { p.StandardInput.WriteLine(\"stop\"); } }"));
+        Assert.False(GameCatalog.StopKillsOnly("public class NoStop { }"));
+        Assert.True(GameCatalog.StopsByKilling(WindowsGSM.GameServer.ARKSE.FullName, null));
+        Assert.False(GameCatalog.StopsByKilling(WindowsGSM.GameServer.RUST.FullName, null));
+    }
+
+    [Fact]
     public void Only_the_agent_turns_on_console_hosting()
     {
         // Tests (and anything else using the engine) start games the old way unless the agent enables it.

@@ -55,7 +55,7 @@ public sealed record CustomSettingDto(string Key, string Label, string Value, IR
 
 public sealed record ServerSettingsDto(string Machine, string Id, string Game, bool IsSteam, string? SteamBranchLastInstalled,
     IReadOnlyDictionary<string, string> Values, IReadOnlyList<CustomSettingDto> Custom, bool CustomReplacesBuiltIns, string? KnownSaveCommand = null,
-    bool CanCapture = true);
+    bool CanCapture = true, bool StopsByKilling = false);
 
 /// <summary>Only the keys present are changed. All-or-nothing: one bad value and nothing is written.</summary>
 public sealed record SettingsUpdateRequest(IReadOnlyDictionary<string, string?> Values);
@@ -91,7 +91,7 @@ public sealed record PromptAnswer(bool Answer);
 public sealed record BackupDto(string Name, long Size, DateTimeOffset Created, string Format);
 
 public sealed record BackupSettingsDto(IReadOnlyList<string> Paths, IReadOnlyList<string> ExternalLocations, bool BeforeStart,
-    int KeepCount, int KeepDays, string Location, string? CopyTo = null);
+    int KeepCount, int KeepDays, string Location, string? CopyTo = null, bool? UploadOffsite = null, bool OffsiteReady = false);
 
 public sealed record BackupRequest(bool Everything = false);
 

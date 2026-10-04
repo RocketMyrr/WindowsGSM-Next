@@ -174,6 +174,7 @@ namespace WindowsGSM.Engine.Services
                 s.ConsoleWindowVisible = ConsoleWindows.IsVisible(s.ConsoleWindow);
                 ConsoleWindows.Adopt(p, s.ConsoleWindow);
                 ConsoleWindows.Register(s.ConsoleWindow, p);
+                if (s.ConsoleWindow != IntPtr.Zero) { ConsoleWindows.AdoptStartInfo(p); } // a window: it wasn't captured
                 try { s.StartedAt = p.StartTime; } catch { s.StartedAt = DateTimeOffset.Now; }
                 s.Reattached = true;
                 s.SetState(ServerState.Running);
@@ -501,19 +502,40 @@ namespace WindowsGSM.Engine.Services
             dynamic? game = _plugins.Create(s.Game, s.Config);
             int timeout = WorldSave.StopTimeout(s);
             bool sentCtrlC = false;
-            try
+
+            // NEXT: "Send Ctrl+C before the game's own stop" — for games whose plugin just ends the process (no save):
+            // most servers shut down properly on Ctrl+C. If it worked, the plugin's stop isn't needed.
+            if (StopWithCtrlCFirst(s.Config))
             {
-                if (game == null) { throw new InvalidOperationException("no plugin"); }
-                await game.Stop(p);
-            }
-            catch
-            {
-                // No usable Stop() — try a console Ctrl+C, then kill.
-                // NEXT: and wait for it like a plugin stop; checking straight away killed the game mid-shutdown.
                 sentCtrlC = true;
-                try { ProcessManagement.StopProcess(p); } catch { /* fall through to kill */ }
+                bool sent = false;
+                try { sent = ProcessManagement.SendCtrlC(p.Id); } catch { /* no console to reach */ }
+                if (sent)
+                {
+                    _log.Write(s.Id, "Stopping with Ctrl+C first");
+                    for (int i = 0; i < timeout && !p.HasExited; i++) { await Task.Delay(1000).ConfigureAwait(false); }
+                }
+                else { _log.Write(s.Id, "[NOTICE] Couldn't send Ctrl+C (no console to reach); using the game's own stop"); }
             }
-            for (int i = 0; i < timeout && !p.HasExited; i++) { await Task.Delay(1000).ConfigureAwait(false); }
+
+            if (!p.HasExited)
+            {
+                ServerConsole.Stopping.Value = p; // keys a plugin "presses" with no window reach this server's console
+                try
+                {
+                    if (game == null) { throw new InvalidOperationException("no plugin"); }
+                    await game.Stop(p);
+                }
+                catch
+                {
+                    // No usable Stop() — try a console Ctrl+C, then kill.
+                    // NEXT: and wait for it like a plugin stop; checking straight away killed the game mid-shutdown.
+                    sentCtrlC = true;
+                    try { ProcessManagement.StopProcess(p); } catch { /* fall through to kill */ }
+                }
+                finally { ServerConsole.Stopping.Value = null; }
+                for (int i = 0; i < timeout && !p.HasExited; i++) { await Task.Delay(1000).ConfigureAwait(false); }
+            }
 
             // NEXT: the plugin's own way didn't work (e.g. it types "quit" into a window the game doesn't have): most
             // console games also shut down cleanly on Ctrl+C — one more chance to save before the kill.
@@ -704,6 +726,11 @@ namespace WindowsGSM.Engine.Services
             StartReason.AutoRestart => " | Auto Restart",
             _ => string.Empty,
         };
+
+        /// <summary>The "Send Ctrl+C before the game's own stop" setting.</summary>
+        public const string CtrlCFirstKey = "stopctrlcfirst";
+
+        private static bool StopWithCtrlCFirst(ServerConfig cfg) => cfg.GetCustomSetting(CtrlCFirstKey, string.Empty) == "1";
 
         private static bool SafeHasExited(Process p)
         {

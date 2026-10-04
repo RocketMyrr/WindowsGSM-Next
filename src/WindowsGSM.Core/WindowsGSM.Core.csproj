@@ -33,5 +33,7 @@
     <InternalsVisibleTo Include="WindowsGSM.Core.Tests" />
     <!-- The agent uses a few imported legacy helpers that were internal (SystemMetrics). -->
     <InternalsVisibleTo Include="wgsm-agent" />
+    <!-- The console scenarios (tests/WindowsGSM.ConsoleHarness) switch console hosting on, as the agent does. -->
+    <InternalsVisibleTo Include="wgsm-console-harness" />
   </ItemGroup>
 </Project>

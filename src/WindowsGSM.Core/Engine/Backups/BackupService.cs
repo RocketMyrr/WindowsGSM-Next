@@ -75,8 +75,15 @@ namespace WindowsGSM.Engine.Backups
             }));
         }
 
+        /// <summary>A backup was written (server id, archive path) — the agent uploads it off-site from here.</summary>
+        public Action<string, string>? Finished { get; set; }
+
         /// <summary>Restores <paramref name="name"/> (from <see cref="List"/>) onto a stopped server.</summary>
-        public OperationRequest Restore(string id, string name, bool includeConfig = false)
+        /// <param name="keepSettings">
+        /// Settings that keep their current values even when the backup's settings are restored — the scripts, for
+        /// someone who isn't allowed to choose them (a backup could otherwise bring back one an admin removed).
+        /// </param>
+        public OperationRequest Restore(string id, string name, bool includeConfig = false, IReadOnlyCollection<string>? keepSettings = null)
         {
             var s = _servers.Get(id);
             if (s == null) { return OperationRequest.Rejected($"Server {id} doesn't exist."); }
@@ -89,7 +96,7 @@ namespace WindowsGSM.Engine.Backups
             }
             return OperationRequest.Running(_jobs.Start("restore", id, $"Restore {s.Name}", async ctx =>
             {
-                using (lease) { return await RestoreCoreAsync(s, path, includeConfig, ctx).ConfigureAwait(false); }
+                using (lease) { return await RestoreCoreAsync(s, path, includeConfig, ctx, keepSettings).ConfigureAwait(false); }
             }));
         }
 
@@ -254,6 +261,7 @@ namespace WindowsGSM.Engine.Backups
                     job.Report(100, "Copying to the second location");
                     await CopyToSecondAsync(s.Id, settings, final, job.Cancellation).ConfigureAwait(false);
                 }
+                try { Finished?.Invoke(s.Id, final); } catch (Exception ex) { _log.Write(s.Id, $"[NOTICE] After the backup: {ex.Message}"); }
                 return null;
             }
             catch (OperationCanceledException) { throw; }
@@ -409,8 +417,12 @@ namespace WindowsGSM.Engine.Backups
         /// <summary>What to put where: <see cref="Source"/> (in staging) replaces <see cref="Target"/>.</summary>
         private sealed record RestoreItem(string Source, string Target);
 
-        private async Task<string?> RestoreCoreAsync(ServerInstance s, string archive, bool includeConfig, JobContext job)
+        private async Task<string?> RestoreCoreAsync(ServerInstance s, string archive, bool includeConfig, JobContext job, IReadOnlyCollection<string>? keepSettings = null)
         {
+            // What those settings are now, to put back after the backup's settings are in.
+            var kept = includeConfig && keepSettings is { Count: > 0 }
+                ? keepSettings.ToDictionary(k => k, k => RawSetting(s.Id, k), StringComparer.OrdinalIgnoreCase)
+                : null;
             s.SetState(ServerState.Restoring);
             _log.Write(s.Id, $"Action: Restore Backup ({Path.GetFileName(archive)})");
 
@@ -446,6 +458,11 @@ namespace WindowsGSM.Engine.Backups
 
                 // All in — discard what was replaced.
                 foreach (var (_, old) in swapped) { if (old != null) { DeleteQuietly(old); } }
+                if (kept != null)
+                {
+                    foreach (var (key, value) in kept) { ServerConfig.SetSetting(s.Id, key, value); }
+                    s.ReloadConfig();
+                }
                 _log.Write(s.Id, "Server: Restored");
                 return null;
             }
@@ -472,6 +489,19 @@ namespace WindowsGSM.Engine.Backups
                 DeleteQuietly(staging);
                 s.SetState(ServerState.Stopped);
             }
+        }
+
+        /// <summary>A setting's value exactly as WindowsGSM.cfg has it ("" when absent).</summary>
+        private static string RawSetting(string id, string key)
+        {
+            string file = ServerPath.GetServersConfigs(id, "WindowsGSM.cfg");
+            if (!File.Exists(file)) { return string.Empty; }
+            foreach (string line in File.ReadLines(file))
+            {
+                int eq = line.IndexOf('=');
+                if (eq > 0 && string.Equals(line[..eq].Trim(), key, StringComparison.OrdinalIgnoreCase)) { return line[(eq + 1)..].Trim().Trim('"'); }
+            }
+            return string.Empty;
         }
 
         /// <summary>Works out what the extracted archive restores, for every supported format.</summary>

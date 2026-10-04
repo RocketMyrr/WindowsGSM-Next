@@ -23,6 +23,7 @@ const TABS = [
     { id: "workshop", label: "Workshop", icon: "steam", cap: "Addons", steamOnly: true, load: () => import("./server/workshop.js") },
     { id: "ark", label: "Mods & cluster", icon: "puzzle", cap: "View", arkOnly: true, load: () => import("./server/ark.js") },
     { id: "minecraft", label: "Minecraft", icon: "box", cap: "View", gameOnly: "Minecraft: Java Edition Server", load: () => import("./server/minecraft.js") },
+    { id: "rust", label: "Plugins", icon: "puzzle", cap: "View", gameOnly: "Rust Dedicated Server", load: () => import("./server/rust.js") },
     { id: "schedules", label: "Schedules", icon: "calendar", cap: "View", load: () => import("./server/schedules.js") },
     { id: "settings", label: "Settings", icon: "sliders", cap: "EditConfig", load: () => import("./server/settings.js") },
 ];

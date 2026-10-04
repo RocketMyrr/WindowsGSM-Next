@@ -47,6 +47,9 @@ namespace WindowsGSM.Engine.Backups
         /// </summary>
         public string CopyTo { get; set; } = string.Empty;
 
+        /// <summary>Also upload each new backup to the machine's off-site storage (set up in Agent settings).</summary>
+        public bool UploadOffsite { get; set; }
+
         [JsonIgnore] public string ServerId { get; private set; } = string.Empty;
 
         /// <summary>The folder archives are written to (created if needed).</summary>

@@ -167,6 +167,22 @@ The panel's own port (8971) gets its rule when you turn on *Reachable from other
   log; it's stopped after a time limit (60 s by default). A failing before-start script doesn't stop the start
   unless you say so. The old app's Rust "batch file" setting carries over as the before-start script, now for every
   game.
+- **Off-site backups** (Agent settings → Off-site backups, admins): any S3-compatible bucket — Backblaze B2, Cloudflare R2,
+  Wasabi, Amazon S3, MinIO — with *Test connection*; the secret key is stored encrypted. Each server opts in on its
+  Backups tab (*Also upload each backup off-site*); every new backup is then uploaded as a job of its own (the server
+  isn't held up; a failed upload notifies and the local backup is kept), and the newest N per server are kept off-site
+  (`<folder>/<machine id>/server-<id>/`). *Bring back* downloads an off-site backup into the Backups list, to restore
+  as usual.
+- **Rust plugins** (Plugins tab on Rust servers with Oxide or Carbon): search umod.org (most downloaded first),
+  install with the plugins it requires (`// Requires:`), update all, remove — checked against uMod's checksum, no
+  restart needed (Oxide/Carbon reload plugin files themselves). Plugins added by hand are left alone unless you
+  choose *Keep up to date*; a plugin edited since it was installed is never overwritten. Optionally *Update them
+  before every start*. Tracked in `serverfiles\wgsm-umod.json`.
+- **Stopping games whose plugin just ends the process** (ARK: Survival Evolved, BlackWake, DayZ, Outlaws of the Old
+  West, Onset, Stormworks, The Forest — Settings flags these, and community plugins that do the same): set a save
+  command, or turn on *Send Ctrl+C before the game's own stop* (Settings → Stopping safely). When a plugin "presses"
+  Ctrl+C on a server that has no window of its own (captured, or found again after an agent restart), the Ctrl+C
+  now reaches that server's console instead of going nowhere.
 - **Console windows**: servers whose output isn't captured into the panel run in their own console window on the
   server's screen — **Show window / Hide window** on the Console tab, or **Show the console window on this machine**
   in Settings (applies as soon as you save). Commands typed in the Console tab go into that window, and the window

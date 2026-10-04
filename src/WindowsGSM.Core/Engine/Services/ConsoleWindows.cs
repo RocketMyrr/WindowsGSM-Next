@@ -75,6 +75,24 @@ namespace WindowsGSM.Engine.Services
             return null;
         }
 
+        private static readonly FieldInfo? StartInfoField = typeof(Process).GetField("_startInfo", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        /// <summary>True when <see cref="AdoptStartInfo"/> can work on this runtime (a test keeps an eye on it).</summary>
+        internal static bool CanAdoptStartInfo => StartInfoField?.FieldType == typeof(ProcessStartInfo);
+
+        /// <summary>
+        /// For a server found again after the agent restarted, running in a console window of its own: gives its
+        /// Process the StartInfo it was started with (not captured, a window). Windows can't tell a process found by
+        /// its id how it was started, so StartInfo threw — and the many plugins whose Stop asks
+        /// ("if (p.StartInfo.RedirectStandardInput) … else type 'stop' into the window") never got to their clean way.
+        /// </summary>
+        public static void AdoptStartInfo(Process p)
+        {
+            if (!CanAdoptStartInfo) { return; }
+            try { StartInfoField!.SetValue(p, new ProcessStartInfo { UseShellExecute = false, CreateNoWindow = false }); }
+            catch { /* plugins fall back to Ctrl+C / kill */ }
+        }
+
         /// <summary>True when <see cref="Adopt"/> can work on this runtime (a test keeps an eye on it).</summary>
         internal static bool CanAdopt => MainWindowField?.FieldType == typeof(IntPtr) && HaveMainWindowField?.FieldType == typeof(bool);
 

@@ -16,8 +16,13 @@ namespace WindowsGSM.Engine.Services
     /// The game's output can be captured into the panel (its plugin's AllowsEmbedConsole, as shipped). Games that
     /// can't — Rust, ARK, DayZ… — always run in a console window of their own; legacy greyed the option out for them.
     /// </param>
+    /// <param name="StopsByKilling">
+    /// The plugin stops the game by ending its process — no chance to save. Settings suggests the save command and
+    /// "Send Ctrl+C before the game's own stop" for these.
+    /// </param>
     public sealed record GameInfo(string Name, bool IsPlugin, string? AppId, bool LoginAnonymous, string? Icon,
-        string? Description, string? Author, string? Version, string? Color, IReadOnlyList<string> Consents, bool CanCapture = true)
+        string? Description, string? Author, string? Version, string? Color, IReadOnlyList<string> Consents, bool CanCapture = true,
+        bool StopsByKilling = false)
     {
         public bool IsSteam => !string.IsNullOrWhiteSpace(AppId);
     }
@@ -123,7 +128,48 @@ namespace WindowsGSM.Engine.Services
 
             return new GameInfo(name, plugin != null, string.IsNullOrWhiteSpace(appId) ? null : appId, loginAnonymous, icon,
                 plugin?.Plugin?.description, plugin?.Plugin?.author, plugin?.Plugin?.version, plugin?.Plugin?.color,
-                ConsentsFor(name, plugin), CanCapture(server));
+                ConsentsFor(name, plugin), CanCapture(server), StopsByKilling(name, plugin));
+        }
+
+        /// <summary>Built-in games whose plugin's Stop just ends the process (from a survey of every built-in plugin).</summary>
+        private static readonly HashSet<string> KillingBuiltIns = new(StringComparer.Ordinal)
+        {
+            GameServer.ARKSE.FullName, GameServer.BW.FullName, GameServer.DAYZ.FullName, GameServer.OLOW.FullName,
+            GameServer.ONSET.FullName, GameServer.SW.FullName, GameServer.TF.FullName,
+        };
+
+        /// <summary>
+        /// Whether the game's plugin stops it by ending the process. Built-in: from the list above. A community
+        /// plugin: its Stop (read from its source) kills and does nothing else — no command typed, no Ctrl+C, no window
+        /// closed.
+        /// </summary>
+        internal static bool StopsByKilling(string name, PluginMetadata? plugin)
+        {
+            if (plugin == null) { return KillingBuiltIns.Contains(name); }
+            try
+            {
+                string source = ServerPath.GetPlugins(plugin.FileName, plugin.FileName);
+                return File.Exists(source) && StopKillsOnly(File.ReadAllText(source));
+            }
+            catch { return false; }
+        }
+
+        /// <summary>True when the Stop method in <paramref name="source"/> kills the process and does nothing gentler first.</summary>
+        internal static bool StopKillsOnly(string source)
+        {
+            int start = source.IndexOf("Task Stop(", StringComparison.Ordinal);
+            if (start < 0) { return false; }
+            int open = source.IndexOf('{', start);
+            if (open < 0) { return false; }
+            int depth = 0, end = open;
+            for (; end < source.Length; end++)
+            {
+                if (source[end] == '{') { depth++; }
+                else if (source[end] == '}' && --depth == 0) { break; }
+            }
+            string body = source.Substring(open, Math.Min(end, source.Length - 1) - open + 1);
+            string[] gentle = { "SendMessageToMainWindow", "SendWaitToMainWindow", "StandardInput", "CloseMainWindow", "StopProcess", "SendStopSignal", "GenerateConsoleCtrlEvent", "Rcon", "RCON" };
+            return body.Contains("Kill(", StringComparison.Ordinal) && !gentle.Any(g => body.Contains(g, StringComparison.Ordinal));
         }
 
         /// <summary>Whether a plugin instance, as created (before WindowsGSM sets anything), allows capturing its console.</summary>

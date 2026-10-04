@@ -138,7 +138,7 @@ public static class ServerEndpoints
             if (settings == null) { return ApiResults.NotFound("No such server."); }
             return Results.Json(new ServerSettingsDto(ctx.MachineId, settings.ServerId, settings.Game, settings.IsSteam, settings.SteamBranchLastInstalled,
                 settings.Values, settings.Custom.Select(c => new CustomSettingDto(c.Key, c.Label, c.Value, c.Options)).ToList(), settings.CustomReplacesBuiltIns,
-                KnownSaveCommand(ctx, Scopes.Server(http)), settings.CanCapture));
+                KnownSaveCommand(ctx, Scopes.Server(http)), settings.CanCapture, settings.StopsByKilling));
         }).Needs(Capability.EditConfig);
 
         // The game's own save command, shown as the default (a server can set its own, or "-" for none).

@@ -160,15 +160,17 @@ public static class ServerDataEndpoints
         server.MapPost("/restore", (HttpContext http, AgentContext ctx, RestoreRequest body) =>
         {
             var s = Scopes.Server(http);
-            var request = ctx.Engine.Backups.Restore(s.Id, body.Name, body.IncludeConfig);
+            // Someone who can't choose scripts doesn't get one back from an old backup's settings either.
+            var keep = Scopes.User(http).IsAdmin ? null : WindowsGSM.Engine.Services.ServerScripts.AdminKeys;
+            var request = ctx.Engine.Backups.Restore(s.Id, body.Name, body.IncludeConfig, keep);
             ctx.Record(http, "restore", s.Id, request.Accepted, request.Accepted ? body.Name : request.Error);
             return ApiResults.FromRequest(request, ctx);
         }).Needs(Capability.Restore);
 
-        server.MapGet("/backups/settings", (HttpContext http) =>
+        server.MapGet("/backups/settings", (HttpContext http, WindowsGSM.Agent.Hosting.OffsiteBackups offsite) =>
         {
             var b = BackupSettings.Load(Scopes.Server(http).Id);
-            return Results.Json(new BackupSettingsDto(b.Paths, b.ExternalLocations, b.BeforeStart, b.KeepCount, b.KeepDays, b.Location, b.CopyTo));
+            return Results.Json(new BackupSettingsDto(b.Paths, b.ExternalLocations, b.BeforeStart, b.KeepCount, b.KeepDays, b.Location, b.CopyTo, b.UploadOffsite, offsite.Settings.Ready));
         }).Needs(Capability.Backup);
 
         server.MapPut("/backups/settings", (HttpContext http, AgentContext ctx, BackupSettingsDto body) =>
@@ -182,10 +184,13 @@ public static class ServerDataEndpoints
             var external = (body.ExternalLocations ?? Array.Empty<string>()).Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
             string location = body.Location?.Trim() ?? string.Empty;
             string copyTo = body.CopyTo == null ? b.CopyTo : body.CopyTo.Trim();
+            bool uploadOffsite = body.UploadOffsite ?? b.UploadOffsite;
+            // Sending the server's files off the machine is an admin's decision too.
             bool reachesOutside = !external.SequenceEqual(b.ExternalLocations, StringComparer.OrdinalIgnoreCase)
                                   || !string.Equals(location, b.Location, StringComparison.OrdinalIgnoreCase)
-                                  || !string.Equals(copyTo, b.CopyTo, StringComparison.OrdinalIgnoreCase);
-            if (reachesOutside && !user.IsAdmin) { return ApiResults.Forbidden("Only admins can change the backup locations or add folders outside the server."); }
+                                  || !string.Equals(copyTo, b.CopyTo, StringComparison.OrdinalIgnoreCase)
+                                  || uploadOffsite != b.UploadOffsite;
+            if (reachesOutside && !user.IsAdmin) { return ApiResults.Forbidden("Only admins can change the backup locations, off-site uploads or folders outside the server."); }
             if (copyTo.Length > 0 && !Path.IsPathFullyQualified(Environment.ExpandEnvironmentVariables(copyTo))) { return ApiResults.BadRequest("The second backup location must be a full path (D:\\Backups or \\\\nas\\share)."); }
             if (body.KeepCount < 0 || body.KeepDays < 0) { return ApiResults.BadRequest("Retention can't be negative."); }
 
@@ -200,6 +205,7 @@ public static class ServerDataEndpoints
             b.ExternalLocations = external;
             b.Location = location;
             b.CopyTo = copyTo;
+            b.UploadOffsite = uploadOffsite;
             b.BeforeStart = body.BeforeStart;
             b.KeepCount = body.KeepCount;
             b.KeepDays = body.KeepDays;

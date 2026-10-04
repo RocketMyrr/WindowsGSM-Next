@@ -116,6 +116,18 @@ const TOPICS = [
     ["stopping", "Stopping safely (saving the world)", "save", "stop save world shutdown saveworld timeout kill force", [
         "Before stopping, restarting or updating, WindowsGSM sends the game's save command and waits — for Rust, ARK, 7 Days to Die, Palworld, Project Zomboid, Terraria, Unturned and Minecraft it knows the command. Others can set one in Settings → Stopping safely.",
         "Then it asks the game to stop and waits (30 s by default) before ending it. Force stop ends it at once, without saving.",
+        "Some games' plugins stop them by just ending the process (ARK: Survival Evolved, DayZ, The Forest…) — Settings says so. For those, set a save command or turn on \"Send Ctrl+C before the game's own stop\": most servers save and shut down properly on Ctrl+C.",
+    ], []],
+
+    ["offsite", "Off-site backups (B2, R2, S3…)", "upload", "offsite off-site cloud backblaze b2 r2 cloudflare wasabi s3 amazon bucket upload", [
+        "Agent settings → Off-site backups: a bucket on any S3-compatible service (Backblaze B2, Cloudflare R2, Wasabi, Amazon S3, MinIO…), its key, and how many backups to keep there. \"Test connection\" writes, reads and removes a small file. The secret key is stored encrypted.",
+        "Then on a server's Backups tab, turn on \"Also upload each backup off-site\" (admins). Every new backup is uploaded in the background — the server isn't held up — and only the newest few are kept there. Any backup can also be uploaded with its upload button.",
+        "If this PC loses its backups, \"Bring back\" in the Off-site list downloads one into the Backups list, to restore as usual.",
+    ], []],
+
+    ["rustplugins", "Rust plugins (uMod)", "puzzle", "rust umod oxide carbon plugin plugins update install kits", [
+        "Rust servers with Oxide or Carbon (install one in the Add-ons tab) have a Plugins tab: search uMod, install (plugins a plugin requires come along), update all, remove. Oxide and Carbon load changes by themselves — no restart needed.",
+        "Plugins you added by hand are left alone; \"Keep up to date\" on one makes WindowsGSM update it from uMod from then on. A plugin you've edited since it was installed is never overwritten by updates. \"Update them before every start\" keeps them current automatically.",
     ], []],
 
     ["scripts", "Scripts before start & after stop", "file", "script batch bat ps1 powershell rotate logs clean up before start after stop", [

@@ -102,6 +102,26 @@ public class ServerScriptsTests
     }
 
     [Fact]
+    public async Task Restoring_a_backups_settings_can_keep_the_scripts_as_they_are()
+    {
+        string script = Script("restore-check.bat", "@echo off");
+        EngineFixture.CreateServer("219", extraSettings: new[] { $"batchfile=\"{script}\"" });
+        using var engine = await EngineFixture.StartEngineAsync();
+        await Run(engine.Backups.Backup("219"));
+        string backup = engine.Backups.List("219").First().Name;
+
+        // An admin removes the script afterwards…
+        ServerConfig.SetSetting("219", ServerScripts.BeforeStartKey, "");
+        // …someone who can't choose scripts restores that backup with its settings: the script stays removed…
+        await Run(engine.Backups.Restore("219", backup, includeConfig: true, keepSettings: ServerScripts.AdminKeys));
+        Assert.Equal(string.Empty, new ServerConfig("219").BatchFile);
+        Assert.Contains(engine.Log.Tail("219", 20), l => l.Contains("Server: Restored"));
+        // …while a restore by an admin puts everything back, the script included.
+        await Run(engine.Backups.Restore("219", backup, includeConfig: true));
+        Assert.Equal(script, new ServerConfig("219").BatchFile);
+    }
+
+    [Fact]
     public async Task A_script_that_runs_too_long_is_stopped()
     {
         string slow = Script("slow.bat", "@echo off\r\nping -n 60 127.0.0.1 > nul\r\n");

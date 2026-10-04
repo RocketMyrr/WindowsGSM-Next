@@ -176,6 +176,8 @@ public static class AgentApp
         builder.Services.AddSingleton(_ => new PortForwarding(context));
         builder.Services.AddSingleton(_ => new ServerTemplates(context));
         builder.Services.AddSingleton(_ => new Modrinth());
+        builder.Services.AddSingleton(_ => new UMod());
+        builder.Services.AddSingleton(_ => new OffsiteBackups(context));
         builder.Services.AddSingleton(_ => new ArkTools(context));
         builder.Services.AddSingleton(sp => new Reachability(context) { Forwarding = sp.GetRequiredService<PortForwarding>() });
         builder.Services.AddSingleton<ConfigHistory>();
@@ -238,6 +240,8 @@ public static class AgentApp
         SteamEndpoints.Map(api);
         TemplateEndpoints.Map(api, server);
         MinecraftEndpoints.Map(server);
+        RustEndpoints.Map(server);
+        OffsiteEndpoints.Map(api, server);
         ArkEndpoints.Map(api, server);
         LocationEndpoints.Map(api, server);
         PluginEndpoints.Map(api);
@@ -267,6 +271,9 @@ public static class AgentApp
         _ = app.Services.GetRequiredService<Automations>(); // starts watching
         _ = app.Services.GetRequiredService<PortForwarding>(); // forwards router ports as servers start
         engine.Lifecycle.PreStartSteps.Add(new WorkshopBeforeStart(app.Services.GetRequiredService<Workshop>()));
+        engine.Lifecycle.PreStartSteps.Add(new UModBeforeStart(app.Services.GetRequiredService<UMod>()));
+        var offsite = app.Services.GetRequiredService<OffsiteBackups>();
+        engine.Backups.Finished = offsite.BackupFinished;
         // Once listening: find the internal loopback address, then connect to our hub (if this machine joined one).
         app.Lifetime.ApplicationStarted.Register(() =>
         {
@@ -319,7 +326,7 @@ public static class AgentApp
         h["X-Frame-Options"] = "DENY";
         h["Referrer-Policy"] = "no-referrer";
         h["Content-Security-Policy"] =
-            "default-src 'self'; img-src 'self' data: https://cdn.modrinth.com; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+            "default-src 'self'; img-src 'self' data: https://cdn.modrinth.com https://assets.umod.org; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
         if (trustedHttps()) { h["Strict-Transport-Security"] = "max-age=31536000"; }
         await next(ctx);
     };

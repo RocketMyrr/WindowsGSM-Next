@@ -68,9 +68,17 @@ namespace WindowsGSM.Functions
 
         public async void Input(Process process, string text, IntPtr mainWindow)
         {
+            // NEXT: this is async void — anything thrown here ends the whole agent. A server re-adopted after the
+            // agent restarted can't say how it was started (StartInfo throws), and the first command typed to one
+            // with a console window crashed the agent.
+            try
+            {
             if (!process.HasExited)
             {
-                if (process.StartInfo.RedirectStandardInput)
+                bool redirected;
+                try { redirected = process.StartInfo.RedirectStandardInput; }
+                catch (InvalidOperationException) { redirected = false; } // re-adopted: never captured (its input can't be ours)
+                if (redirected)
                 {
                     try
                     {
@@ -105,6 +113,8 @@ namespace WindowsGSM.Functions
                     });
                 }
             }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Console input for {_serverId} failed: {ex.Message}"); }
         }
 
         // Monotonic count of lines ever added (never rolls back) plus a generation bumped by Clear(), so a
@@ -242,7 +252,7 @@ namespace WindowsGSM.Functions
         public static void SendMessageToMainWindow(IntPtr hWnd, string message)
         {
             // NEXT: a game's own console window: the text goes straight into its console's input (see ConsoleHost.TypeInto).
-            if (Engine.Services.ConsoleWindows.GameOf(hWnd) is int pid && ConsoleHost.TypeInto(pid, message + "\r", hWnd)) { return; }
+            if (KeysGame(hWnd) is int pid && ConsoleHost.TypeInto(pid, message + "\r", hWnd)) { return; }
 
             // Here is a minor error on PostMessage, when it sends repeated char, some char may disappear. Example: send 1111111, windows may receive 1111 or 11111
             for (int i = 0; i < message.Length; i++)
@@ -264,11 +274,27 @@ namespace WindowsGSM.Functions
         // The window a plugin last picked with SetMainWindow (per thread: plugins pick, then press, on one thread).
         [ThreadStatic] private static IntPtr _keysTarget;
 
+        /// <summary>
+        /// NEXT: the server WindowsGSM is stopping, while its plugin's Stop runs (it flows into the plugin's own
+        /// Task.Run). Most plugins "press" Ctrl+C on Process.MainWindowHandle; a server without a window of its own
+        /// (captured, or found again after an agent restart) has none, so the keys went nowhere and the plugin killed
+        /// it a moment later. Keys and typing aimed at no window go to this server's console instead.
+        /// </summary>
+        internal static readonly System.Threading.AsyncLocal<Process?> Stopping = new System.Threading.AsyncLocal<Process?>();
+
+        /// <summary>The game whose console keys for <paramref name="hWnd"/> should reach: its own console window's, or (no window) the server being stopped.</summary>
+        private static int? KeysGame(IntPtr hWnd)
+        {
+            if (Engine.Services.ConsoleWindows.GameOf(hWnd) is int pid) { return pid; }
+            if (hWnd != IntPtr.Zero) { return null; } // some other window: legacy handling
+            try { return Stopping.Value is { HasExited: false } p ? p.Id : null; } catch { return null; }
+        }
+
         public static void SetMainWindow(IntPtr hWnd)
         {
             _keysTarget = hWnd;
             // NEXT: a game's own console window (often hidden) is reached directly — see SendWaitToMainWindow.
-            if (Engine.Services.ConsoleWindows.GameOf(hWnd) != null) { return; }
+            if (KeysGame(hWnd) != null || hWnd == IntPtr.Zero) { return; }
             SetForegroundWindow(hWnd);
         }
 
@@ -278,7 +304,7 @@ namespace WindowsGSM.Functions
             // the front. A hidden window can't, and Windows often refuses a background program anyway — so a plugin's
             // Ctrl+C or "stop" could land in whatever app the person at the PC was using. For a game's own console
             // window the keys are delivered to that console instead: Ctrl+C as a real Ctrl+C, the rest as typing.
-            if (Engine.Services.ConsoleWindows.GameOf(_keysTarget) is int pid)
+            if (KeysGame(_keysTarget) is int pid)
             {
                 SendKeysToConsole(_keysTarget, pid, keys);
                 return;

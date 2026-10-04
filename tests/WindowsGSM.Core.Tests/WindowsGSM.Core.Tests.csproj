@@ -16,6 +16,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\WindowsGSM.Core\WindowsGSM.Core.csproj" />
+    <!-- Built first, not referenced: ConsoleHostScenarioTests runs it as a separate (windowless) program. -->
+    <ProjectReference Include="..\WindowsGSM.ConsoleHarness\WindowsGSM.ConsoleHarness.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

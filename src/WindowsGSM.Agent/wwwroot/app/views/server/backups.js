@@ -10,7 +10,12 @@ import { can, isAdmin } from "../../perms.js";
 export default async function backupsTab(host, { id, machine, key, server, scope }) {
     const list = h("div");
     const settingsBody = h("div", { class: "stack" });
+    const offsiteList = h("div");
+    const offsitePanel = h("section", { class: "panel", hidden: true },
+        h("div", { class: "panel-head" }, icon("upload"), h("h3", { text: "Off-site" }), h("span", { class: "sub", text: "Copies in this machine's off-site storage" })),
+        h("div", { class: "panel-body flush" }, offsiteList));
     const canRestore = can(server(), "Restore");
+    let offsiteReady = false;
 
     host.append(h("div", { class: "split" },
         h("section", { class: "panel" },
@@ -20,7 +25,8 @@ export default async function backupsTab(host, { id, machine, key, server, scope
             h("div", { class: "panel-body flush" }, list)),
         h("section", { class: "panel" },
             h("div", { class: "panel-head" }, h("h3", { text: "Backup settings" })),
-            h("div", { class: "panel-body" }, settingsBody))));
+            h("div", { class: "panel-body" }, settingsBody))),
+        offsitePanel);
 
     async function backup(button, everything) {
         await busy(button, async () => {
@@ -45,6 +51,7 @@ export default async function backupsTab(host, { id, machine, key, server, scope
                 h("td", { class: "muted", title: fmtDateTime(b.created), text: timeAgo(b.created) }),
                 h("td", { class: "actions" },
                     canRestore ? h("button", { class: "btn sm", onclick: () => restore(b) }, icon("restore"), "Restore") : null,
+                    offsiteReady ? h("button", { class: "btn ghost sm icon-only", "aria-label": "Upload off-site", title: "Upload this backup to the off-site storage now", onclick: e => uploadOffsite(b, e.currentTarget) }, icon("upload")) : null,
                     h("button", { class: "btn ghost sm icon-only", "aria-label": "Test this backup", title: "Test this backup — checks every file in it is intact, without restoring anything", onclick: e => test(b, e.currentTarget) }, icon("checkCircle")),
                     h("a", { class: "btn ghost sm icon-only", "aria-label": "Download", title: "Download", href: `/api/v2${srv(machine, id, `/backups/${encodeURIComponent(b.name)}/download`)}`, download: "" }, icon("download")),
                     h("button", { class: "btn ghost sm icon-only", "aria-label": "Delete", title: "Delete", onclick: () => remove(b) }, icon("trash"))))))));
@@ -80,6 +87,44 @@ export default async function backupsTab(host, { id, machine, key, server, scope
         }, "Couldn't test the backup");
     }
 
+    async function uploadOffsite(b, button) {
+        await busy(button, async () => {
+            const res = await post(srv(machine, id, `/backups/${encodeURIComponent(b.name)}/upload-offsite`));
+            store.trackJob(res.job, machine);
+            toast("Uploading off-site", { type: "info", text: "It runs in the background — the server isn't held up.", timeout: 3000 });
+        }, "Couldn't start the upload");
+    }
+
+    // ── Off-site copies ──
+    async function loadOffsite() {
+        let res;
+        try { res = await get(srv(machine, id, "/backups/offsite")); }
+        catch (e) { offsitePanel.hidden = false; clear(offsiteList).append(h("div", { class: "callout bad" }, icon("warn"), h("span", { text: e.message }))); return; }
+        offsiteReady = res.ready;
+        offsitePanel.hidden = !res.ready;
+        if (!res.ready) return;
+        clear(offsiteList);
+        if (!res.backups.length) {
+            offsiteList.append(empty("upload", "Nothing off-site yet", res.upload ? "The next backup is uploaded automatically — or use the upload button on a backup above." : "Turn on “Also upload each backup off-site” in Backup settings, or upload one with its button above."));
+            return;
+        }
+        offsiteList.append(h("table", { class: "table" },
+            h("thead", {}, h("tr", {}, h("th", { text: "Backup" }), h("th", { text: "Size" }), h("th", { text: "Uploaded" }), h("th", { class: "actions" }))),
+            h("tbody", {}, ...res.backups.map(b => h("tr", {},
+                h("td", {}, h("div", { class: "row" }, icon("upload"), h("span", { class: "mono small truncate", text: b.name }))),
+                h("td", { class: "num muted", text: fmtBytes(b.size) }),
+                h("td", { class: "muted", title: fmtDateTime(b.uploaded), text: timeAgo(b.uploaded) }),
+                h("td", { class: "actions" }, canRestore ? h("button", { class: "btn sm", title: "Download it into this server's backups, to restore from there", onclick: e => bringBack(b, e.currentTarget) }, icon("download"), "Bring back") : null))))));
+    }
+
+    async function bringBack(b, button) {
+        await busy(button, async () => {
+            const res = await post(srv(machine, id, `/backups/offsite/${encodeURIComponent(b.name)}/download`));
+            store.trackJob(res.job, machine);
+            toast("Bringing it back", { type: "info", text: "When it's done it appears in the Backups list — restore it from there.", timeout: 4000 });
+        }, "Couldn't bring it back");
+    }
+
     async function remove(b) {
         if (!(await confirm({ title: "Delete this backup?", message: `${b.name} (${fmtBytes(b.size)}) will be deleted permanently.`, confirmLabel: "Delete", danger: true, iconName: "trash" }))) return;
         try { await del(srv(machine, id, `/backups/${encodeURIComponent(b.name)}`)); loadList(); }
@@ -97,11 +142,17 @@ export default async function backupsTab(host, { id, machine, key, server, scope
         external.value = cfg.externalLocations.join("\n");
         const location = input({ value: cfg.location, disabled: !isAdmin(), placeholder: "Default: the data folder's backups folder" });
         const copyTo = input({ value: cfg.copyTo || "", disabled: !isAdmin(), placeholder: "e.g. E:\\Backups or \\\\nas\\wgsm (optional)" });
+        const uploadOffsite = toggle("Also upload each backup off-site", !!cfg.uploadOffsite, {
+            disabled: !isAdmin() || (!cfg.offsiteReady && !cfg.uploadOffsite),
+            hint: !cfg.offsiteReady ? "Set up off-site storage first: Agent settings → Off-site backups." : isAdmin() ? "Each new backup is uploaded in the background; the newest few are kept there." : "Only admins can change this.",
+            help: "A copy away from this PC — safe from a dead drive, theft or fire. Uploads run as their own job, so the server isn't held up; a failed upload is reported and the backup on this PC is kept either way.",
+        });
         const saveBtn = h("button", { class: "btn primary", onclick: async () => {
             await busy(saveBtn, async () => {
                 await put(srv(machine, id, "/backups/settings"), {
                     paths: lines(paths.value), externalLocations: lines(external.value), beforeStart: beforeStart.input.checked,
                     keepCount: Number(keepCount.value) || 0, keepDays: Number(keepDays.value) || 0, location: location.value.trim(), copyTo: copyTo.value.trim(),
+                    uploadOffsite: uploadOffsite.input.checked,
                 });
                 toast("Backup settings saved", { type: "good", timeout: 2500 });
             }, "Couldn't save the backup settings");
@@ -115,11 +166,17 @@ export default async function backupsTab(host, { id, machine, key, server, scope
             field("What to back up", paths, { hint: "Paths inside the server's files.", help: ["Empty backs up everything (the safe choice). Listing folders — e.g. Saved, world, server/my_server_identity — makes backups much smaller and faster by skipping the game's own files, which an update or Verify can always bring back."] }),
             field("Folders outside the server", external, { help: "Some games keep worlds or saves outside the server folder (for example in Documents or AppData). List those folders so they're backed up — and restored — too.", hint: isAdmin() ? "Some games keep worlds elsewhere. Restores only write back to places listed here." : "Only admins can change this." }),
             field("Save backups to", location, { help: "Where the backup zips go. Empty uses the server's own backups folder. A different drive or a network share (\\nas\backups) protects you if this drive fails.", hint: isAdmin() ? "Another drive or a network share is safer." : "Only admins can change this." }),
+            uploadOffsite,
             field("Also copy each backup to", copyTo, { help: "A second copy of every backup somewhere else — the classic \"two places\" rule. If the copy fails (a share offline), the main backup is still kept and the log says why.", hint: isAdmin() ? "A second copy somewhere else — another drive or a network share. The same keep rules apply there." : "Only admins can change this." }),
             h("div", { class: "row" }, h("span", { class: "spacer" }), saveBtn));
     }
 
-    scope.add(store.on("jobFinished", j => { if (j.serverId === id && (j.kind === "backup" || j.kind === "restore" || j.kind === "backup-test")) loadList(); }));
+    scope.add(store.on("jobFinished", j => {
+        if (j.serverId !== id) return;
+        if (j.kind === "backup" || j.kind === "restore" || j.kind === "backup-test" || j.kind === "offsite") loadList();
+        if (j.kind === "offsite" || j.kind === "backup") loadOffsite();
+    }));
+    await loadOffsite(); // first: the list shows upload buttons when off-site storage is set up
     await Promise.all([loadList(), loadSettings()]);
 }
 

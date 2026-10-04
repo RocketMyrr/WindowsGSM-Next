@@ -12,6 +12,7 @@
     <PackageVersion Include="CoreRCON" Version="5.4.2" />
     <!-- Agent -->
     <PackageVersion Include="Certes" Version="4.1.0" />
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.104.1" />
     <PackageVersion Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <PackageVersion Include="Discord.Net.WebSocket" Version="3.20.1" />

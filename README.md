@@ -7,7 +7,7 @@ WindowsGSM Next is the rebuild of [WindowsGSM](https://github.com/WindowsGSM/Win
 whether or not any window is open, every existing game plugin keeps working, and your current WindowsGSM folder —
 servers, backups, accounts, schedules, Discord bot — carries straight over.
 
-> **Status: 2.0.0-alpha.5 (pre-release).** Everything below is built and tested, but it's an alpha: keep backups,
+> **Status: 2.0.0-alpha.6 (pre-release).** Everything below is built and tested, but it's an alpha: keep backups,
 > and try it on a copy of your WindowsGSM folder first if you're switching from the old app.
 
 ---
@@ -15,6 +15,7 @@ servers, backups, accounts, schedules, Discord bot — carries straight over.
 ## Contents
 
 - [Highlights](#highlights)
+- [What's new in 2.0.0-alpha.6](#whats-new-in-200-alpha6)
 - [What's new in 2.0.0-alpha.5](#whats-new-in-200-alpha5)
 - [What's new in 2.0.0-alpha.4](#whats-new-in-200-alpha4)
 - [Requirements](#requirements)
@@ -47,6 +48,32 @@ servers, backups, accounts, schedules, Discord bot — carries straight over.
 - **Safe by default.** Accounts with roles and per-server permissions, two-factor sign-in and passkeys, an audit
   log of who did what, and secrets stored encrypted.
 - **Help built in.** A ? next to settings, page tips and a searchable Help page.
+
+## What's new in 2.0.0-alpha.6
+
+**Off-site backups**
+- Agent settings → **Off-site backups**: any S3-compatible storage — Backblaze B2, Cloudflare R2, Wasabi, Amazon S3,
+  MinIO — with *Test connection*. Turn on *Also upload each backup off-site* per server (Backups tab): every new
+  backup uploads in the background, the newest few are kept there, and **Bring back** restores one if this PC loses
+  its backups.
+
+**Rust plugins from uMod**
+- A **Plugins** tab on Rust servers with Oxide or Carbon: search uMod (most downloaded first), install with the plugins
+  it requires, **Update all**, remove, and *Keep up to date* for plugins you added by hand. Checked against uMod's
+  checksum, never overwrites your edits, no restart needed. Optionally update them before every start.
+
+**Clean stops for more games**
+- When a plugin "presses" Ctrl+C on a server that has no window of its own (captured, or found again after an agent
+  restart), the Ctrl+C now reaches the server instead of going nowhere — most community plugins stop games this way.
+- After an agent restart, plugins use their normal clean stop again.
+- New: *Send Ctrl+C before the game's own stop* (Settings → Stopping safely), and a warning for games whose plugin
+  just ends the process (ARK: Survival Evolved, DayZ, The Forest…).
+
+**Fixes**
+- Typing a Console-tab command to a server re-adopted after an agent restart could crash the agent (alpha.4–5).
+- Restoring a backup's settings can no longer bring back a script for someone who isn't an admin.
+- Games always read input from their own console.
+- The console handling is now covered by automated end-to-end tests.
 
 ## What's new in 2.0.0-alpha.5
 
@@ -163,6 +190,8 @@ two bots don't answer at once.
 - Start, stop, restart, force stop, with the world saved first (known save commands for Rust, ARK, 7 Days to Die,
   Palworld, Project Zomboid, Terraria, Unturned and Minecraft, or your own).
 - **Scripts** of your own (`.bat` / `.ps1`) before every start and after every stop — rotate logs, clean up files.
+- **Clean stops for every game**: plugins' own stop commands and Ctrl+C reach the game's console (window or not), and
+  games whose plugin just ends the process can get Ctrl+C first.
 - **Auto-restart** after a crash, with back-off. It pauses itself if a server keeps crashing, rather than looping.
 - **Memory guard**: a clean restart when a server's memory stays too high.
 - CPU priority and core affinity, per server.
@@ -182,6 +211,8 @@ two bots don't answer at once.
 ### Game-specific tools
 - **Minecraft Java**: Vanilla, Paper, Purpur or Fabric at the version you choose. Plugins and mods from
   **Modrinth** with dependencies, update all, remove.
+- **Rust plugins from uMod** (Oxide or Carbon): search, install with requirements, update all, keep hand-added ones up
+  to date, never overwrite your edits — no restart needed.
 - **ARK: Survival Ascended**: CurseForge mods in load order, and clusters.
 - **Steam Workshop**: mods by link or collection, kept up to date (DayZ / Arma 3 `@Mod` folders and keys,
   Conan Exiles `modlist.txt`).
@@ -192,6 +223,8 @@ two bots don't answer at once.
 - **File manager**: browse, edit, upload, download, rename and delete, with **Open in Explorer** on that PC.
 - **Backups**: on demand or on a schedule, kept by count or age, optionally copied to another drive or network
   share, and **tested** without restoring (every file read back and checked). Restore with one click.
+- **Off-site backups** to any S3-compatible storage (Backblaze B2, Cloudflare R2, Wasabi, Amazon S3, MinIO): uploaded
+  after each backup, the newest kept there, and brought back with one click if this PC loses them.
 - **Game files on another drive**, moved any time.
 - **Storage** page: what each server takes, and one-click clean-up of old logs, crash dumps and caches.
 - **History** for settings and config files: compare with now, or put an earlier version back.

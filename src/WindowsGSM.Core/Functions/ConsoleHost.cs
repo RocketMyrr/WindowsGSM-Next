@@ -39,6 +39,18 @@ namespace WindowsGSM.Functions
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern IntPtr CreateFileW(string name, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool WriteConsoleInputW(IntPtr input, InputRecord[] records, uint count, out uint written);
         [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "CreateFileW")]
+        private static extern IntPtr CreateFileInheritable(string name, uint access, uint share, ref SecurityAttributes security, uint disposition, uint flags, IntPtr template);
+        [DllImport("kernel32.dll")] private static extern IntPtr GetStdHandle(int which);
+        [DllImport("kernel32.dll")] private static extern bool SetStdHandle(int which, IntPtr handle);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct SecurityAttributes
+        {
+            public int Length;
+            public IntPtr Descriptor;
+            public int Inherit;
+        }
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern short VkKeyScanW(char c);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern uint MapVirtualKeyW(uint code, uint mapType);
 
@@ -73,6 +85,23 @@ namespace WindowsGSM.Functions
         private static IntPtr _job;
 
         public static bool Active => _enabled;
+
+        /// <summary>For tests: told of every console the agent leaves and joins (what, and how it went).</summary>
+        internal static Action<string>? Trace;
+
+        private static bool Free(string why)
+        {
+            bool ok = FreeConsole();
+            Trace?.Invoke($"free ({why}) ok={ok}");
+            return ok;
+        }
+
+        private static bool Join(uint pid, string why)
+        {
+            bool ok = AttachConsole(pid);
+            Trace?.Invoke($"join {pid} ({why}) ok={ok}{(ok ? "" : " error=" + Marshal.GetLastWin32Error())}");
+            return ok;
+        }
 
         /// <summary>Turns the scheme on when this process has no visible console. Safe to call more than once.</summary>
         public static void Enable()
@@ -138,25 +167,62 @@ namespace WindowsGSM.Functions
 
             Process? waiter = null;
             bool joined = false;
+            (IntPtr input, IntPtr output, IntPtr error, IntPtr conin, IntPtr conout)? std = null;
             try
             {
                 waiter = NewHiddenConsole() ?? NewHiddenConsole(); // once more before giving up
                 if (waiter != null)
                 {
-                    FreeConsole();
-                    joined = AttachConsole((uint)waiter.Id);
+                    Free("start");
+                    joined = Join((uint)waiter.Id, "start: the new game's console");
                     if (!joined) { GoHome(); }
                 }
                 IntPtr window = joined ? GetConsoleWindow() : IntPtr.Zero;
+                if (joined) { std = UseConsoleForStandardHandles(); }
                 return (await start().ConfigureAwait(false), window);
             }
             finally
             {
-                if (joined) { FreeConsole(); GoHome(); }
+                RestoreStandardHandles(std);
+                if (joined) { Free("start done"); GoHome(); }
                 // The game (if it started) now holds the console; if nothing did, it closes once the placeholder ends.
                 End(waiter);
                 Gate.Release();
             }
+        }
+
+        /// <summary>
+        /// Points this process's standard handles at the console it's in, for the game started now to inherit. A game
+        /// inherits its parent's standard handles: if the agent's were a file or pipe (started with redirected input,
+        /// say), the game would read that instead of its own console, and nothing typed into it would arrive. Returns
+        /// what to put back.
+        /// </summary>
+        private static (IntPtr, IntPtr, IntPtr, IntPtr, IntPtr)? UseConsoleForStandardHandles()
+        {
+            var inherit = new SecurityAttributes { Length = Marshal.SizeOf<SecurityAttributes>(), Inherit = 1 };
+            IntPtr conin = CreateFileInheritable("CONIN$", 0xC0000000, 3, ref inherit, 3, 0, IntPtr.Zero);
+            IntPtr conout = CreateFileInheritable("CONOUT$", 0xC0000000, 3, ref inherit, 3, 0, IntPtr.Zero);
+            if (conin == new IntPtr(-1) || conout == new IntPtr(-1))
+            {
+                if (conin != new IntPtr(-1)) { CloseHandle(conin); }
+                if (conout != new IntPtr(-1)) { CloseHandle(conout); }
+                return null;
+            }
+            var saved = (GetStdHandle(-10), GetStdHandle(-11), GetStdHandle(-12), conin, conout);
+            SetStdHandle(-10, conin);  // STD_INPUT_HANDLE
+            SetStdHandle(-11, conout); // STD_OUTPUT_HANDLE
+            SetStdHandle(-12, conout); // STD_ERROR_HANDLE
+            return saved;
+        }
+
+        private static void RestoreStandardHandles((IntPtr input, IntPtr output, IntPtr error, IntPtr conin, IntPtr conout)? saved)
+        {
+            if (saved is not { } s) { return; }
+            SetStdHandle(-10, s.input);
+            SetStdHandle(-11, s.output);
+            SetStdHandle(-12, s.error);
+            CloseHandle(s.conin); // the game has its own copies
+            CloseHandle(s.conout);
         }
 
         /// <summary>The game's console window, once its placeholder has gone: Zero if the game didn't keep it.</summary>
@@ -222,8 +288,8 @@ namespace WindowsGSM.Functions
                 // WindowsGSM can't manage — on Windows 11, in Windows Terminal).
                 var fresh = TakeSpare();
                 var old = _home;
-                FreeConsole();
-                if (fresh != null && AttachConsole((uint)fresh.Id)) { _home = fresh; }
+                Free("hand over");
+                if (fresh != null && Join((uint)fresh.Id, "hand over: the spare")) { _home = fresh; }
                 else { End(fresh); _home = null; GoHome(); }
                 End(old); // the game keeps that console (and its window) alive
                 return home;
@@ -287,7 +353,7 @@ namespace WindowsGSM.Functions
             try
             {
                 IntPtr home = GetConsoleWindow();
-                FreeConsole();
+                Free("visit");
                 bool ok = false;
                 // A Ctrl+C in that console (ours, or someone pressing it in the game's window) reaches every process
                 // in it, the agent included while it's there: ignore it for now. Only for now — games inherit the
@@ -295,11 +361,11 @@ namespace WindowsGSM.Functions
                 SetConsoleCtrlHandler(IntPtr.Zero, true);
                 try
                 {
-                    if (AttachConsole((uint)pid))
+                    if (Join((uint)pid, "visit"))
                     {
                         IntPtr theirs = GetConsoleWindow();
                         if (theirs != home || home == IntPtr.Zero) { ok = action(theirs); }
-                        FreeConsole();
+                        Free("visit done");
                     }
                     GoHome();
                 }
@@ -312,12 +378,13 @@ namespace WindowsGSM.Functions
         /// <summary>Joins the agent's hidden home console, making it first if needed. Call with the gate held.</summary>
         private static void GoHome()
         {
-            if (_home != null && !HasExited(_home) && AttachConsole((uint)_home.Id)) { return; }
+            if (_home != null && !HasExited(_home) && Join((uint)_home.Id, "home")) { return; }
+            Trace?.Invoke("home: making a new one");
             End(_home);
             _home = null;
-            FreeConsole();
+            Free("home gone");
             var waiter = TakeSpare(); // ready-made when possible: the agent shouldn't be without a console for long
-            if (waiter != null && AttachConsole((uint)waiter.Id)) { _home = waiter; }
+            if (waiter != null && Join((uint)waiter.Id, "new home")) { _home = waiter; }
             else { End(waiter); }
         }
 

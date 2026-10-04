@@ -28,6 +28,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" />
     <PackageReference Include="Certes" />
+    <!-- Off-site backups: any S3-compatible storage (Backblaze B2, Cloudflare R2, Wasabi, Amazon S3, MinIO). -->
+    <PackageReference Include="AWSSDK.S3" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="Discord.Net.WebSocket" />
     <PackageReference Include="Fido2" />
