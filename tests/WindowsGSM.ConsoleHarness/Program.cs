@@ -115,6 +115,23 @@ internal static class Scenarios
             return 0;
         }
 
+        // Can this machine host a console at all? A build server without an interactive desktop (GitHub's runners)
+        // can't make the hidden console windows — there's nothing to test there. On a real PC this must work.
+        var (probe, probeWindow) = await ConsoleHost.StartInOwnConsoleAsync(() =>
+            Task.FromResult(Process.Start(new ProcessStartInfo("cmd.exe", "/d /c ping -n 2 127.0.0.1 >nul") { UseShellExecute = false })!));
+        probe.WaitForExit(10000);
+        if (probeWindow == IntPtr.Zero)
+        {
+            bool ci = string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase);
+            if (ci)
+            {
+                File.AppendAllText(_results, "SKIP all: this build machine can't make hidden console windows (no interactive desktop)" + Environment.NewLine);
+                return 0;
+            }
+            Result("setup", false, "couldn't start a game in a console of its own — console hosting is broken on this PC");
+            return 1;
+        }
+
         if (Directory.Exists(root)) { Directory.Delete(root, recursive: true); }
         Directory.CreateDirectory(Path.Combine(root, "plugins", "HarnessGame.cs"));
         File.WriteAllText(Path.Combine(root, "plugins", "HarnessGame.cs", "HarnessGame.cs"), Plugin.Replace("{{HARNESS}}", Environment.ProcessPath!.Replace("\\", "\\\\")));
