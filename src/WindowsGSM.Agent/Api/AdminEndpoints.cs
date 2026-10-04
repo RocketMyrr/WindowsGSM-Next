@@ -104,7 +104,24 @@ public static class AdminEndpoints
             return Results.Json(new { restartRequired = true, settings = ToDto(s) });
         });
 
-        admin.MapGet("/agent/startup", () => Results.Json(new { registered = StartupTask.IsRegistered(), taskName = StartupTask.TaskName }));
+        // The certificate the panel is served with (HTTPS on): its fingerprint is what the WindowsGSM app on another
+        // PC shows the first time it connects, so it can be checked against this.
+        admin.MapGet("/agent/certificate", (HttpContext http, AgentContext ctx, IServiceProvider services) =>
+        {
+            if (!ctx.CurrentUser(http)!.IsOwner) { return ApiResults.Forbidden("Only owners can see the agent's settings."); }
+            var certs = services.GetService<global::WindowsGSM.Agent.Hosting.CertificateService>();
+            if (certs?.Current is not { } cert) { return Results.Json(new { https = false }); }
+            return Results.Json(new
+            {
+                https = true,
+                trusted = certs.Trusted,
+                subject = cert.GetNameInfo(System.Security.Cryptography.X509Certificates.X509NameType.SimpleName, false),
+                expires = cert.NotAfter.ToUniversalTime(),
+                fingerprint = global::WindowsGSM.Agent.Hosting.CertificateFingerprint.Of(cert),
+            });
+        });
+
+        admin.MapGet("/agent/startup",() => Results.Json(new { registered = StartupTask.IsRegistered(), taskName = StartupTask.TaskName }));
 
         admin.MapPost("/agent/startup", (HttpContext http, AgentContext ctx, StartupRequest body) =>
         {

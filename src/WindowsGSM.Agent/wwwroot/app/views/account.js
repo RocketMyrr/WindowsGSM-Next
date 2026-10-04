@@ -172,12 +172,17 @@ export default async function account(host, { scope }) {
         clear(sessions);
         if (!list.length) { sessions.append(empty("monitor", "No sessions", "")); return; }
         for (const s of list) {
+            // "app-…": a WindowsGSM app on another PC that stays signed in (removing it makes that app sign in again).
+            const app = s.id.startsWith("app-");
             sessions.append(h("div", { class: "list-item" },
-                h("span", { class: ["session-icon", s.current && "current"] }, icon("monitor")),
+                h("span", { class: ["session-icon", s.current && "current"] }, icon(app ? "key" : "monitor")),
                 h("div", { class: "grow" },
                     h("b", { text: s.device || "Unknown device" }), s.current ? h("span", { class: "tag accent", text: "This device" }) : null,
-                    h("div", { class: "small muted", text: `${s.ip || "unknown address"} · active ${timeAgo(s.lastSeenAt)} · signed in ${fmtDateTime(s.createdAt)}` })),
-                s.current ? null : h("button", { class: "btn ghost sm", onclick: e => busy(e.currentTarget, async () => { await post(`/auth/sessions/${s.id}/revoke`); loadSessions(); }) }, "Sign out")));
+                    h("div", { class: "small muted", text: app
+                        ? `${s.ip || "unknown address"} · last signed in ${timeAgo(s.lastSeenAt)} · remembered since ${fmtDateTime(s.createdAt)}`
+                        : `${s.ip || "unknown address"} · active ${timeAgo(s.lastSeenAt)} · signed in ${fmtDateTime(s.createdAt)}` })),
+                s.current ? null : h("button", { class: "btn ghost sm", title: app ? "That app signs in with a password again next time" : null,
+                    onclick: e => busy(e.currentTarget, async () => { await post(`/auth/sessions/${s.id}/revoke`); loadSessions(); }) }, app ? "Remove" : "Sign out")));
         }
     }
 

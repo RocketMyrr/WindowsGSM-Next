@@ -24,6 +24,7 @@ servers, backups, accounts, schedules, Discord bot — carries straight over.
 - [First steps](#first-steps)
 - [Features](#features)
 - [Several machines, one panel](#several-machines-one-panel)
+- [The app on another PC](#the-app-on-another-pc)
 - [The Discord bot](#the-discord-bot)
 - [Updates](#updates)
 - [Security](#security)
@@ -148,6 +149,8 @@ servers, backups, accounts, schedules, Discord bot — carries straight over.
 1. Download `WindowsGSM-<version>.zip` from the
    [releases page](https://github.com/RocketMyrr/WindowsGSM-Next/releases) and unzip it anywhere.
 2. Run **WindowsGSM.exe**. Setup walks you through:
+   - **what this PC does** — *run game servers here* (the full install), or *control game servers on another PC*
+     (just the app; see [The app on another PC](#the-app-on-another-pc));
    - **where the app goes** — `%LOCALAPPDATA%\Programs\WindowsGSM` by default (for you only, no admin needed);
    - **where your game servers live** — your existing WindowsGSM folder, or a new one;
    - shortcuts and *Start with Windows*.
@@ -264,6 +267,28 @@ Only the hub needs to be reachable; the others connect out to it. From then on:
 - **Machines → Update all** updates every machine.
 - If a machine drops off, its servers keep running. The hub shows their last known state until it reconnects.
 - Move a server from one machine to another from its ⋯ menu.
+
+## The app on another PC
+
+The panel works in any browser, but on a Windows PC the WindowsGSM app gives you its own window, tray icon and
+Windows notifications — for a PC you don't run servers on, like your laptop:
+
+1. On the PC with the servers (or your hub): Agent settings → Network → *Reachable from other computers*, then
+   restart its agent.
+2. On the other PC, run setup and choose **Control game servers on another PC**. Nothing runs in the background
+   there, and no servers live there.
+3. Open WindowsGSM, enter the address (e.g. `192.168.1.20`, or `games.example.com`) and sign in with your account
+   from that PC. With *Stay signed in* (on by default) you only do that once: the app signs itself back in.
+
+- Add more PCs and switch between them from the tray icon → **PC**. A full install can do this too.
+- **Encryption:** plain HTTP is refused across the internet. With a self-signed certificate the app shows its
+  fingerprint once; compare it with Agent settings → HTTPS on that PC. After that the app trusts only that
+  certificate, and stops if it changes.
+- **Staying signed in:** after you sign in, the PC gives the app its own key, stored encrypted for your Windows
+  account. Turn it off in the tray's PC menu. To remove it, use Account & security on that PC, or sign out in
+  the app. Changing your password removes it too, and it lapses after 90 days unused.
+- **Updates:** the app offers to update itself when the PC it shows runs a newer WindowsGSM.
+- **Running servers here later:** Start menu → WindowsGSM → WindowsGSM setup → *Run game servers on this PC too*.
 
 ## The Discord bot
 

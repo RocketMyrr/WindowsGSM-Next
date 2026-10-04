@@ -12,8 +12,25 @@ internal sealed class DesktopSettings
     public bool Maximized { get; set; }
     /// <summary>Sign back in on its own (as whoever last signed in here) when the session ends.</summary>
     public bool StaySignedIn { get; set; } = true;
+    /// <summary>Other PCs (or hubs) this app has connected to.</summary>
+    public List<SavedPc> Pcs { get; set; } = new();
+    /// <summary>The address of the PC the window shows; null = this PC's own agent.</summary>
+    public string? CurrentPc { get; set; }
 
-    public static string Folder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowsGSM");
+    [System.Text.Json.Serialization.JsonIgnore] public SavedPc? Current => CurrentPc == null ? null : Pcs.FirstOrDefault(p => string.Equals(p.Url, CurrentPc, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Adds a PC (or updates the one at the same address) and makes it current.</summary>
+    public void Remember(SavedPc pc)
+    {
+        Pcs.RemoveAll(p => string.Equals(p.Url, pc.Url, StringComparison.OrdinalIgnoreCase));
+        Pcs.Add(pc);
+        CurrentPc = pc.Url;
+        Save();
+    }
+
+    /// <summary>%LOCALAPPDATA%\WindowsGSM — or WGSM_DESKTOP_HOME, so a test copy keeps its own PCs and sign-ins.</summary>
+    public static string Folder => Environment.GetEnvironmentVariable("WGSM_DESKTOP_HOME") is { Length: > 0 } home
+        ? home : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowsGSM");
     private static string FilePath => Path.Combine(Folder, "desktop.json");
 
     public static DesktopSettings Load()
@@ -45,12 +62,13 @@ internal static class StartWithWindows
         return key?.GetValue(ValueName) is string;
     }
 
-    public static void Set(bool on, string exe, string dataRoot)
+    public static void Set(bool on, string exe, string? dataRoot)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RunKey);
         // Installed: the launcher (it always starts the current version and knows the data folder).
         string? launcher = Environment.GetEnvironmentVariable("WGSM_LAUNCHER");
-        if (on) { key.SetValue(ValueName, launcher is { Length: > 0 } && File.Exists(launcher) ? $"\"{launcher}\" --minimized" : $"\"{exe}\" --minimized --data \"{dataRoot}\""); }
+        string own = dataRoot == null ? $"\"{exe}\" --minimized --remote" : $"\"{exe}\" --minimized --data \"{dataRoot}\"";
+        if (on) { key.SetValue(ValueName, launcher is { Length: > 0 } && File.Exists(launcher) ? $"\"{launcher}\" --minimized" : own); }
         else { key.DeleteValue(ValueName, throwOnMissingValue: false); }
     }
 }

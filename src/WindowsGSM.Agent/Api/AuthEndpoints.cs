@@ -74,6 +74,32 @@ public static class AuthEndpoints
             return Results.Json(new LoginResult(true, false, Me(ctx, user)));
         }).RequireRateLimiting(LoginRateLimit);
 
+        // The WindowsGSM app on another PC signing itself back in with the key it was given (see AppKey). Like a
+        // sign-in: rate-limited, audited, and only for an enabled account.
+        api.MapPost("/app-login", async (HttpContext http, AgentContext ctx, AppKeyRequest body) =>
+        {
+            string? ip = AgentContext.Ip(http);
+            var key = ctx.Sessions.UseAppKey(body.Key, ip);
+            var user = key == null ? null : ctx.Users.Get(key.Username);
+            if (key == null || user is not { Enabled: true })
+            {
+                ctx.Audit.Write(key?.Username ?? "?", ip, "login", null, false, "WindowsGSM app: key not valid (removed, expired or the account changed)");
+                return ApiResults.Error(401, "bad_key", "This app has to sign in again.");
+            }
+            await SignInAsync(http, ctx, user, key.Id);
+            ctx.Users.RecordLogin(user.Username, ip);
+            ctx.Audit.Write(user.Username, ip, "login", null, true, $"WindowsGSM app on {key.Device ?? "another PC"} (stays signed in)");
+            return Results.Json(new { username = user.Username });
+        }).RequireRateLimiting(LoginRateLimit);
+
+        // The app turning "stay signed in" off: whoever holds the key can drop it.
+        api.MapPost("/app-key/forget", (HttpContext http, AgentContext ctx, AppKeyRequest body) =>
+        {
+            var key = ctx.Sessions.UseAppKey(body.Key, AgentContext.Ip(http));
+            if (key != null) { ctx.Sessions.RemoveAppKey(key.Id); ctx.Audit.Write(key.Username, AgentContext.Ip(http), "revoke-session", null, true, $"WindowsGSM app on {key.Device ?? "another PC"} stopped staying signed in"); }
+            return Results.NoContent();
+        }).RequireRateLimiting(LoginRateLimit);
+
         // ── Signed in ──
 
         var auth = api.MapGroup("/auth").AddEndpointFilter(async (efc, next) =>
@@ -103,18 +129,42 @@ public static class AuthEndpoints
             return Results.NoContent();
         });
 
+        // After signing in, the WindowsGSM app (on another PC) asks to stay signed in: a key only it keeps.
+        auth.MapPost("/app-key", (HttpContext http, AgentContext ctx, AppKeyCreateRequest body) =>
+        {
+            var user = ctx.CurrentUser(http)!;
+            if (!http.Request.Headers.UserAgent.ToString().Contains(DesktopSignIn.UserAgentMark, StringComparison.Ordinal))
+            {
+                return ApiResults.BadRequest("Only the WindowsGSM app can stay signed in this way.");
+            }
+            string device = string.IsNullOrWhiteSpace(body.Device) ? "another PC" : body.Device.Trim();
+            string key = ctx.Sessions.CreateAppKey(user.Username, AgentContext.SessionId(http), device, AgentContext.Ip(http));
+            ctx.Record(http, "app-key", null, true, $"WindowsGSM app on {device} stays signed in");
+            return Results.Json(new { key });
+        });
+
+        // Signed-in devices, then the apps that stay signed in (listed even while they aren't signed in right now).
         auth.MapGet("/sessions", (HttpContext http, AgentContext ctx) =>
         {
             var user = ctx.CurrentUser(http)!;
             string? current = AgentContext.SessionId(http);
-            return Results.Json(ctx.Sessions.ForUser(user.Username)
-                .Select(s => new SessionDto(s.Id[..12], s.Id == current, s.CreatedAt, s.LastSeenAt, s.Ip, Device(s.UserAgent))));
+            var sessions = ctx.Sessions.ForUser(user.Username)
+                .Select(s => new SessionDto(s.Id[..12], s.Id == current, s.CreatedAt, s.LastSeenAt, s.Ip, Device(s.UserAgent)));
+            var apps = ctx.Sessions.AppKeysFor(user.Username)
+                .Select(k => new SessionDto(AppPrefix + k.Id, false, k.CreatedAt, k.LastUsedAt, k.Ip, $"WindowsGSM app on {k.Device ?? "another PC"} — stays signed in"));
+            return Results.Json(sessions.Concat(apps));
         });
 
         // Sessions are addressed by the first 12 characters of their id — enough to pick one, useless as a credential.
         auth.MapPost("/sessions/{sid}/revoke", (HttpContext http, AgentContext ctx, string sid) =>
         {
             var user = ctx.CurrentUser(http)!;
+            if (sid.StartsWith(AppPrefix, StringComparison.Ordinal))
+            {
+                bool gone = ctx.Sessions.RemoveAppKey(sid[AppPrefix.Length..], user.Username);
+                ctx.Record(http, "revoke-session", null, gone, "remembered app");
+                return gone ? Results.NoContent() : ApiResults.NotFound("No such session.");
+            }
             var match = ctx.Sessions.ForUser(user.Username).FirstOrDefault(s => s.Id.StartsWith(sid, StringComparison.Ordinal) && sid.Length >= 12);
             bool ok = match != null && ctx.Sessions.RemoveForUser(user.Username, match.Id);
             ctx.Record(http, "revoke-session", null, ok, sid);
@@ -157,21 +207,32 @@ public static class AuthEndpoints
     public static MeDto Me(AgentContext ctx, AgentUser user) =>
         new(user.Username, user.Role, user.TwoFactorEnabled, ctx.MachineId, user.IsAdmin, user.IsOwner);
 
-    internal static async Task SignInAsync(HttpContext http, AgentContext ctx, AgentUser user)
+    /// <summary>A remembered app's entry in the sessions list: "app-" + its key's id.</summary>
+    public const string AppPrefix = "app-";
+
+    public sealed record AppKeyRequest(string? Key);
+    public sealed record AppKeyCreateRequest(string? Device);
+
+    internal static async Task SignInAsync(HttpContext http, AgentContext ctx, AgentUser user, string? appKey = null)
     {
-        var session = ctx.Sessions.Create(user.Username, AgentContext.Ip(http), http.Request.Headers.UserAgent.ToString());
+        var session = ctx.Sessions.Create(user.Username, AgentContext.Ip(http), http.Request.Headers.UserAgent.ToString(), appKey);
         var identity = new ClaimsIdentity(new[]
         {
             new Claim(ClaimTypes.Name, user.Username),
             new Claim(AgentContext.SessionClaim, session.Id),
         }, CookieAuthenticationDefaults.AuthenticationScheme);
-        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+        // The WindowsGSM app (here or on another PC) keeps its sign-in when it's closed and opened again, within the
+        // usual "stay signed in for" time; a browser's ends with the browser.
+        bool app = http.Request.Headers.UserAgent.ToString().Contains(DesktopSignIn.UserAgentMark, StringComparison.Ordinal);
+        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity),
+            new Microsoft.AspNetCore.Authentication.AuthenticationProperties { IsPersistent = app });
     }
 
     /// <summary>"Chrome on Windows" from a user-agent string — enough to recognise a session.</summary>
     public static string? Device(string? ua)
     {
         if (string.IsNullOrWhiteSpace(ua)) { return null; }
+        if (ua.Contains(DesktopSignIn.UserAgentMark, StringComparison.Ordinal)) { return "WindowsGSM app on Windows"; }
         string browser = ua.Contains("Edg/") ? "Edge" : ua.Contains("OPR/") ? "Opera" : ua.Contains("Firefox/") ? "Firefox"
             : ua.Contains("Chrome/") ? "Chrome" : ua.Contains("Safari/") ? "Safari" : "Browser";
         string os = ua.Contains("Windows") ? "Windows" : ua.Contains("Android") ? "Android" : ua.Contains("iPhone") || ua.Contains("iPad") ? "iOS"

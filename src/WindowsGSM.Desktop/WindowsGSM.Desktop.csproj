@@ -9,6 +9,7 @@
     <RootNamespace>WindowsGSM.Desktop</RootNamespace>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
+    <DefineConstants>$(DefineConstants);WGSM_DESKTOP</DefineConstants>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationIcon>WindowsGSM.ico</ApplicationIcon>
@@ -23,6 +24,13 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shared with the agent: the update feed (an app that only controls other PCs updates itself) and certificate
+         fingerprints (checked the same way on both ends). Plain .NET, nothing else of the agent comes along. -->
+    <Compile Include="..\WindowsGSM.Agent\Hosting\AppReleases.cs" Link="Shared\AppReleases.cs" />
+    <Compile Include="..\WindowsGSM.Agent\Hosting\CertificateFingerprint.cs" Link="Shared\CertificateFingerprint.cs" />
   </ItemGroup>
 
   <ItemGroup>

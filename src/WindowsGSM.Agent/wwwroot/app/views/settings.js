@@ -16,7 +16,7 @@ export default async function settings(host, { scope }) {
         host.append(h("div", { class: "callout warn" }, icon("lock"), h("span", { text: "Only owners can change the agent's settings." })));
         return;
     }
-    const [cfg, startup] = await Promise.all([get("/agent/settings"), get("/agent/startup")]);
+    const [cfg, startup, cert] = await Promise.all([get("/agent/settings"), get("/agent/startup"), get("/agent/certificate").catch(() => null)]);
 
     const machineName = input({ value: cfg.machineName });
     const port = input({ type: "number", min: 1, max: 65535, value: cfg.port, class: "input num" });
@@ -48,6 +48,11 @@ export default async function settings(host, { scope }) {
             h("div", { class: "form-grid" }, field("Domain", domain, { help: ["A domain name (e.g. games.example.com) whose DNS points at your public IP. Let's Encrypt checks it by connecting to port 80, so forward port 80 to this PC on your router.", "The certificate renews itself before it expires."] }), field("Email for expiry notices", email, { help: "Let's Encrypt writes here only if renewal keeps failing, so you hear about it before the certificate expires." })), staging);
     }
     paintHttps();
+    // The certificate in use now: the WindowsGSM app on another PC shows this fingerprint the first time it connects.
+    const certInfo = cert?.https ? h("div", { class: "callout info" }, icon("lock"), h("span", {},
+        `Serving ${cert.subject || "the panel"} until ${new Date(cert.expires).toLocaleDateString()}. Fingerprint (SHA-256): `,
+        h("code", { class: "mono", style: { "word-break": "break-all" }, text: cert.fingerprint }),
+        cert.trusted ? "" : " — the WindowsGSM app on another PC shows this the first time it connects; check they match.")) : null;
 
     const startupToggle = toggle("Start the agent when I sign in to Windows", startup.registered, {
         help: ["The agent runs your servers and this panel. With this on it starts when you sign in to Windows (and is started again if it ever stops), so servers with auto-start come back after a reboot.",
@@ -87,7 +92,7 @@ export default async function settings(host, { scope }) {
             h("section", { class: "panel settings-section" }, h("div", { class: "panel-head" }, icon("globe"), h("h3", { text: "Network" })),
                 h("div", { class: "panel-body stack" }, network, h("div", { class: "form-grid" }, field("Port", port, { hint: "Default 8971.", help: ["The port the panel listens on. Change it only if something else uses 8971.", "If you forward it on your router or allowed it through a firewall, change those too. Restart the agent afterwards."] }), field("Stay signed in for", sessionHours, { hint: "hours without activity", help: "How long a browser stays signed in without being used. Shorter is safer on shared or public computers; the desktop app on this PC can stay signed in regardless (its tray menu)." })))),
             h("section", { class: "panel settings-section" }, h("div", { class: "panel-head" }, icon("lock"), h("h3", { text: "HTTPS" }), httpsHelp),
-                h("div", { class: "panel-body stack" }, httpsHelp.helpBox, modes, httpsDetails)),
+                h("div", { class: "panel-body stack" }, httpsHelp.helpBox, modes, httpsDetails, certInfo)),
             steamPanel(store.localId),
             offsitePanel(store.localId),
             h("section", { class: "panel settings-section" }, h("div", { class: "panel-head" }, icon("update"), h("h3", { text: "Updates" })),

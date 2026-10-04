@@ -58,7 +58,7 @@ public sealed class AgentSettings
     /// <summary>The GitHub repository whose releases carry WindowsGSM-&lt;version&gt;.zip (+ .sha256).</summary>
     public string UpdateRepo { get; set; } = DefaultUpdateRepo;
 
-    public const string DefaultUpdateRepo = "RocketMyrr/WindowsGSM-Next";
+    public const string DefaultUpdateRepo = global::WindowsGSM.Agent.Hosting.AppReleases.DefaultRepo;
     /// <summary>Where releases used to be published (alpha.1 – alpha.2): moved to the new repository on load.</summary>
     private const string FormerUpdateRepo = "RocketMyrr/WindowsGSM-Remaster";
 

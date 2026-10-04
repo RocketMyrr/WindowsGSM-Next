@@ -38,6 +38,7 @@ namespace WindowsGSM.Launcher
                 Directory.CreateDirectory(StartMenuFolder);
                 foreach (var t in Tools)
                 {
+                    if (install.ControlOnly && t[1].StartsWith("--agent", StringComparison.Ordinal)) { continue; } // no agent here
                     string lnk = Path.Combine(StartMenuFolder, t[0] + ".lnk");
                     if (!File.Exists(lnk)) { CreateShortcut(lnk, launcher, t[2], t[1]); }
                 }

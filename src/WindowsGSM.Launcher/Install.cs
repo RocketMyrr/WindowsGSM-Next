@@ -16,7 +16,9 @@ namespace WindowsGSM.Launcher
         public string Root { get; private set; }
         public string Current { get; set; }
         public string Previous { get; set; }
+        /// <summary>The game servers folder; null when installed only to control other PCs (no agent runs here).</summary>
         public string Data { get; set; }
+        public bool ControlOnly => Data == null;
 
         public string File => Path.Combine(Root, "install.json");
         public string VersionsDir => Path.Combine(Root, "versions");
@@ -80,7 +82,8 @@ namespace WindowsGSM.Launcher
         /// <summary>Starts a program from the current version, telling it where the launcher and install are.</summary>
         public Process Start(string exe, IEnumerable<string> args, bool hidden)
         {
-            var psi = new ProcessStartInfo(exe, Quote(new[] { "--data", Data }.Concat(args)))
+            // Installed only to control other PCs: no data folder, and the app is told so.
+            var psi = new ProcessStartInfo(exe, Quote((Data == null ? new[] { "--remote" } : new[] { "--data", Data }).Concat(args)))
             {
                 UseShellExecute = false,
                 WorkingDirectory = Path.GetDirectoryName(exe),

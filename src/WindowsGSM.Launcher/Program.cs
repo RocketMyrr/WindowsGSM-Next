@@ -12,8 +12,9 @@ namespace WindowsGSM.Launcher
     //   (no arguments)              open WindowsGSM (the desktop app of the current version); setup if not installed
     //   --minimized                 same, straight to the tray (start with Windows)
     //   --agent [args]              run just the agent (the "start at sign-in" task uses this)
-    //   --switch <ver> --wait-pid <pid> [--start-agent]
-    //                               after an update: wait for the old agent to exit, make <ver> current, start it again
+    //   --switch <ver> --wait-pid <pid> [--start-agent] [--start-app]
+    //                               after an update: wait for the old agent (or app) to exit, make <ver> current, start
+    //                               it again
     //   --rollback [--wait-pid <pid>] [--start-agent]
     //                               go back to the previous version
     //   --setup [--data <folder>]   run setup even if installed (install another copy / repair); --data pre-selects
@@ -62,7 +63,7 @@ namespace WindowsGSM.Launcher
                         install.SwitchTo(install.Previous);
                     }
                     else { install.SwitchTo(Arg("--switch")); }
-                    if (Has("--start-agent")) { install.Start(install.AgentExe, Array.Empty<string>(), hidden: true); }
+                    if (Has("--start-agent") && !install.ControlOnly) { install.Start(install.AgentExe, Array.Empty<string>(), hidden: true); }
                     // NEXT: the desktop window, if open, moves to the new version too (it was still the old one until
                     // closed). Game servers aren't involved — they kept running throughout.
                     bool reopen = false;
@@ -80,6 +81,8 @@ namespace WindowsGSM.Launcher
                         catch { }
                         finally { p.Dispose(); }
                     }
+                    // --start-app: the app updated itself (installed only to control other PCs) and closed for it.
+                    if (Has("--start-app")) { reopen = true; }
                     if (reopen && File.Exists(install.DesktopExe)) { Thread.Sleep(1500); install.Start(install.DesktopExe, Array.Empty<string>(), hidden: false); }
                     return 0;
                 }
@@ -87,6 +90,11 @@ namespace WindowsGSM.Launcher
                 if (!File.Exists(install.DesktopExe))
                 {
                     return Fail($"WindowsGSM {install.Current} is missing from {install.VersionDir(install.Current)}. Run setup again to repair it.");
+                }
+
+                if (install.ControlOnly && (Has("--agent") || Arg("--reset-password") != null || Has("--agent-start") || Has("--agent-stop") || Has("--agent-restart")))
+                {
+                    return Fail("This copy of WindowsGSM only controls other PCs — there's no agent on this one.\n\nTo run game servers here too: Start menu → WindowsGSM → WindowsGSM setup.");
                 }
 
                 // Can't sign in: WindowsGSM.exe --reset-password <user> [--disable-2fa] — the agent does it; the

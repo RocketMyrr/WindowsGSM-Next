@@ -163,6 +163,12 @@ servers on either from a single login, including from a phone.
       (filter + tag + search + sort + layout, per browser)
 - [x] `WindowsGSM.Desktop`: tray icon, native window (WebView2), starts the agent if needed, Windows
       notifications while hidden, one copy per data folder, remembers its window, "Start with Windows"
+- [x] **Control another PC**: setup offers *Run game servers on this PC* or *Control game servers on another PC*
+      (app only: no data folder, no agent). The app saves PCs/hubs and switches between them from the tray, and
+      a full install can do the same. Self-signed certificates are pinned by SHA-256 fingerprint (shown in Agent
+      settings → HTTPS to compare), and plain HTTP is refused across the internet. Its sign-in persists. An
+      app-only install updates itself to the version the PC it shows runs. Setup can later add servers to an
+      app-only PC.
 - [~] Fleet actions: start / stop / restart / update / back up every server shown or on a machine, and update every
       machine's WindowsGSM *(done — the last in Phase 7)*; move/clone a server between machines *(stretch, not started)*
 
@@ -202,6 +208,10 @@ Start with: `.\tools\publish.ps1`, run the zip's `WindowsGSM.exe` on one machine
 data folder, live with it, then switch that machine over, then the other.
 
 ## Later — ideas, not scheduled
+
+- [ ] **Switch how a PC runs, from the app**: Agent settings → "How WindowsGSM runs" to move between *Always on*
+      (background agent), *Only while the app is open* (below) and *Control another PC only* without re-running
+      setup. Same files either way; running servers are handed over with the same re-adopt that updates use.
 
 - [ ] **Single-app mode** ("Only while the app is open"): run the agent's engine and panel inside
       `WindowsGSM.exe` itself — one program, one window, the same panel, nothing served beyond its own window.

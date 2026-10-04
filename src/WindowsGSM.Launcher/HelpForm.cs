@@ -18,6 +18,14 @@ namespace WindowsGSM.Launcher
                 "• Your game servers folder — servers, backups, settings and accounts. It's yours: updating or uninstalling WindowsGSM never deletes it.",
                 "Keep them in different folders. Game servers can be big, so put that folder on a drive with plenty of space.",
             }),
+            T("remote", "Controlling another PC", new[]
+            {
+                "\"Control game servers on another PC\" installs just the app. It connects to a PC that runs WindowsGSM — or to your hub, to see every machine in one place — and shows its panel in a window here. Nothing runs in the background on this PC.",
+                "• On the PC with the servers: Agent settings → Network → turn on \"Reachable from other computers\", restart its agent, and allow its port (8971) through that PC's firewall.",
+                "• In the app here: enter that PC's address, e.g. 192.168.1.20, and sign in with your account from it. Add more PCs and switch between them from the tray icon → PC.",
+                "• Over the internet: turn on HTTPS on that PC first (Agent settings → HTTPS), and forward its port on the router. With a self-signed certificate the app shows its fingerprint once — check it matches the one in that PC's Agent settings → HTTPS.",
+                "A full install (\"Run game servers on this PC\") can control other PCs too, from the same tray menu. To start running servers on an app-only PC later, run setup again: Start menu → WindowsGSM → WindowsGSM setup.",
+            }),
             T("update", "Updating", new[]
             {
                 "Your game servers keep running while WindowsGSM updates. It stops only itself (the agent and the app), puts the new version in place, and starts again — then picks your running servers back up.",

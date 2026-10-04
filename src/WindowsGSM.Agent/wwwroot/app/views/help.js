@@ -20,12 +20,13 @@ const TOPICS = [
         "• Your account → Appearance has a compact list, light/dark and accent colours.",
     ], [["/", "Overview"]]],
 
-    ["network", "Using it from your phone or another PC", "globe", "phone mobile remote network lan https certificate internet port 8971 access", [
+    ["network", "Using it from your phone or another PC", "globe", "phone mobile remote network lan https certificate fingerprint internet port 8971 access app desktop control another pc", [
         "The panel runs on this PC (port 8971). To reach it from elsewhere:",
         "• Same network (your phone on Wi-Fi): Agent settings → Network → turn on \"Reachable from other computers\", then open http://<this PC's address>:8971.",
         "• From the internet: turn on HTTPS first (Let's Encrypt gives a free trusted certificate if you have a domain), then forward port 8971 on your router.",
         "Two-factor or a passkey (Your account) is strongly advised once the panel is reachable from outside.",
         "The panel works as an app on your phone too: in the browser menu choose \"Add to Home screen\".",
+        "On another Windows PC, the WindowsGSM app does it in its own window: install it there and choose \"Control game servers on another PC\" — or, on a PC that runs servers too, tray icon → PC → Connect to another PC. With a self-signed certificate it shows the fingerprint once; compare it with the one under Agent settings → HTTPS here.",
     ], [["/settings", "Agent settings"], ["/account", "Your account"]]],
 
     ["files", "Files and game config", "folder", "files edit upload download config ini cfg properties history restore text editor", [

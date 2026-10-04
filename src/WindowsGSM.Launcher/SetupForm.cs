@@ -16,7 +16,7 @@ namespace WindowsGSM.Launcher
     ///   • a copy is already installed → Update (one click; your game servers keep running), or repair it;
     ///   • run from the installed folder (Start menu → setup) → change options or repair;
     ///   • WindowsGSM 1.x found → carry its servers over (the folder is checked first, nothing changes until Install);
-    ///   • otherwise a fresh install.
+    ///   • otherwise a fresh install — running game servers here, or only the app, to control another PC (or hub).
     /// Per user — no administrator rights. Help (F1) answers questions at every step.
     /// </summary>
     internal sealed class SetupForm : Form
@@ -39,6 +39,8 @@ namespace WindowsGSM.Launcher
 
         // Welcome
         private readonly RadioButton _doUpdate = new RadioButton(), _doSeparate = new RadioButton();
+        private readonly RadioButton _runHere = new RadioButton(), _controlOther = new RadioButton();
+        private readonly CheckBox _addServers = new CheckBox(); // an app-only install: run game servers here too
         // Data
         private readonly RadioButton _useExisting = new RadioButton(), _startFresh = new RadioButton();
         private readonly TextBox _existingDir = new TextBox(), _freshDir = new TextBox();
@@ -262,6 +264,7 @@ namespace WindowsGSM.Launcher
         private void DefaultChoices()
         {
             _doUpdate.Checked = true;
+            _runHere.Checked = true;
             _installDir.Text = Install.DefaultRoot;
             _freshDir.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "WindowsGSM");
             _existingDir.Text = _legacy ?? "";
@@ -277,6 +280,10 @@ namespace WindowsGSM.Launcher
             // Each radio sits in its own panel, so WinForms doesn't group them: pair them by hand.
             Pair(_doUpdate, _doSeparate);
             Pair(_useExisting, _startFresh);
+            Pair(_runHere, _controlOther);
+            _runHere.CheckedChanged += (s, e) => PaintSteps();
+            _controlOther.CheckedChanged += (s, e) => PaintSteps();
+            _addServers.CheckedChanged += (s, e) => PaintSteps();
             foreach (var r in new[] { _useExisting, _startFresh }) { r.CheckedChanged += (s, e) => { if (((RadioButton)s).Checked) { DataModeChanged(); } }; }
             _existingDir.TextChanged += (s, e) => { if (_useExisting.Checked) { _ = CheckAsync(); } };
             _freshDir.TextChanged += (s, e) => { if (_startFresh.Checked) { _ = CheckAsync(); } };
@@ -293,10 +300,20 @@ namespace WindowsGSM.Launcher
         private bool Updating => _kind == Kind.Update && _doUpdate.Checked;
         private bool Maintaining => _kind == Kind.Maintain;
 
+        /// <summary>Only the app, to control game servers on another PC: no game servers folder, no agent.</summary>
+        private bool ControlOnly =>
+            _kind == Kind.Fresh ? _controlOther.Checked
+            : Maintaining ? _existing.ControlOnly && !_addServers.Checked
+            : Updating && _existing.ControlOnly;
+
+        /// <summary>An app-only install starting to run game servers here too.</summary>
+        private bool AddingServers => Maintaining && _existing.ControlOnly && _addServers.Checked;
+
         /// <summary>The steps this run shows (for "Step 2 of 3").</summary>
         private Step[] Flow =>
             Updating ? new[] { Step.Welcome, Step.Working, Step.Done }
-            : Maintaining ? new[] { Step.Welcome, Step.Options, Step.Working, Step.Done }
+            : Maintaining && !AddingServers ? new[] { Step.Welcome, Step.Options, Step.Working, Step.Done }
+            : ControlOnly ? new[] { Step.Welcome, Step.Options, Step.Working, Step.Done }
             : new[] { Step.Welcome, Step.Data, Step.Options, Step.Working, Step.Done };
 
         private void Go(Step step)
@@ -318,10 +335,7 @@ namespace WindowsGSM.Launcher
             _page.Controls.Add(content);
             _page.ResumeLayout();
 
-            var flow = Flow.Where(s => s != Step.Working && s != Step.Done).ToArray();
-            int at = Array.IndexOf(flow, step);
-            _steps.Text = at >= 0 && flow.Length > 1 ? $"Step {at + 1} of {flow.Length}" : "";
-            PlaceSteps();
+            PaintSteps();
             _back.Visible = step == Step.Data || step == Step.Options;
             _cancel.Text = "Cancel";
             _cancel.Visible = step != Step.Working && step != Step.Done;
@@ -333,6 +347,14 @@ namespace WindowsGSM.Launcher
             if (step == Step.Options) { _next.Text = Maintaining ? "Apply" : "Install"; PaintInstallNote(); }
             if (step == Step.Done) { _next.Text = "Finish"; }
             _next.Focus();
+        }
+
+        private void PaintSteps()
+        {
+            var flow = Flow.Where(s => s != Step.Working && s != Step.Done).ToArray();
+            int at = Array.IndexOf(flow, _step);
+            _steps.Text = at >= 0 && flow.Length > 1 ? $"Step {at + 1} of {flow.Length}" : "";
+            PlaceSteps();
         }
 
         /// <summary>"Step 2 of 3", under the window buttons.</summary>
@@ -358,10 +380,16 @@ namespace WindowsGSM.Launcher
                     {
                         _installDir.Text = _existing.Root.TrimEnd('\\') + " (2)"; // a separate copy: not on top of the installed one
                     }
-                    if (Updating) { await RunAsync(); } else { Go(Maintaining ? Step.Options : Step.Data); }
+                    if (Updating) { await RunAsync(); } else { Go(Flow[1]); }
                     break;
                 case Step.Data:
                     if (!ValidateData()) { return; }
+                    if (AddingServers && Install.Overlaps(_existing.Root, DataFolder))
+                    {
+                        MessageBox.Show(this, "Keep the app and your game servers in separate folders (neither inside the other), so updating or uninstalling the app can never touch your servers.",
+                            "WindowsGSM", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
                     Go(Step.Options);
                     break;
                 case Step.Options:
@@ -377,7 +405,8 @@ namespace WindowsGSM.Launcher
         private void OpenHelp()
         {
             string topic = _step == Step.Data ? (_useExisting.Checked ? "legacy" : "what")
-                : _step == Step.Options ? "startup"
+                : _step == Step.Options ? (ControlOnly ? "remote" : "startup")
+                : _step == Step.Welcome && _kind == Kind.Fresh ? "remote"
                 : _step == Step.Done ? "firewall"
                 : Updating || Maintaining ? "update" : "what";
             HelpForm.Open(this, topic);
@@ -397,10 +426,17 @@ namespace WindowsGSM.Launcher
                 else if (cmp == 0) { s.Controls.Add(Note($"WindowsGSM {_version} is already installed. Continuing repairs it — the same version is copied in again.", Theme.Accent)); }
 
                 s.Controls.Add(Choice(_doUpdate, cmp == 0 ? "Repair my installed WindowsGSM (recommended)" : $"Update my installed WindowsGSM (recommended)",
-                    $"Installed in {_existing.Root}\nGame servers: {_existing.Data}"));
-                s.Controls.Add(Para("• Your game servers keep running — only WindowsGSM restarts, then picks them back up.", false, 20));
-                s.Controls.Add(Para("• Servers, backups, settings, accounts and shortcuts stay as they are.", false, 20));
-                s.Controls.Add(Para($"• {_existing.Current} stays installed, so you can go back (Agent settings → Updates).", false, 20));
+                    $"Installed in {_existing.Root}\n" + (_existing.ControlOnly ? "Controls game servers on other PCs" : $"Game servers: {_existing.Data}")));
+                if (_existing.ControlOnly)
+                {
+                    s.Controls.Add(Para("• The PCs you added and your shortcuts stay as they are.", false, 20));
+                }
+                else
+                {
+                    s.Controls.Add(Para("• Your game servers keep running — only WindowsGSM restarts, then picks them back up.", false, 20));
+                    s.Controls.Add(Para("• Servers, backups, settings, accounts and shortcuts stay as they are.", false, 20));
+                    s.Controls.Add(Para($"• {_existing.Current} stays installed, so you can go back (Agent settings → Updates).", false, 20));
+                }
                 s.Controls.Add(Choice(_doSeparate, "Install a separate copy instead", "For testing: a second WindowsGSM with its own game servers folder. Most people don't need this."));
                 if (_existing.Data != null && !Directory.Exists(_existing.Data))
                 {
@@ -414,6 +450,19 @@ namespace WindowsGSM.Launcher
                 _subtitle.Text = $"Version {_existing.Current} · installed in {_existing.Root}";
                 s.Controls.Add(Heading("Change options or repair", 0));
                 s.Controls.Add(Para("Change the shortcuts and what starts with Windows. Applying also repairs the Start menu entries and the uninstall entry in Windows Settings."));
+                if (_existing.ControlOnly)
+                {
+                    s.Controls.Add(Para("The app offers updates itself when the PC it shows runs a newer WindowsGSM — or run a newer download's WindowsGSM.exe.", false));
+                    s.Controls.Add(Note("This copy only controls game servers on other PCs.", Theme.Accent));
+                    _addServers.Text = "Run game servers on this PC too";
+                    _addServers.AutoSize = true;
+                    _addServers.ForeColor = Theme.Text1;
+                    _addServers.Font = new Font("Segoe UI Semibold", 10f);
+                    _addServers.Margin = new Padding(0, 10, 0, 0);
+                    s.Controls.Add(_addServers);
+                    s.Controls.Add(Para("The same app, plus the agent that runs servers here: pick a folder for them on the next step. The other PCs stay in the app's PC list.", false, 20));
+                    return s;
+                }
                 s.Controls.Add(Para("To update, use Agent settings → Updates in the app, or run a newer download's WindowsGSM.exe.", false));
                 s.Controls.Add(Para($"Game servers folder: {_existing.Data}"));
                 return s;
@@ -423,9 +472,12 @@ namespace WindowsGSM.Launcher
             _subtitle.Text = $"Version {_version} · installs for you only, no administrator needed";
             s.Controls.Add(Heading("Welcome", 0));
             s.Controls.Add(Para("WindowsGSM installs, runs, updates and backs up your game servers — from this PC, your phone or anywhere, in the browser or this app.", false));
-            s.Controls.Add(Para("Setup takes about a minute. It asks two things:"));
-            s.Controls.Add(Para("1.  Where your game servers live — a new folder, or your WindowsGSM 1.x folder to keep everything.", false, 16));
-            s.Controls.Add(Para("2.  Shortcuts and whether WindowsGSM starts with Windows.", false, 16));
+            s.Controls.Add(Heading("What will this PC do?"));
+            s.Controls.Add(Choice(_runHere, "Run game servers on this PC",
+                "The full WindowsGSM: it installs and looks after your servers here — also while the window is closed — and you can use it from this PC, your phone or anywhere."));
+            s.Controls.Add(Choice(_controlOther, "Control game servers on another PC",
+                "Just the app: it connects to a PC (or hub) that runs WindowsGSM. Nothing runs in the background and no servers live here. You can switch this PC to running servers later."));
+            s.Controls.Add(Para("Setup takes about a minute: where your game servers live (when they run here), then shortcuts and start-up."));
             if (_legacy != null)
             {
                 s.Controls.Add(Note($"Found WindowsGSM 1.x in {_legacy}. You can bring its servers, backups and accounts over on the next step — it's checked first, and nothing changes until you press Install.", Theme.Good));
@@ -489,15 +541,15 @@ namespace WindowsGSM.Launcher
             }
             s.Controls.Add(Heading("Shortcuts", Maintaining ? 0 : 14));
             var shortcuts = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = new Padding(0) };
-            Option(_startMenu, "Start menu", "WindowsGSM, plus a WindowsGSM folder: start / stop / restart the agent, setup, uninstall.", shortcuts);
+            Option(_startMenu, "Start menu", ControlOnly ? "WindowsGSM, plus a WindowsGSM folder: setup and uninstall." : "WindowsGSM, plus a WindowsGSM folder: start / stop / restart the agent, setup, uninstall.", shortcuts);
             Option(_desktop, "Desktop", null, shortcuts);
             s.Controls.Add(shortcuts);
             s.Controls.Add(Heading("When I sign in to Windows"));
             var startup = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = new Padding(0) };
-            Option(_agentAtSignIn, "Start the agent (recommended)", "Runs your game servers and the web panel. Servers with auto-start come back after a reboot, and the agent is restarted if it ever stops.", startup);
-            Option(_trayAtSignIn, "Show the WindowsGSM tray icon", "The app window and notifications, waiting in the tray.", startup);
+            if (!ControlOnly) { Option(_agentAtSignIn, "Start the agent (recommended)", "Runs your game servers and the web panel. Servers with auto-start come back after a reboot, and the agent is restarted if it ever stops.", startup); }
+            Option(_trayAtSignIn, "Show the WindowsGSM tray icon", ControlOnly ? "The app waits in the tray, with notifications from the PCs you control." : "The app window and notifications, waiting in the tray.", startup);
             s.Controls.Add(startup);
-            s.Controls.Add(Para("Dedicated server PC? Turn on Windows' automatic sign-in too, so everything comes back after a power cut. Help (F1) explains."));
+            if (!ControlOnly) { s.Controls.Add(Para("Dedicated server PC? Turn on Windows' automatic sign-in too, so everything comes back after a power cut. Help (F1) explains.")); }
             return s;
         }
 
@@ -536,6 +588,19 @@ namespace WindowsGSM.Launcher
                 s.Controls.Add(Note($"WindowsGSM {_version} is in place. Your game servers kept running and have been picked up again.", Theme.Good));
                 s.Controls.Add(Para("If something isn't right, Agent settings → Updates → Go back returns to the previous version."));
             }
+            else if (!Maintaining && ControlOnly)
+            {
+                s.Controls.Add(Note("Installed. Here's how to get going:", Theme.Good));
+                s.Controls.Add(Para("1.  On the PC that runs your servers: Agent settings → Network → turn on \"Reachable from other computers\", and restart its agent.", false, 16));
+                s.Controls.Add(Para("2.  Open WindowsGSM here and enter that PC's address (e.g. 192.168.1.20) — or your hub's, to see every machine.", false, 16));
+                s.Controls.Add(Para("3.  Sign in with your account from that PC. The app remembers it; add more PCs from the tray icon → PC.", false, 16));
+                s.Controls.Add(Para("Over the internet, turn on HTTPS on that PC first so your password is encrypted."));
+            }
+            else if (AddingServers)
+            {
+                s.Controls.Add(Note("This PC runs game servers too now. Open WindowsGSM — it starts the agent here; the first time, create the owner account (or sign in with your WindowsGSM 1.x web account).", Theme.Good));
+                s.Controls.Add(Para("Your other PCs are still in the tray icon's PC menu."));
+            }
             else if (!Maintaining)
             {
                 s.Controls.Add(Note("Installed. Here's how to get going:", Theme.Good));
@@ -546,7 +611,7 @@ namespace WindowsGSM.Launcher
                 s.Controls.Add(Para("The Help page inside the app answers the common questions."));
             }
             _openNow.Text = "Open WindowsGSM now";
-            _openNow.Checked = !Maintaining;
+            _openNow.Checked = !Maintaining || AddingServers;
             _openNow.AutoSize = true;
             _openNow.ForeColor = Theme.Text1;
             _openNow.Margin = new Padding(0, 10, 0, 0);
@@ -677,7 +742,12 @@ namespace WindowsGSM.Launcher
             }
             else if (Install.Load(root) is Install there)
             {
-                bool otherData = there.Data != null && DataFolder.Length > 0
+                if (ControlOnly && !there.ControlOnly)
+                {
+                    _installNote.Text = $"WindowsGSM {there.Current} is installed there and runs game servers — it's updated in place and keeps running them (it can control other PCs too).";
+                    return;
+                }
+                bool otherData = !ControlOnly && there.Data != null && DataFolder.Length > 0
                     && !string.Equals(Path.GetFullPath(there.Data).TrimEnd('\\'), Path.GetFullPath(DataFolder).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
                 _installNote.Text = $"WindowsGSM {there.Current} is installed there — it's updated in place"
                     + (otherData ? $", and switched from {there.Data} to the game servers folder you picked." : ".");
@@ -690,7 +760,7 @@ namespace WindowsGSM.Launcher
         {
             string root = ResolvedRoot();
             if (root == null) { MessageBox.Show(this, "Choose where to install the app.", "WindowsGSM", MessageBoxButtons.OK, MessageBoxIcon.Information); return false; }
-            if (Install.Overlaps(root, DataFolder))
+            if (!ControlOnly && Install.Overlaps(root, DataFolder))
             {
                 MessageBox.Show(this, "Keep the app and your game servers in separate folders (neither inside the other), so updating or uninstalling the app can never touch your servers.",
                     "WindowsGSM", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -722,7 +792,8 @@ namespace WindowsGSM.Launcher
             Go(Step.Working);
             try
             {
-                if (Maintaining) { await Task.Run(() => ApplyOptions(_existing, maintaining: true)); _installed = _existing; _doneMessage = "Your changes are applied."; }
+                if (AddingServers) { await Task.Run(() => DoAddServers()); }
+                else if (Maintaining) { await Task.Run(() => ApplyOptions(_existing, maintaining: true)); _installed = _existing; _doneMessage = "Your changes are applied."; }
                 else if (Updating) { await Task.Run(() => DoUpdate()); }
                 else { await Task.Run(() => DoInstall()); }
                 Go(Step.Done);
@@ -806,11 +877,33 @@ namespace WindowsGSM.Launcher
             _doneWarning = "The new version is installed, but the agent didn't answer within a minute. Open WindowsGSM — it starts the agent — or check the log in " + Path.Combine(install.Data ?? "", "logs") + ".";
         }
 
+        /// <summary>An app-only install starts running game servers here too: a game servers folder and the agent's start-up.</summary>
+        private void DoAddServers()
+        {
+            var install = _existing;
+            string data = null;
+            Invoke((Action)(() => data = Path.GetFullPath(DataFolder)));
+            // The app is open showing other PCs: it reopens as this PC's (with the other PCs still in its list).
+            foreach (var p in RunningFrom(install.Root))
+            {
+                try { Say(null, $"Closing {SafeName(p)} (PID {p.Id})"); p.CloseMainWindow(); if (!p.WaitForExit(3000)) { p.Kill(); p.WaitForExit(10000); } } catch { }
+                finally { p.Dispose(); }
+            }
+            Say("Setting up your game servers folder…", data);
+            Directory.CreateDirectory(data);
+            install.Data = data;
+            install.Save();
+            ApplyOptions(install, maintaining: true);
+            _installed = install;
+            _doneMessage = $"Game servers in {data}";
+            Progress(100);
+        }
+
         /// <summary>A fresh install (or a separate copy).</summary>
         private void DoInstall()
         {
             string root = null, data = null;
-            Invoke((Action)(() => { root = ResolvedRoot(); data = Path.GetFullPath(DataFolder); }));
+            Invoke((Action)(() => { root = ResolvedRoot(); data = ControlOnly ? null : Path.GetFullPath(DataFolder); }));
 
             // Installing into a folder that already has a copy: that copy is updated in place.
             var there = Install.Load(root);
@@ -821,15 +914,18 @@ namespace WindowsGSM.Launcher
             CopyApp(root);
             if (there != null && there.Current != _version) { StopWindowsGSM(there, agentWasRunning); }
 
-            Say("Setting up your game servers folder…", data);
-            Directory.CreateDirectory(data);
+            if (data != null)
+            {
+                Say("Setting up your game servers folder…", data);
+                Directory.CreateDirectory(data);
+            }
             var install = there ?? Install.Create(root, _version, data);
-            install.Data = data;
+            install.Data = data ?? install.Data; // just the app over a copy that runs servers: it keeps running them
             if (install.Current != _version && Directory.Exists(install.VersionDir(install.Current))) { install.SwitchTo(_version); } else { install.Current = _version; install.Save(); }
             ApplyOptions(install, maintaining: false);
             Shell.RegisterUninstall(install, _version);
             _installed = install;
-            _doneMessage = $"Version {_version} · game servers in {data}";
+            _doneMessage = install.ControlOnly ? $"Version {_version} · controls game servers on other PCs" : $"Version {_version} · game servers in {install.Data}";
             Progress(100);
         }
 
@@ -844,9 +940,13 @@ namespace WindowsGSM.Launcher
             else { TryDelete(Shell.StartMenuShortcut); try { if (Directory.Exists(Shell.StartMenuFolder)) { Directory.Delete(Shell.StartMenuFolder, true); } } catch { } }
             if (desktop) { Shell.CreateShortcut(Shell.DesktopShortcut, launcher, "Game server control"); } else { TryDelete(Shell.DesktopShortcut); }
 
-            Say("Start-up…", agentAtSignIn ? "The agent starts when you sign in" : "The agent doesn't start on its own");
-            string problem = Shell.SetAgentAtSignIn(install, agentAtSignIn);
-            if (problem != null) { _doneWarning = "Couldn't set the agent to start at sign-in: " + problem + " You can turn it on later in Agent settings."; Say(null, "⚠ " + problem); }
+            if (!install.ControlOnly)
+            {
+                Say("Start-up…", agentAtSignIn ? "The agent starts when you sign in" : "The agent doesn't start on its own");
+                string problem = Shell.SetAgentAtSignIn(install, agentAtSignIn);
+                if (problem != null) { _doneWarning = "Couldn't set the agent to start at sign-in: " + problem + " You can turn it on later in Agent settings."; Say(null, "⚠ " + problem); }
+            }
+            else { Say("Start-up…", "Nothing runs in the background — this copy only controls other PCs"); }
             Shell.SetStartWithWindows(tray, launcher);
             if (maintaining) { Shell.RegisterUninstall(install, install.Current); }
         }

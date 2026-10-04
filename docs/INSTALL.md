@@ -5,6 +5,9 @@
 1. Download `WindowsGSM-<version>.zip` from the releases page and unzip it anywhere (your Downloads
    folder is fine).
 2. Run **WindowsGSM.exe** from the unzipped folder. Setup opens:
+   - **What will this PC do?** — *Run game servers on this PC* (everything below), or *Control game servers on
+     another PC*: just the app, no game servers folder and no agent (see
+     [Controlling another PC](#controlling-another-pc)).
    - **Install the app to** — defaults to `%LOCALAPPDATA%\Programs\WindowsGSM`. It installs for you only;
      no administrator rights are needed.
    - **Your game servers** — either *use your existing WindowsGSM folder* (the one with `servers`,
@@ -241,6 +244,36 @@ haven't set up.
 3. On the other machine, **Machines → Join a hub**: enter one address and the code.
 
 Only the hub needs to be reachable; members connect out to it. Users and permissions are managed on the hub.
+
+## Controlling another PC
+
+The WindowsGSM app can show another PC's panel (or your hub's) in its own window, with its tray icon and
+notifications.
+
+- **App-only install:** setup → *Control game servers on another PC*. On first open it asks for the address.
+  Nothing runs in the background, and the Start menu folder has only setup and uninstall.
+- **From a full install:** tray icon → **PC** → *Connect to another PC…*. *This PC* switches back.
+- **On the PC being controlled:** Agent settings → Network → *Reachable from other computers*, restart the agent,
+  and allow its port (8971) through Windows Firewall. Over the internet, also turn on HTTPS and forward the port.
+- **Addresses:** `192.168.1.20`, `gamebox`, `games.example.com:9000` or a full `https://…` address. Without a
+  port, 8971 is used; without `http://` or `https://`, HTTPS is tried first.
+- **Certificates:** a certificate Windows trusts (your own or Let's Encrypt) just works. A self-signed one shows
+  its SHA-256 fingerprint once. It's also under Agent settings → HTTPS on that PC; trust it only if they match.
+  After that the app accepts only that certificate. If it changes (for example, HTTPS was set up again), the
+  app stops and shows the new fingerprint to check.
+- **Plain HTTP** is fine on your own network (private addresses, `.local` and single-word names, Tailscale). It's
+  refused for internet addresses, so passwords are never sent unencrypted.
+- **Staying signed in:** *Stay signed in to this PC* (connect window, or tray → PC) is on by default. After you
+  sign in once — password and two-factor as usual — that PC gives the app a key of its own. The app keeps it
+  encrypted for your Windows account and uses it to sign back in whenever its session ends. That PC keeps only
+  a hash of the key, and lists it under Account & security as "WindowsGSM app on <PC> — stays signed in".
+  It stops working when you remove it there, sign out in the app, use "sign out everywhere else", change your
+  password, or an admin disables or resets the account; or after 90 days unused.
+- **Updates:** an app-only install has no agent to update it. When the PC it shows runs a newer version, the
+  tray offers *Update this app to …*: it downloads that release, checks it, and restarts.
+- **Running servers here later:** Start menu → WindowsGSM → WindowsGSM setup → *Run game servers on this PC
+  too*, then pick a folder. Your saved PCs stay in the menu.
+- The app's own settings (saved PCs, window position) are in `%LOCALAPPDATA%\WindowsGSM\desktop.json`.
 
 ## Discord bot
 
