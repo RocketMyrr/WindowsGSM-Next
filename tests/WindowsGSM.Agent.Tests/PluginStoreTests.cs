@@ -94,7 +94,7 @@ public class PluginStoreTests
         finally
         {
             Store.DownloadOverride = null;
-            if (Directory.Exists(ServerPath.GetPlugins("HelloGame.cs"))) { Directory.Delete(ServerPath.GetPlugins("HelloGame.cs"), true); await _f.Engine.Plugins.LoadAsync(); }
+            if (Directory.Exists(ServerPath.GetPlugins("HelloGame.cs"))) { WindowsGSM.Core.Tests.TestData.DeleteDirectory(ServerPath.GetPlugins("HelloGame.cs")); await _f.Engine.Plugins.LoadAsync(); }
         }
     }
 
@@ -104,7 +104,7 @@ public class PluginStoreTests
         Assert.Throws<InvalidOperationException>(() => PluginStore.Extract(Archive(("README.md", "nothing here"))));
         Assert.Throws<InvalidOperationException>(() => PluginStore.Extract(Archive(("Evil.cs/Evil.cs", "x"), ("Evil.cs/../../../escaped.txt", "x"))));
         Assert.False(File.Exists(Path.Combine(ServerPath.GetPlugins(), "..", "escaped.txt")));
-        if (Directory.Exists(ServerPath.GetPlugins("Evil.cs.new"))) { Directory.Delete(ServerPath.GetPlugins("Evil.cs.new"), true); }
+        if (Directory.Exists(ServerPath.GetPlugins("Evil.cs.new"))) { WindowsGSM.Core.Tests.TestData.DeleteDirectory(ServerPath.GetPlugins("Evil.cs.new")); }
     }
 
     private static readonly byte[] Png = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3 };
@@ -142,7 +142,7 @@ public class PluginStoreTests
         }
         finally
         {
-            if (Directory.Exists(ServerPath.GetPlugins("HelloGame.cs"))) { Directory.Delete(ServerPath.GetPlugins("HelloGame.cs"), true); await _f.Engine.Plugins.LoadAsync(); }
+            if (Directory.Exists(ServerPath.GetPlugins("HelloGame.cs"))) { WindowsGSM.Core.Tests.TestData.DeleteDirectory(ServerPath.GetPlugins("HelloGame.cs")); await _f.Engine.Plugins.LoadAsync(); }
         }
     }
 
@@ -175,7 +175,7 @@ public class PluginStoreTests
         }
         finally
         {
-            if (Directory.Exists(ServerPath.GetPlugins("HelloGame.cs"))) { Directory.Delete(ServerPath.GetPlugins("HelloGame.cs"), true); await _f.Engine.Plugins.LoadAsync(); }
+            if (Directory.Exists(ServerPath.GetPlugins("HelloGame.cs"))) { WindowsGSM.Core.Tests.TestData.DeleteDirectory(ServerPath.GetPlugins("HelloGame.cs")); await _f.Engine.Plugins.LoadAsync(); }
         }
     }
 
@@ -196,7 +196,7 @@ public class PluginStoreTests
         }
         finally
         {
-            if (Directory.Exists(ServerPath.GetPlugins("HelloGame.cs"))) { Directory.Delete(ServerPath.GetPlugins("HelloGame.cs"), true); await _f.Engine.Plugins.LoadAsync(); }
+            if (Directory.Exists(ServerPath.GetPlugins("HelloGame.cs"))) { WindowsGSM.Core.Tests.TestData.DeleteDirectory(ServerPath.GetPlugins("HelloGame.cs")); await _f.Engine.Plugins.LoadAsync(); }
         }
     }
 

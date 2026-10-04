@@ -100,6 +100,6 @@ public class SteamAccountTests
             Assert.Equal(("olduser", "oldpass"), SteamAccount.Get()); // kept, encrypted
             Assert.False((await _f.Owner.GetJsonAsync<JsonElement>(Base)).GetProperty("legacyPlainText").GetBoolean());
         }
-        finally { File.Delete(SteamAccount.LegacyFile); SteamAccount.Clear(); }
+        finally { WindowsGSM.Core.Tests.TestData.DeleteFile(SteamAccount.LegacyFile); SteamAccount.Clear(); }
     }
 }

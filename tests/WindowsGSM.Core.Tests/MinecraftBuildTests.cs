@@ -18,6 +18,6 @@ public class MinecraftBuildTests
         File.WriteAllLines(Path.Combine(logs, "latest.log"), new[] { "[12:00:00] [main/INFO]: Loading", line, "[12:00:02] [Server thread/INFO]: Done" });
 
         Assert.Equal(version, new MC(new ServerConfig("249")).GetLocalBuild());
-        File.Delete(Path.Combine(logs, "latest.log")); // and the file isn't left open
+        TestData.DeleteFile(Path.Combine(logs, "latest.log")); // and the file isn't left open
     }
 }

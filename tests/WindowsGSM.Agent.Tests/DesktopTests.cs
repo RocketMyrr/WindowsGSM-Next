@@ -26,7 +26,7 @@ public class DesktopTests
             File.WriteAllText(Path.Combine(root, "configs", "next", "agent.json"), "not json");
             Assert.Equal("http://localhost:8971/", AgentLocator.UrlFor(root).ToString());
         }
-        finally { Directory.Delete(root, true); }
+        finally { WindowsGSM.Core.Tests.TestData.DeleteDirectory(root); }
     }
 
     [Fact]

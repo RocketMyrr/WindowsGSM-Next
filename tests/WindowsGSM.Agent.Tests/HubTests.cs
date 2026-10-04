@@ -209,7 +209,7 @@ public class HubTests
                 catch { /* closed */ }
             });
             await socket.SendAsync(JsonSerializer.SerializeToUtf8Bytes(new { type = "subscribe", topics = new[] { "servers" } }), WebSocketMessageType.Text, true, CancellationToken.None);
-            await Task.Delay(300);
+            await EngineFixture.WaitUntil(() => { lock (received) { return received.Any(e => e.GetProperty("type").GetString() == "subscribed"); } }, "the subscription to be confirmed");
 
             _f.Engine.Events.Publish(new ServerConfigChanged("102", new[] { "relay-test" }));
             await EngineFixture.WaitUntil(() => { lock (received) { return received.Any(e => e.GetProperty("type").GetString() == "serverConfig" && e.GetProperty("machine").GetString() == Remote); } }, "the event relayed from the member");

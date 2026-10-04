@@ -74,7 +74,7 @@ public class AddonTests
         foreach (var f in new[] { "customaddons.json", "installedaddons.json" })
         {
             string p = ServerPath.GetServersConfigs(id, f);
-            if (File.Exists(p)) { File.Delete(p); }
+            if (File.Exists(p)) { TestData.DeleteFile(p); }
         }
     }
 

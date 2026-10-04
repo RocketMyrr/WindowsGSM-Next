@@ -41,11 +41,11 @@ public class BackupTests
     private static void ResetBackups(string id)
     {
         string dir = Path.Combine(WgsmEnvironment.DataRoot, "backups", id);
-        if (Directory.Exists(dir)) { Directory.Delete(dir, recursive: true); }
+        if (Directory.Exists(dir)) { TestData.DeleteDirectory(dir); }
         foreach (var f in new[] { "backup.json", "BackupConfig.cfg", "webbackup.json" })
         {
             string p = ServerPath.GetServersConfigs(id, f);
-            if (File.Exists(p)) { File.Delete(p); }
+            if (File.Exists(p)) { TestData.DeleteFile(p); }
         }
     }
 

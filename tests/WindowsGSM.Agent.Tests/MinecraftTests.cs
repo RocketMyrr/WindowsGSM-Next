@@ -100,8 +100,8 @@ public class MinecraftTests
         finally
         {
             MinecraftSoftware.HttpOverride = null;
-            foreach (string f in new[] { "server.jar", "server.jar.previous", "eula.txt", "wgsm-minecraft.json", "wgsm-modrinth.json" }) { File.Delete(Path.Combine(dir, f)); }
-            if (Directory.Exists(Path.Combine(dir, "plugins"))) { Directory.Delete(Path.Combine(dir, "plugins"), true); }
+            foreach (string f in new[] { "server.jar", "server.jar.previous", "eula.txt", "wgsm-minecraft.json", "wgsm-modrinth.json" }) { WindowsGSM.Core.Tests.TestData.DeleteFile(Path.Combine(dir, f)); }
+            if (Directory.Exists(Path.Combine(dir, "plugins"))) { WindowsGSM.Core.Tests.TestData.DeleteDirectory(Path.Combine(dir, "plugins")); }
         }
     }
 
@@ -118,7 +118,7 @@ public class MinecraftTests
             Assert.Equal("keep me", File.ReadAllText(Path.Combine(dir, "server.jar")));
             Assert.Null(MinecraftSoftware.Read(id));
         }
-        finally { MinecraftSoftware.HttpOverride = null; File.Delete(Path.Combine(dir, "server.jar")); }
+        finally { MinecraftSoftware.HttpOverride = null; WindowsGSM.Core.Tests.TestData.DeleteFile(Path.Combine(dir, "server.jar")); }
     }
 
     private sealed class BadJar : HttpMessageHandler

@@ -12,6 +12,34 @@ internal static class TestData
         return dir;
     });
 
+    /// <summary>
+    /// Deletes a folder (and everything in it), trying again for a few seconds: on build machines antivirus briefly
+    /// opens freshly written files, and a process killed a moment ago can still hold its folder. Read-only files are
+    /// cleared first. Throws only if it's still there after that.
+    /// </summary>
+    public static void DeleteDirectory(string path)
+    {
+        for (int attempt = 0; Directory.Exists(path); attempt++)
+        {
+            try { Directory.Delete(path, recursive: true); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < 50)
+            {
+                try { foreach (string f in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)) { File.SetAttributes(f, FileAttributes.Normal); } } catch { /* going anyway */ }
+                Thread.Sleep(100);
+            }
+        }
+    }
+
+    /// <summary>Deletes a file, trying again for a few seconds (see <see cref="DeleteDirectory"/>).</summary>
+    public static void DeleteFile(string path)
+    {
+        for (int attempt = 0; File.Exists(path); attempt++)
+        {
+            try { File.SetAttributes(path, FileAttributes.Normal); File.Delete(path); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < 50) { Thread.Sleep(100); }
+        }
+    }
+
     /// <summary>Initializes (once) and returns the temp data root every test shares.</summary>
     public static string DataRoot => _root.Value;
 

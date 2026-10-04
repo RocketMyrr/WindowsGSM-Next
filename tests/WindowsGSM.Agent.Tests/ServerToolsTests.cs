@@ -135,7 +135,7 @@ public class ServerToolsTests
         var only = Assert.Single(versions); // saving without a change keeps nothing
         var detail = await _f.Owner.GetJsonAsync<JsonElement>(_f.ServerUrl("101", $"/config-history/{only.GetProperty("id").GetString()}"));
         Assert.Equal("maxplayers=10\n", detail.GetProperty("content").GetString());
-        File.Delete(ServerPath.GetServersServerFiles("101", rel));
+        WindowsGSM.Core.Tests.TestData.DeleteFile(ServerPath.GetServersServerFiles("101", rel));
     }
 
     [Fact]

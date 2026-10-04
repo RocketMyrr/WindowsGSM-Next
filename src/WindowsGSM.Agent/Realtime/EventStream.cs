@@ -199,6 +199,8 @@ public sealed class EventStream : IDisposable
                 continue;
             }
             Subscribe(client, msg);
+            // Confirmed once it's in place (after any replay): everything published from now on reaches this client.
+            client.Queue.Writer.TryWrite(Envelope("subscribed", new { topics = client.Topics.Count }));
             NotifyWatches();
         }
     }

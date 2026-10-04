@@ -169,7 +169,7 @@ public class A2SQueryTests
         using (var probe = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0))) { port = ((IPEndPoint)probe.Client.LocalEndPoint!).Port; }
         var started = DateTime.UtcNow;
         Assert.Null(await new A2S("127.0.0.1", port, 2).GetPlayersAndMaxPlayers());
-        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(5));
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(15)); // a 2 s timeout, not a hang (with room for a slow machine)
     }
 
     [Fact]

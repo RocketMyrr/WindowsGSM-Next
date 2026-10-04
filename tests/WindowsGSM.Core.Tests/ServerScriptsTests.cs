@@ -69,7 +69,7 @@ public class ServerScriptsTests
             Assert.Contains(engine.Log.Tail("216", 50), l => l.Contains("[Script] cleaned"));
 
             // Force stop runs neither the save nor the after-stop script.
-            File.Delete(Path.Combine(files, "after-stop.txt"));
+            TestData.DeleteFile(Path.Combine(files, "after-stop.txt"));
             await Run(engine.Lifecycle.Start("216"));
             await Run(engine.Lifecycle.Kill("216"));
             Assert.False(File.Exists(Path.Combine(files, "after-stop.txt")));

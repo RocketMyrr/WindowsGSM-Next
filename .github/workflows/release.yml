@@ -22,6 +22,7 @@ on:
 
 permissions:
   contents: write # create the release and upload its files
+  actions: read   # see whether "Build and test" already passed on this commit
 
 concurrency:
   group: release
@@ -30,7 +31,7 @@ concurrency:
 jobs:
   release:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
         with:
@@ -51,12 +52,38 @@ jobs:
           "prerelease=$(if ($v.Contains('-')) { 'true' } else { 'false' })" >> $env:GITHUB_OUTPUT
           Write-Host "Releasing WindowsGSM $v"
 
+      # The commit being released was normally just pushed to main, so "Build and test" has run (or is running)
+      # on exactly this code: use that result rather than testing the same thing twice. Only when it didn't pass
+      # (or never ran — a hand-started release of some other commit) are the tests run here.
+      - name: Check the commit's tests
+        id: tested
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $sha = "${{ github.sha }}"
+          $deadline = (Get-Date).AddMinutes(40)
+          while ($true) {
+            $runs = gh run list --workflow ci.yml --commit $sha --json databaseId,status,conclusion --limit 10 | ConvertFrom-Json
+            if ($runs | Where-Object { $_.conclusion -eq "success" }) { Write-Host "Build and test passed on $sha."; "passed=true" >> $env:GITHUB_OUTPUT; exit 0 }
+            $running = $runs | Where-Object { $_.status -ne "completed" }
+            if (-not $running -or (Get-Date) -gt $deadline) { break }
+            Write-Host "Build and test is still running on $sha — waiting for it."
+            Start-Sleep -Seconds 30
+          }
+          Write-Host "No passing Build and test run on $sha — testing here."
+          "passed=false" >> $env:GITHUB_OUTPUT
+
       - name: Test
+        if: steps.tested.outputs.passed != 'true'
         shell: pwsh
         run: |
-          dotnet test tests/WindowsGSM.Core.Tests -c Release --nologo
+          foreach ($attempt in 1..3) { dotnet restore WindowsGSM.Next.sln --nologo; if ($LASTEXITCODE -eq 0) { break }; Start-Sleep -Seconds (15 * $attempt) }
+          dotnet build WindowsGSM.Next.sln -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { throw "The build failed — nothing was released." }
+          dotnet test tests/WindowsGSM.Core.Tests -c Release --no-build --nologo --blame-hang-timeout 10m
           if ($LASTEXITCODE -ne 0) { throw "Core tests failed — nothing was released." }
-          dotnet test tests/WindowsGSM.Agent.Tests -c Release --nologo
+          dotnet test tests/WindowsGSM.Agent.Tests -c Release --no-build --nologo --blame-hang-timeout 10m
           if ($LASTEXITCODE -ne 0) { throw "Agent tests failed — nothing was released." }
 
       - name: Build the package

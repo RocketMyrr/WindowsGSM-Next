@@ -46,7 +46,7 @@ public class ServerLocationTests
             Assert.False(Directory.Exists(real));                                     // gone from the other drive too
             Assert.False(Directory.Exists(ServerPath.GetServers(id)));
         }
-        finally { try { Directory.Delete(other, true); } catch { } }
+        finally { try { TestData.DeleteDirectory(other); } catch { } }
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class ServerLocationTests
         finally
         {
             try { ServerLocation.Unlink("236"); } catch { }
-            try { Directory.Delete(other, true); } catch { }
+            try { TestData.DeleteDirectory(other); } catch { }
         }
     }
 
@@ -116,7 +116,7 @@ public class ServerLocationTests
         finally
         {
             try { ServerLocation.Unlink("237"); } catch { }
-            try { Directory.Delete(other, true); } catch { }
+            try { TestData.DeleteDirectory(other); } catch { }
         }
     }
 
@@ -129,7 +129,7 @@ public class ServerLocationTests
         try
         {
             Assert.Equal(JobStatus.Succeeded, (await Run(engine.Provisioning.MoveFiles("238", other))).Status);
-            Directory.Delete(other, true); // as if the drive was unplugged
+            TestData.DeleteDirectory(other); // as if the drive was unplugged
 
             Assert.Contains("missing", ServerLocation.Problem("238"));
             var start = await Run(engine.Lifecycle.Start("238"));
@@ -140,7 +140,7 @@ public class ServerLocationTests
         finally
         {
             try { ServerLocation.Unlink("238"); } catch { }
-            try { Directory.Delete(other, true); } catch { }
+            try { TestData.DeleteDirectory(other); } catch { }
         }
     }
 

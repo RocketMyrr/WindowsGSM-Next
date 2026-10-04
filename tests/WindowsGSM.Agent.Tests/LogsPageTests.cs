@@ -53,7 +53,7 @@ public class LogsPageTests
         {
             foreach (string f in new[] { "L20260102-DiscordBot.log", "CRASH_20260102.log", "secret.txt", "servers/101/crash_20260102_101500.log", "plugins/Broken.cs.log" })
             {
-                File.Delete(Path.Combine(logs, f));
+                WindowsGSM.Core.Tests.TestData.DeleteFile(Path.Combine(logs, f));
             }
         }
     }
@@ -72,7 +72,7 @@ public class LogsPageTests
             Assert.StartsWith("line ", text.Text); // starts on a whole line
             Assert.EndsWith("line 059999 ........................\n", text.Text);
         }
-        finally { File.Delete(file); }
+        finally { WindowsGSM.Core.Tests.TestData.DeleteFile(file); }
     }
 
     [Fact]

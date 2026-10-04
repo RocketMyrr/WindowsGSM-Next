@@ -58,7 +58,7 @@ public class ReleaseTests
             Assert.Contains("Nothing was changed.", DataCheck.Format(report));
             Assert.Equal(before, Directory.GetFileSystemEntries(root, "*", SearchOption.AllDirectories).OrderBy(x => x).ToArray());
         }
-        finally { Directory.Delete(root, true); }
+        finally { WindowsGSM.Core.Tests.TestData.DeleteDirectory(root); }
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class ReleaseTests
             var old = report.Cleanup.Single(c => c.Key == "old-versions");
             Assert.Equal(1, old.Count); // 0.9.0 only
         }
-        finally { try { Directory.Delete(root, true); } catch { } }
+        finally { try { WindowsGSM.Core.Tests.TestData.DeleteDirectory(root); } catch { } }
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public class ReleaseTests
             Assert.Equal("old launcher", File.ReadAllText(Path.Combine(root, "WindowsGSM.exe.old")));
             Assert.Equal(new[] { "--switch \"2.0.1\"" }, handovers);
         }
-        finally { _f.Context.Settings.UpdatePrerelease = true; Directory.Delete(root, true); }
+        finally { _f.Context.Settings.UpdatePrerelease = true; WindowsGSM.Core.Tests.TestData.DeleteDirectory(root); }
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public class ReleaseTests
             Assert.Empty(handovers);
             Assert.Equal(SelfUpdate.UpdateState.Error, update.State);
         }
-        finally { Directory.Delete(root, true); }
+        finally { WindowsGSM.Core.Tests.TestData.DeleteDirectory(root); }
     }
 
     [Fact]

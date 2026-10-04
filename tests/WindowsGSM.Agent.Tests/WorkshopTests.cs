@@ -105,7 +105,7 @@ public class WorkshopTests
         finally
         {
             foreach (var i in workshop.Load(id).Items.ToList()) { workshop.Remove(id, i.Id); }
-            File.Delete(ServerPath.GetServersConfigs(id, "workshop.json"));
+            WindowsGSM.Core.Tests.TestData.DeleteFile(ServerPath.GetServersConfigs(id, "workshop.json"));
             ServerConfig.SetSetting(id, ServerConfig.SettingName.ServerParam, "");
         }
     }

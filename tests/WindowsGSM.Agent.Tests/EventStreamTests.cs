@@ -96,7 +96,7 @@ public class EventStreamTests
         Assert.Equal(_f.MachineId, hello.GetProperty("data").GetProperty("machine").GetString());
 
         await feed.Send(new SubscribeMessage("subscribe", new[] { "servers" }, null));
-        await Task.Delay(200);
+        await feed.WaitFor(e => Type(e) == "subscribed", "the subscription to be confirmed");
         _f.Engine.Events.Publish(new ServerConfigChanged("102", new[] { "servername" }));
         _f.Engine.Events.Publish(new ServerAlert("102", AlertKind.Other, "t", "x")); // "alerts" topic: not subscribed
 
@@ -115,7 +115,7 @@ public class EventStreamTests
         await using var feed = await Connect(member);
         await feed.WaitFor(e => Type(e) == "hello", "hello");
         await feed.Send(new SubscribeMessage("subscribe", new[] { "servers", "console:local/102" }, null));
-        await Task.Delay(200);
+        await feed.WaitFor(e => Type(e) == "subscribed", "the subscription to be confirmed");
 
         _f.Engine.Events.Publish(new ServerConfigChanged("101", new[] { "x" }));      // can't see 101
         _f.Engine.Events.Publish(new ConsoleLineAdded("102", "secret console line")); // can see 102, but no Console right

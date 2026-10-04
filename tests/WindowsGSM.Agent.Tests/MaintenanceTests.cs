@@ -98,14 +98,14 @@ public class MaintenanceTests
             var badJob = await Finished((await ApiClient.Read<JobAccepted>(bad)).JobId);
             Assert.Equal("Failed", badJob.Status);
             Assert.True(badJob.Error!.Contains("damaged") || badJob.Error.Contains("can't be read"), badJob.Error);
-            File.Delete(damaged);
+            WindowsGSM.Core.Tests.TestData.DeleteFile(damaged);
         }
         finally
         {
             var s = BackupSettings.Load("103");
             s.CopyTo = oldCopy;
             s.Save();
-            if (Directory.Exists(second)) { Directory.Delete(second, true); }
+            if (Directory.Exists(second)) { WindowsGSM.Core.Tests.TestData.DeleteDirectory(second); }
         }
     }
 
@@ -138,7 +138,7 @@ public class MaintenanceTests
             // Not while WindowsGSM runs on the folder.
             using (WindowsGSM.Hosting.DataRootLock.Acquire(root)) { Assert.Contains("Stop it first", PasswordReset.Run(root, "boss", false).Message); }
         }
-        finally { if (Directory.Exists(root)) { Directory.Delete(root, true); } }
+        finally { if (Directory.Exists(root)) { WindowsGSM.Core.Tests.TestData.DeleteDirectory(root); } }
     }
 
     [Fact]
@@ -210,7 +210,7 @@ public class MaintenanceTests
         {
             foreach (string dir in new[] { ServerPath.GetPlugins("RollbackGame.cs"), PluginStore.PreviousPath("RollbackGame.cs") })
             {
-                if (Directory.Exists(dir)) { Directory.Delete(dir, true); }
+                if (Directory.Exists(dir)) { WindowsGSM.Core.Tests.TestData.DeleteDirectory(dir); }
             }
             await _f.Engine.Plugins.LoadAsync();
         }

@@ -32,7 +32,7 @@ public class NotificationTests
         engine.Events.Publish(new ServerAlert("191", AlertKind.AutoRestarted, "x", "y"));
         engine.Events.Publish(new ServerAlert("192", AlertKind.Crashed, "x", "y")); // crash alerts off for 192
         // Sends happen in the background, in no fixed order: wait for both, then give a stray third time to show up.
-        await EngineFixture.WaitUntil(() => sent.Count >= 2, "two alerts sent", 5000);
+        await EngineFixture.WaitUntil(() => sent.Count >= 2, "two alerts sent");
         await Settle();
 
         Assert.Equal(new[] { "Crashed", "Restarted | Auto Restart" }, sent.Select(n => n.Status).OrderBy(x => x, StringComparer.Ordinal).ToArray());
@@ -51,7 +51,8 @@ public class NotificationTests
         engine.Events.Publish(new ServerAlert("193", AlertKind.Crashed, "x", "y"));
         engine.Events.Publish(new ServerAlert("193", AlertKind.Crashed, "x", "y")); // same server, within 30 s
         engine.Events.Publish(new ServerAlert("194", AlertKind.Crashed, "x", "y")); // a different server — legacy dropped this
-        await Settle();
+        await EngineFixture.WaitUntil(() => sent.Count >= 2, "both servers' alerts sent");
+        await Settle(); // and no third
 
         Assert.Equal(new[] { "193", "194" }, sent.Select(n => n.ServerId).OrderBy(x => x).ToArray());
     }
@@ -61,16 +62,19 @@ public class NotificationTests
     {
         EngineFixture.CreateServer("195", extraSettings: Discord());
         using var engine = await EngineFixture.StartEngineAsync();
-        engine.Notifications.RepeatWindow = TimeSpan.FromMilliseconds(400);
+        engine.Notifications.RepeatWindow = TimeSpan.FromSeconds(30);
+        var now = DateTimeOffset.UtcNow;
+        engine.Notifications.Clock = () => now; // the test moves time, so a slow machine can't stretch the gaps
         var sent = new ConcurrentQueue<Notification>();
         engine.Notifications.Sender = n => { sent.Enqueue(n); return Task.CompletedTask; };
 
         engine.Events.Publish(new ServerAlert("195", AlertKind.Crashed, "x", "y")); // sent at t0
-        await Task.Delay(250);
-        engine.Events.Publish(new ServerAlert("195", AlertKind.Crashed, "x", "y")); // t0+250: suppressed
-        await Task.Delay(250);
-        engine.Events.Publish(new ServerAlert("195", AlertKind.Crashed, "x", "y")); // t0+500: past the window → sent
-        await Settle();                                                             // (legacy would have reset at 250 and dropped this)
+        now = now.AddSeconds(20);
+        engine.Events.Publish(new ServerAlert("195", AlertKind.Crashed, "x", "y")); // t0+20 s: suppressed
+        now = now.AddSeconds(20);
+        engine.Events.Publish(new ServerAlert("195", AlertKind.Crashed, "x", "y")); // t0+40 s: past the window → sent
+        await EngineFixture.WaitUntil(() => sent.Count >= 2, "two alerts sent"); // (legacy would have reset at 20 s and dropped this)
+        await Settle();
 
         Assert.Equal(2, sent.Count);
     }

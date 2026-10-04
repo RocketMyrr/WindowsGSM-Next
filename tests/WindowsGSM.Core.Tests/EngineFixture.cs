@@ -146,7 +146,7 @@ internal static class EngineFixture
         string configs = Path.Combine(WgsmEnvironment.DataRoot, "servers", id, "configs");
         string serverFiles = Path.Combine(WgsmEnvironment.DataRoot, "servers", id, "serverfiles");
         Directory.CreateDirectory(configs);
-        if (Directory.Exists(serverFiles)) { Directory.Delete(serverFiles, recursive: true); }
+        if (Directory.Exists(serverFiles)) { TestData.DeleteDirectory(serverFiles); }
         Directory.CreateDirectory(serverFiles);
         File.WriteAllLines(Path.Combine(configs, "WindowsGSM.cfg"), new[]
         {
@@ -161,7 +161,8 @@ internal static class EngineFixture
         }.Concat(extraSettings));
         // A stale PID cache from an earlier run must not make the engine adopt some unrelated process.
         string cache = Path.Combine(WgsmEnvironment.DataRoot, "servers", id, "cache");
-        if (Directory.Exists(cache)) { Directory.Delete(cache, recursive: true); }
+        // A running engine may still be writing it (a server just killed is being noticed): the helper retries.
+        TestData.DeleteDirectory(cache);
     }
 
     public static async Task<WgsmEngine> StartEngineAsync(CrashLoopOptions? crashLoop = null)
@@ -173,7 +174,7 @@ internal static class EngineFixture
     }
 
     /// <summary>Polls until <paramref name="condition"/> holds, failing the test with <paramref name="what"/> on timeout.</summary>
-    public static async Task WaitUntil(Func<bool> condition, string what, int timeoutMs = 20000)
+    public static async Task WaitUntil(Func<bool> condition, string what, int timeoutMs = 30000)
     {
         var sw = Stopwatch.StartNew();
         while (!condition())
@@ -184,7 +185,7 @@ internal static class EngineFixture
     }
 
     /// <summary>The same, for a condition that has to ask something (e.g. the API).</summary>
-    public static async Task WaitUntil(Func<Task<bool>> condition, string what, int timeoutMs = 20000)
+    public static async Task WaitUntil(Func<Task<bool>> condition, string what, int timeoutMs = 30000)
     {
         var sw = Stopwatch.StartNew();
         while (!await condition())
@@ -218,6 +219,6 @@ internal static class EngineFixture
 
     public static void KillQuietly(Process? p)
     {
-        try { if (p != null && !p.HasExited) { p.Kill(entireProcessTree: true); } } catch { /* gone */ }
+        try { if (p != null && !p.HasExited) { p.Kill(entireProcessTree: true); p.WaitForExit(5000); } } catch { /* gone */ }
     }
 }

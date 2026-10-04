@@ -131,9 +131,9 @@ public class UModTests
         }
         finally
         {
-            File.Delete(Path.Combine(files, "wgsm-umod.json"));
-            if (Directory.Exists(Path.Combine(files, "oxide"))) { Directory.Delete(Path.Combine(files, "oxide"), true); }
-            if (Directory.Exists(Path.Combine(files, "RustDedicated_Data"))) { Directory.Delete(Path.Combine(files, "RustDedicated_Data"), true); }
+            WindowsGSM.Core.Tests.TestData.DeleteFile(Path.Combine(files, "wgsm-umod.json"));
+            if (Directory.Exists(Path.Combine(files, "oxide"))) { WindowsGSM.Core.Tests.TestData.DeleteDirectory(Path.Combine(files, "oxide")); }
+            if (Directory.Exists(Path.Combine(files, "RustDedicated_Data"))) { WindowsGSM.Core.Tests.TestData.DeleteDirectory(Path.Combine(files, "RustDedicated_Data")); }
         }
     }
 

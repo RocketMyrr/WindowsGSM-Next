@@ -22,11 +22,32 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Build
-        run: dotnet build WindowsGSM.Next.sln -c Release --nologo
+      # NuGet occasionally has a bad moment: try the download again before calling the build broken.
+      - name: Restore
+        shell: pwsh
+        run: |
+          foreach ($attempt in 1..3) {
+            dotnet restore WindowsGSM.Next.sln --nologo
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            Write-Host "Restore failed (attempt $attempt) — trying again shortly."
+            Start-Sleep -Seconds (15 * $attempt)
+          }
+          throw "Couldn't restore packages."
 
+      - name: Build
+        run: dotnet build WindowsGSM.Next.sln -c Release --no-restore --nologo
+
+      # A test that hangs is named (and dumped) after 10 minutes instead of using up the job's time.
       - name: Core tests
-        run: dotnet test tests/WindowsGSM.Core.Tests -c Release --no-build --nologo
+        run: dotnet test tests/WindowsGSM.Core.Tests -c Release --no-build --nologo --blame-hang-timeout 10m --logger trx --results-directory TestResults/core
 
       - name: Agent tests
-        run: dotnet test tests/WindowsGSM.Agent.Tests -c Release --no-build --nologo
+        run: dotnet test tests/WindowsGSM.Agent.Tests -c Release --no-build --nologo --blame-hang-timeout 10m --logger trx --results-directory TestResults/agent
+
+      - name: Keep the test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: TestResults
+          retention-days: 14

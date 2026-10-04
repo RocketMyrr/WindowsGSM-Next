@@ -79,7 +79,7 @@ public class FileAndBackupTests
         finally
         {
             try { if (Directory.Exists(link)) { Directory.Delete(link); } } catch { }
-            Directory.Delete(outside, true);
+            WindowsGSM.Core.Tests.TestData.DeleteDirectory(outside);
         }
     }
 

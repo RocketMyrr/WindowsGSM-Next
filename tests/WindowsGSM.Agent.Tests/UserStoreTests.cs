@@ -44,7 +44,7 @@ public class UserStoreTests
 
         // Importing again adds nothing.
         Assert.Equal(0, store.ImportLegacy(legacy, "m-box"));
-        Directory.Delete(dir, true);
+        WindowsGSM.Core.Tests.TestData.DeleteDirectory(dir);
     }
 
     [Fact]
@@ -68,6 +68,6 @@ public class UserStoreTests
         string dir = TempDir();
         File.WriteAllText(Path.Combine(dir, "users.json"), "{ not json");
         Assert.Throws<InvalidDataException>(() => new UserStore(dir));
-        Directory.Delete(dir, true);
+        WindowsGSM.Core.Tests.TestData.DeleteDirectory(dir);
     }
 }

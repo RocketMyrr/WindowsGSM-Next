@@ -66,8 +66,8 @@ public class TemplateTests
         }
         finally
         {
-            File.Delete(cfg);
-            File.Delete(ServerPath.GetServersServerFiles(to, "server.cfg"));
+            WindowsGSM.Core.Tests.TestData.DeleteFile(cfg);
+            WindowsGSM.Core.Tests.TestData.DeleteFile(ServerPath.GetServersServerFiles(to, "server.cfg"));
             ServerConfig.SetSetting(from, ServerConfig.SettingName.ServerParam, fromParamBefore);
             ServerConfig.SetSetting(to, ServerConfig.SettingName.ServerParam, toParamBefore);
             foreach (string sid in new[] { from, to })

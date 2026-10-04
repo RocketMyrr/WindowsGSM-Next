@@ -26,7 +26,7 @@ public class DesktopSessionTests
         // A sign-in in a normal browser isn't remembered.
         var browser = _f.NewClient("127.0.0.1");
         await browser.PostAsync("/api/v2/auth/login", new LoginRequest(AgentFixture.OwnerName, AgentFixture.OwnerPassword, null));
-        File.Delete(Path.Combine(WindowsGSM.Hosting.WgsmEnvironment.DataRoot, "configs", "next", "desktop-user.txt"));
+        WindowsGSM.Core.Tests.TestData.DeleteFile(Path.Combine(WindowsGSM.Hosting.WgsmEnvironment.DataRoot, "configs", "next", "desktop-user.txt"));
         var fresh = Desktop();
         fresh.Http.DefaultRequestHeaders.Add(LocalEndpoints.KeyHeader, Key);
         Assert.Equal(HttpStatusCode.NotFound, (await fresh.PostAsync("/api/v2/local/desktop-session")).StatusCode);

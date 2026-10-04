@@ -20,6 +20,6 @@ public class CookieKeyTests
             Assert.True(File.Exists(Path.Combine(dir, "revocation-1.xml")));
             Assert.Equal(0, AgentApp.RetirePlainKeys(Path.Combine(dir, "missing")));
         }
-        finally { Directory.Delete(dir, true); }
+        finally { WindowsGSM.Core.Tests.TestData.DeleteDirectory(dir); }
     }
 }

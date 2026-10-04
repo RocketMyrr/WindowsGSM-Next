@@ -36,7 +36,7 @@ public class DiscordBotTests
             Assert.Equal(new[] { "m-a/*" }, s.Admin("111111111111111111")!.Servers);
             Assert.Equal(new[] { "m-a/1", "m-a/3" }, s.Admin("222222222222222222")!.Servers);
         }
-        finally { Directory.Delete(folder, true); }
+        finally { WindowsGSM.Core.Tests.TestData.DeleteDirectory(folder); }
     }
 
     [Fact]

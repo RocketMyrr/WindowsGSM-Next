@@ -37,6 +37,9 @@ namespace WindowsGSM.Engine.Services
         /// <summary>Minimum time between two alerts of the same kind for the same server (legacy: 30 s).</summary>
         public TimeSpan RepeatWindow { get; set; } = TimeSpan.FromSeconds(30);
 
+        /// <summary>The time the repeat window is measured with; swappable for tests.</summary>
+        public Func<DateTimeOffset> Clock { get; set; } = () => DateTimeOffset.UtcNow;
+
         /// <summary>Delivers a notification. Defaults to the legacy Discord webhook sender; swappable for tests.</summary>
         public Func<Notification, Task> Sender { get; set; } = SendToDiscordAsync;
 
@@ -65,7 +68,7 @@ namespace WindowsGSM.Engine.Services
             if (!enabled) { return; }
 
             string key = $"{s.Id}|{alert.Kind}";
-            var now = DateTimeOffset.UtcNow;
+            var now = Clock();
             if (_lastSent.TryGetValue(key, out var last) && now - last < RepeatWindow) { return; }
             _lastSent[key] = now; // only a sent alert starts a new window
 

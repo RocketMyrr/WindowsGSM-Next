@@ -33,6 +33,6 @@ public class LoggingTests
             var items = (await _f.Owner.GetJsonAsync<JsonElement>("/api/v2/notifications")).GetProperty("items").EnumerateArray();
             Assert.Contains(items, i => i.GetProperty("kind").GetString() == "appCrash" && i.GetProperty("text").GetString()!.Contains("kaboom"));
         }
-        finally { if (Directory.Exists(root)) { Directory.Delete(root, true); } }
+        finally { if (Directory.Exists(root)) { WindowsGSM.Core.Tests.TestData.DeleteDirectory(root); } }
     }
 }

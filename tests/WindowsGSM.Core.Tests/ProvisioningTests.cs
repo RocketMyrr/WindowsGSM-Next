@@ -99,7 +99,7 @@ public class ProvisioningTests
             Assert.True(File.Exists(Path.Combine(source, "game.exe"))); // a copy — the original is left alone
             await Run(engine.Provisioning.Delete(job.ServerId!));
         }
-        finally { Directory.Delete(source, recursive: true); }
+        finally { TestData.DeleteDirectory(source); }
     }
 
     [Fact]

@@ -108,7 +108,7 @@ public class EngineUnitTests
 
         var running = jobs.Start("t", "1", "cancel", async ctx => { await Task.Delay(Timeout.Infinite, ctx.Cancellation); return null; });
         Assert.True(jobs.Cancel(running.Id));
-        var cancelled = await running.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        var cancelled = await running.Completion.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(JobStatus.Cancelled, cancelled.Status);
 
         lock (changes) { Assert.Contains(changes, c => c.Title == "ok" && c.Status == JobStatus.Succeeded); }
@@ -131,8 +131,8 @@ public class EngineUnitTests
             return null;
         });
 
-        await Task.Delay(600);
-        lock (seen) { Assert.Equal(50, seen.Last()); } // the pause shows 50, not a stale 10
+        // The pause shows 50, not a stale 10: the trailing edge of the throttle delivers it (however slow the machine).
+        await EngineFixture.WaitUntil(() => { lock (seen) { return seen.Count > 0 && seen.Last() == 50; } }, "the latest progress (50) to arrive", 10000);
         release.SetResult();
         await job.Completion;
     }

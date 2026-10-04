@@ -179,7 +179,7 @@ public class OffsiteBackupTests
 
             // The PC loses it: bring it back, and it's in the backups list again, byte for byte.
             byte[] original = File.ReadAllBytes(archive);
-            File.Delete(archive);
+            WindowsGSM.Core.Tests.TestData.DeleteFile(archive);
             Assert.Equal(HttpStatusCode.Forbidden, (await _f.UserAsync("offsiteviewer", Role.Viewer) is var viewer ? await viewer.PostAsync(_f.ServerUrl(id, $"/backups/offsite/{newest}/download")) : null)!.StatusCode);
             var bring = await _f.Owner.PostAsync(_f.ServerUrl(id, $"/backups/offsite/{Uri.EscapeDataString(newest)}/download"));
             Assert.Equal(HttpStatusCode.Accepted, bring.StatusCode);
