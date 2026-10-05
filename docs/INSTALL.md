@@ -245,6 +245,36 @@ haven't set up.
 
 Only the hub needs to be reachable; members connect out to it. Users and permissions are managed on the hub.
 
+## Backing up WindowsGSM's setup
+
+Agent settings → **Setup backup** (owners) downloads one file with everything that isn't game files: accounts,
+agent settings, automations, notification channels, the Discord bot, off-site settings, tags, restart warnings,
+templates, the hub's machines, plugins and each server's settings. Each server's own Backups tab covers its game
+files.
+
+- **Passwords and tokens** (Discord bot, webhook addresses, off-site and Steam passwords, the hub link) are encrypted
+  for your Windows account, so they can't be copied as they are. Tick *Include passwords and tokens* and choose a
+  passphrase to carry them, encrypted with it. Otherwise you enter them again after restoring.
+- **Restoring** (same panel) checks the file, then waits for the agent to restart. The current settings are zipped
+  into `backups\wgsm-settings-before-restore-<time>.zip` first. Game servers keep running. Afterwards everyone
+  signs in again, and the panel shows what was restored and anything left to do.
+- **On a different PC** this PC keeps its own identity. To replace a PC that's gone, tick *This PC replaces the one
+  the backup came from*: it takes over its machine id and hub membership.
+- Settings for servers that aren't on this PC are left out. Restore those servers from their own backups first,
+  then restore the setup again.
+
+## Diagnostics for a bug report
+
+Health checks → **Export diagnostics** (admins) downloads one zip containing:
+- WindowsGSM and Windows versions, and the PC's memory and free disk space,
+- the health checks,
+- loaded and broken plugins,
+- the last three days of logs, crash reports, and each server's recent log,
+- WindowsGSM's settings.
+
+Passwords, tokens, keys, webhook addresses and password hashes are taken out. Server names, folders and IP
+addresses stay, so look through it before posting it publicly.
+
 ## Controlling another PC
 
 The WindowsGSM app can show another PC's panel (or your hub's) in its own window, with its tray icon and

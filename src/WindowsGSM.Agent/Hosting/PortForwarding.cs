@@ -38,14 +38,8 @@ public sealed class PortForwarding : IDisposable
     {
         _ctx = ctx;
         _file = Path.Combine(global::WindowsGSM.Hosting.WgsmEnvironment.DataRoot, "configs", "next", "upnp.json");
-        try
-        {
-            _applied = File.Exists(_file)
-                ? (JsonSerializer.Deserialize<Dictionary<string, List<int[]>>>(File.ReadAllText(_file)) ?? new())
-                    .ToDictionary(kv => kv.Key, kv => kv.Value.Where(a => a.Length == 2).Select(a => (a[0], a[1] == 6 ? "TCP" : "UDP")).ToList())
-                : new();
-        }
-        catch { _applied = new(); }
+        _applied = (global::WindowsGSM.Hosting.SafeJson.Read<Dictionary<string, List<int[]>>>(_file) ?? new())
+            .ToDictionary(kv => kv.Key, kv => (kv.Value ?? new()).Where(a => a != null && a.Length == 2).Select(a => (a[0], a[1] == 6 ? "TCP" : "UDP")).ToList());
         _subscription = ctx.Engine.Events.Subscribe(OnEvent);
         _refresh = new Timer(_ => _ = RefreshAllAsync(), null, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(30));
     }
@@ -163,8 +157,7 @@ public sealed class PortForwarding : IDisposable
         {
             Dictionary<string, List<int[]>> data;
             lock (_gate) { data = _applied.Where(kv => kv.Value.Count > 0).ToDictionary(kv => kv.Key, kv => kv.Value.Select(p => new[] { p.Port, p.Protocol == "TCP" ? 6 : 17 }).ToList()); }
-            Directory.CreateDirectory(Path.GetDirectoryName(_file)!);
-            File.WriteAllText(_file, JsonSerializer.Serialize(data));
+            global::WindowsGSM.Hosting.SafeJson.Write(_file, data);
         }
         catch { /* best effort */ }
     }

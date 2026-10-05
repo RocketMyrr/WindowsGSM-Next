@@ -108,6 +108,11 @@ namespace WindowsGSM.Engine
             var engine = new WgsmEngine(crashLoop) { _dataLock = dataLock };
             try
             {
+                // Unreadable settings files are reported in the log (and Health checks); the data layout is brought
+                // up to date before anything reads it.
+                SafeJson.Log = m => engine.Log.Write("System", m);
+                SetupArchive.ApplyPending(WgsmEnvironment.DataRoot, m => engine.Log.Write("System", m)); // a setup restore, waiting for this start
+                DataFormat.Prepare(WgsmEnvironment.DataRoot, WgsmEnvironment.Version, m => engine.Log.Write("System", m));
                 await engine.Plugins.LoadAsync().ConfigureAwait(false);
                 engine.Servers.LoadAll();
                 engine.Lifecycle.ReattachRunningServers();

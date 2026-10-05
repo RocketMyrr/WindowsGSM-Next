@@ -206,7 +206,7 @@ namespace WindowsGSM.Engine.Services
             {
                 job.Report(stage: $"Downloading {label}");
                 _log.Write(s.Id, $"Add-on: downloading {label}…");
-                await Http.DownloadFileAsync(url, tempZip).ConfigureAwait(false);
+                await Http.DownloadUserUrlAsync(url, tempZip).ConfigureAwait(false); // never this PC or link-local addresses
                 if (!File.Exists(tempZip) || new FileInfo(tempZip).Length == 0) { return "Download failed or the file was empty."; }
 
                 job.Report(stage: $"Extracting {label}");

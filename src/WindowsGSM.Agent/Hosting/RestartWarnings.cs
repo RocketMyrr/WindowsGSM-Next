@@ -38,8 +38,7 @@ public sealed class RestartWarnings : IDisposable
     {
         _ctx = ctx;
         _file = Path.Combine(ctx.ConfigDir, "restart-warnings.json");
-        try { _settings = File.Exists(_file) ? JsonSerializer.Deserialize<Dictionary<string, WarningSettings>>(File.ReadAllText(_file)) ?? new() : new(); }
-        catch { _settings = new(); }
+        _settings = global::WindowsGSM.Hosting.SafeJson.Read<Dictionary<string, WarningSettings>>(_file) ?? new();
         _timer = new Timer(_ => _ = TickAsync(), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
         _subscription = ctx.Engine.Events.Subscribe<WindowsGSM.Engine.Events.ServerListChanged>(e => { if (e.Removed) { Forget(e.ServerId); } });
     }
@@ -66,8 +65,7 @@ public sealed class RestartWarnings : IDisposable
             _settings[server] = new WarningSettings { Enabled = s.Enabled, Leads = leads, Command = command, Message = message };
             try
             {
-                File.WriteAllText(_file + ".tmp", JsonSerializer.Serialize(_settings, Json));
-                File.Move(_file + ".tmp", _file, overwrite: true);
+                global::WindowsGSM.Hosting.SafeJson.Write(_file, _settings, Json);
             }
             catch (Exception ex) { return $"Couldn't save: {ex.Message}"; }
         }

@@ -1,0 +1,16 @@
+[
+  {
+    "id": "335da8ed9164",
+    "name": "Crashes",
+    "type": "discord",
+    "url": "dpapi:AQAAANCMnd8BFdERjHoAwE/Cl\u002BsBAAAAORE/YurX6U2ppGP8eOAyAAAAAAACAAAAAAAQZgAAAAEAACAAAABLY/LoYoX/IKBXHISCGx51FOcC5h8m6gucVtQnCOHPMwAAAAAOgAAAAAIAACAAAADfNl4DzXl0qFKSLj7bfFeG9WTSWLqKGQqqBwp0wpYNVzAAAADauzzBOjEyvHUQJn7Mz/8o5uFl1TMHEWq04bT6x6Jlfk37gCJ69WGKinwt0SyWsOxAAAAAiLLgiQbzXm5MEZEx72bjmSC/TD1f8Ybwxo2pvOsG4ucP80Wqg0CM3croduxHlu1hdC2SmNHpVdtvb4IXn20J6g==",
+    "mention": null,
+    "enabled": true,
+    "events": [
+      "crashed"
+    ],
+    "scope": [],
+    "lastSentAt": null,
+    "lastError": null
+  }
+]

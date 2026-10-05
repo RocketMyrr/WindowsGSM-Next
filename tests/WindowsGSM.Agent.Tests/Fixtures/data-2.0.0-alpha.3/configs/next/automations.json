@@ -1,0 +1,18 @@
+[
+  {
+    "id": "empty1",
+    "name": "Empty restart",
+    "enabled": true,
+    "trigger": "empty",
+    "minutes": 30,
+    "threshold": 0,
+    "action": "restart",
+    "command": null,
+    "servers": [
+      "1"
+    ],
+    "cooldownMinutes": 60,
+    "lastFired": null,
+    "lastResult": null
+  }
+]

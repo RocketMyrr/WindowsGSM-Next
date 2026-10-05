@@ -62,12 +62,11 @@ namespace WindowsGSM.Installer
 
         public static Installed? Read(string serverId)
         {
-            try { return File.Exists(MarkerPath(serverId)) ? JsonSerializer.Deserialize<Installed>(File.ReadAllText(MarkerPath(serverId))) : null; }
-            catch { return null; }
+            return global::WindowsGSM.Hosting.SafeJson.Read<Installed>(MarkerPath(serverId));
         }
 
         private static void Write(string serverId, Installed info) =>
-            File.WriteAllText(MarkerPath(serverId), JsonSerializer.Serialize(info, new JsonSerializerOptions { WriteIndented = true }));
+            global::WindowsGSM.Hosting.SafeJson.Write(MarkerPath(serverId), info, new JsonSerializerOptions { WriteIndented = true });
 
         private static async Task<JsonNode> GetJsonAsync(string url, CancellationToken token) =>
             JsonNode.Parse(await Client.GetStringAsync(url, token)) ?? throw new InvalidDataException("Empty answer from " + new Uri(url).Host);

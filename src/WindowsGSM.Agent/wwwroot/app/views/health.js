@@ -21,8 +21,12 @@ export default async function health(host, { query }) {
     const summary = h("div", { class: "health-summary" });
     const groups = h("div", { class: "stack loose" });
     const rerun = h("button", { class: "btn", onclick: () => busy(rerun, run) }, icon("refresh"), "Run again");
+    // For a bug report: versions, health, recent logs and settings in one zip (secrets taken out). Admins only.
+    const diagnostics = store.me.canManageUsers ? h("a", { class: "btn", download: "",
+        title: "One zip for a bug report: versions, these checks, recent logs and settings. Passwords, tokens and keys are taken out; server names, folders and IP addresses stay — look through it before posting it publicly.",
+        onclick: e => { e.currentTarget.href = `/api/v2/machines/${encodeURIComponent(machine)}/diagnostics`; } }, icon("download"), "Export diagnostics") : null;
     host.append(
-        h("div", { class: "page-head" }, h("div", {}, h("h1", { text: "Health checks" }), title), h("div", { class: "actions" }, picker, rerun)),
+        h("div", { class: "page-head" }, h("div", {}, h("h1", { text: "Health checks" }), title), h("div", { class: "actions" }, picker, diagnostics, rerun)),
         summary, groups);
 
     async function run() {

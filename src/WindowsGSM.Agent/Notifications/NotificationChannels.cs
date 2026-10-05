@@ -55,16 +55,9 @@ public sealed class NotificationChannels : IDisposable
         _centre = centre;
         _http = http;
         _log = log;
-        try
-        {
-            if (File.Exists(_file))
-            {
-                string raw = File.ReadAllText(_file);
-                _channels = JsonSerializer.Deserialize<List<NotificationChannel>>(raw, Json) ?? new();
-                if (_channels.Any(c => c.Url.Length > 0) && !raw.Contains("dpapi:")) { SaveFile(); } // webhook URLs are secrets: encrypt older files
-            }
-        }
-        catch { _channels = new(); }
+        _channels = global::WindowsGSM.Hosting.SafeJson.Read<List<NotificationChannel>>(_file, Json) ?? new();
+        // Webhook URLs are secrets: encrypt older files.
+        try { if (_channels.Any(c => c.Url.Length > 0) && File.Exists(_file) && !File.ReadAllText(_file).Contains("dpapi:")) { SaveFile(); } } catch { /* next save */ }
         centre.Added += OnAdded;
     }
 
@@ -235,8 +228,7 @@ public sealed class NotificationChannels : IDisposable
     {
         try
         {
-            File.WriteAllText(_file + ".tmp", JsonSerializer.Serialize(_channels, Json));
-            File.Move(_file + ".tmp", _file, overwrite: true);
+            global::WindowsGSM.Hosting.SafeJson.Write(_file, _channels, Json);
         }
         catch (Exception ex) { _log($"Couldn't save notification channels: {ex.Message}"); }
     }

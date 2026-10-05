@@ -66,8 +66,7 @@ public sealed class Workshop
 
     public WorkshopSettings Load(string id)
     {
-        try { if (File.Exists(FileOf(id))) { return JsonSerializer.Deserialize<WorkshopSettings>(File.ReadAllText(FileOf(id)), Json) ?? new(); } }
-        catch { /* rebuilt below */ }
+        if (global::WindowsGSM.Hosting.SafeJson.Read<WorkshopSettings>(FileOf(id), Json) is { } saved) { return saved; }
         var s = new WorkshopSettings();
         // A known game fills itself in.
         string? serverApp = _ctx.Engine.Games.Get(_ctx.Engine.Servers.Get(id)?.Game ?? "")?.AppId;
@@ -77,10 +76,7 @@ public sealed class Workshop
 
     public void Save(string id, WorkshopSettings s)
     {
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(FileOf(id))!);
-        string temp = FileOf(id) + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(s, Json));
-        File.Move(temp, FileOf(id), overwrite: true);
+        global::WindowsGSM.Hosting.SafeJson.Write(FileOf(id), s, Json);
     }
 
     public static string? CheckSettings(WorkshopSettings s)

@@ -58,11 +58,9 @@ public sealed class SessionStore
         Directory.CreateDirectory(configDir);
         _file = Path.Combine(configDir, "sessions.json");
         _lifetime = lifetime;
-        try { if (File.Exists(_file)) { _sessions = JsonSerializer.Deserialize<List<AgentSession>>(File.ReadAllText(_file), Json) ?? new(); } }
-        catch { _sessions = new(); } // unreadable → everyone signs in again; nothing worse
+        _sessions = global::WindowsGSM.Hosting.SafeJson.Read<List<AgentSession>>(_file, Json) ?? new(); // unreadable → everyone signs in again; nothing worse
         _keysFile = Path.Combine(configDir, "app-keys.json");
-        try { if (File.Exists(_keysFile)) { _keys = JsonSerializer.Deserialize<List<AppKey>>(File.ReadAllText(_keysFile), Json) ?? new(); } }
-        catch { _keys = new(); } // unreadable → those apps sign in once more
+        _keys = global::WindowsGSM.Hosting.SafeJson.Read<List<AppKey>>(_keysFile, Json) ?? new(); // unreadable → those apps sign in once more
     }
 
     public TimeSpan Lifetime => _lifetime;
@@ -242,9 +240,7 @@ public sealed class SessionStore
     {
         try
         {
-            string temp = _keysFile + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(_keys, Json));
-            File.Move(temp, _keysFile, overwrite: true);
+            global::WindowsGSM.Hosting.SafeJson.Write(_keysFile, _keys, Json);
         }
         catch { /* worst case an app signs in once more */ }
     }
@@ -279,9 +275,7 @@ public sealed class SessionStore
     {
         try
         {
-            string temp = _file + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(_sessions, Json));
-            File.Move(temp, _file, overwrite: true);
+            global::WindowsGSM.Hosting.SafeJson.Write(_file, _sessions, Json);
         }
         catch { /* sessions are recoverable state; a failed save must not fail a request */ }
     }

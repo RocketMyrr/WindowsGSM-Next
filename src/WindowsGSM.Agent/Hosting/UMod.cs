@@ -70,11 +70,10 @@ public sealed class UMod
 
     public List<Tracked> List(string serverId)
     {
-        try { return File.Exists(TrackFile(serverId)) ? JsonSerializer.Deserialize<List<Tracked>>(File.ReadAllText(TrackFile(serverId)), Json) ?? new() : new(); }
-        catch { return new(); }
+        return global::WindowsGSM.Hosting.SafeJson.Read<List<Tracked>>(TrackFile(serverId), Json) ?? new();
     }
 
-    private static void Save(string serverId, List<Tracked> list) => File.WriteAllText(TrackFile(serverId), JsonSerializer.Serialize(list, Json));
+    private static void Save(string serverId, List<Tracked> list) => global::WindowsGSM.Hosting.SafeJson.Write(TrackFile(serverId), list, Json);
 
     /// <summary>Every plugin file in the folder, with its [Info] details and whether WindowsGSM keeps it up to date.</summary>
     public List<Present> Plugins(string serverId, Context c)

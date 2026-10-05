@@ -50,11 +50,8 @@ namespace WindowsGSM.Installer
         {
             lock (Gate)
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
                 var s = new Stored { Username = username.Trim(), Password = password, SignedInAt = signedIn ? DateTimeOffset.UtcNow : null };
-                string temp = FilePath + ".tmp";
-                File.WriteAllText(temp, JsonSerializer.Serialize(s, Json));
-                File.Move(temp, FilePath, overwrite: true);
+                global::WindowsGSM.Hosting.SafeJson.Write(FilePath, s, Json);
             }
         }
 
@@ -87,8 +84,7 @@ namespace WindowsGSM.Installer
         {
             lock (Gate)
             {
-                try { return File.Exists(FilePath) ? JsonSerializer.Deserialize<Stored>(File.ReadAllText(FilePath), Json) : null; }
-                catch { return null; }
+                return global::WindowsGSM.Hosting.SafeJson.Read<Stored>(FilePath, Json);
             }
         }
 

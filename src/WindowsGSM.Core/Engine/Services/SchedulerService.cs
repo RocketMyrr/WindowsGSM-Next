@@ -113,11 +113,7 @@ namespace WindowsGSM.Engine.Services
                 if (CrontabSchedule.TryParse(e.Cron) == null) { return $"\"{e.Cron}\" isn't a valid schedule (use cron format, e.g. \"0 6 * * *\" for 6am daily)."; }
                 if ((e.Action == ScheduledAction.Command || e.Action == ScheduledAction.Rcon) && string.IsNullOrWhiteSpace(e.Payload)) { return "A command schedule needs a command."; }
             }
-            string file = ServerPath.GetServersConfigs(id, ManagedFile);
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            string temp = file + ".tmp";
-            File.WriteAllText(temp, JsonConvert.SerializeObject(list, Json));
-            File.Move(temp, file, overwrite: true);
+            global::WindowsGSM.Hosting.SafeJson.WriteText(ServerPath.GetServersConfigs(id, ManagedFile), JsonConvert.SerializeObject(list, Json));
             _cache.TryRemove(id, out _);
             return null;
         }
@@ -366,14 +362,16 @@ namespace WindowsGSM.Engine.Services
                 try { entries.AddRange(ParseCrontabFile(File.ReadAllLines(file)).Select(e => e with { Enabled = e.Enabled && legacyOn })); }
                 catch (Exception ex) { _log.Write(id, $"[NOTICE] Couldn't read {Path.GetFileName(file)}: {ex.Message}"); }
             }
-            if (File.Exists(managed))
+            if (File.Exists(managed) || File.Exists(managed + ".bak"))
             {
-                try
+                // Damaged: the previous copy (or none, with the damaged file kept aside so a later save can't replace it).
+                var list = global::WindowsGSM.Hosting.SafeJson.ReadWith(managed, text => JsonConvert.DeserializeObject<List<ScheduleEntry>>(text, global::WindowsGSM.Hosting.SafeJson.LenientNewtonsoft(Json)))
+                           ?? new List<ScheduleEntry>();
+                if (global::WindowsGSM.Hosting.SafeJson.Problems.FirstOrDefault(p => string.Equals(p.File, managed, StringComparison.OrdinalIgnoreCase)) is { } problem)
                 {
-                    var list = JsonConvert.DeserializeObject<List<ScheduleEntry>>(File.ReadAllText(managed), Json) ?? new List<ScheduleEntry>();
-                    entries.AddRange(list.Where(e => e.Action != ScheduledAction.Exec).Select(e => e with { Source = ScheduleSource.Managed }));
+                    _log.Write(id, $"[NOTICE] {ManagedFile} {problem.Message}.");
                 }
-                catch (Exception ex) { _log.Write(id, $"[NOTICE] Couldn't read {ManagedFile}: {ex.Message}"); }
+                entries.AddRange(list.Where(e => e != null && e.Action != ScheduledAction.Exec).Select(e => e with { Source = ScheduleSource.Managed }));
             }
 
             _cache[id] = (signature, entries);

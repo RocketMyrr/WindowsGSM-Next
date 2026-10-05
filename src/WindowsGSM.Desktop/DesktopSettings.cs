@@ -35,7 +35,8 @@ internal sealed class DesktopSettings
 
     public static DesktopSettings Load()
     {
-        try { return File.Exists(FilePath) ? JsonSerializer.Deserialize<DesktopSettings>(File.ReadAllText(FilePath)) ?? new() : new(); }
+        // A damaged file: the previous copy, or defaults with the damaged one kept aside (your saved PCs aren't overwritten).
+        try { return WindowsGSM.Desktop.Shared.SafeJson.Read<DesktopSettings>(FilePath) ?? new(); }
         catch { return new(); }
     }
 
@@ -43,8 +44,7 @@ internal sealed class DesktopSettings
     {
         try
         {
-            Directory.CreateDirectory(Folder);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+            WindowsGSM.Desktop.Shared.SafeJson.Write(FilePath, this, new JsonSerializerOptions { WriteIndented = true });
         }
         catch { /* preferences are best effort */ }
     }

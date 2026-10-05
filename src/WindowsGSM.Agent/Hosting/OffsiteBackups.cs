@@ -35,15 +35,12 @@ public sealed class OffsiteSettings
 
     public static OffsiteSettings Load(string configDir)
     {
-        try { return System.IO.File.Exists(File(configDir)) ? JsonSerializer.Deserialize<OffsiteSettings>(System.IO.File.ReadAllText(File(configDir)), Json) ?? new() : new(); }
-        catch { return new(); }
+        return global::WindowsGSM.Hosting.SafeJson.Read<OffsiteSettings>(File(configDir), Json) ?? new();
     }
 
     public void Save(string configDir)
     {
-        string file = File(configDir);
-        System.IO.File.WriteAllText(file + ".tmp", JsonSerializer.Serialize(this, Json));
-        System.IO.File.Move(file + ".tmp", file, overwrite: true);
+        global::WindowsGSM.Hosting.SafeJson.Write(File(configDir), this, Json);
     }
 }
 

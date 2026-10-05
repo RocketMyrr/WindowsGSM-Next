@@ -49,9 +49,25 @@ namespace WindowsGSM.Engine.Services
                 DiskSpace(root),
                 Plugins(),
                 FirewallSummary(),
+                SettingsFiles(),
             };
             if (network) { checks.Add(await PublicIpAsync().ConfigureAwait(false)); }
             return checks;
+        }
+
+        /// <summary>WindowsGSM's own settings files: any that couldn't be read, and data from a newer version.</summary>
+        private static ReadinessCheck SettingsFiles()
+        {
+            var problems = SafeJson.Problems;
+            if (problems.Count > 0)
+            {
+                bool lost = problems.Any(p => !p.Recovered);
+                string list = string.Join(" ", problems.Select(p => $"{Path.GetFileName(p.File)} {p.Message}" + (p.KeptAs != null ? $" (the original is kept as {p.KeptAs})." : ".")));
+                return new ReadinessCheck("App", "Settings files", lost ? CheckStatus.Fail : CheckStatus.Warning,
+                    list + (lost ? " Put back a copy from a backup (the backups folder, or your own), or fix the kept file and rename it back, then restart the agent." : ""));
+            }
+            if (DataFormat.NewerDataWarning is { } newer) { return new ReadinessCheck("App", "Settings files", CheckStatus.Warning, newer); }
+            return new ReadinessCheck("App", "Settings files", CheckStatus.Pass, "All of WindowsGSM's settings files read fine.");
         }
 
         public IReadOnlyList<ReadinessCheck> CheckServer(string id)

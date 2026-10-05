@@ -143,8 +143,9 @@ public static class TransferEndpoints
             return ApiResults.FromRequest(request, ctx);
         });
 
-        imports.MapDelete("/{token}", (string token) =>
+        imports.MapDelete("/{token}", (HttpContext http, AgentContext ctx, string token) =>
         {
+            if (!ctx.CurrentUser(http)!.CanOnMachine(Capability.Install, ctx.MachineId)) { return ApiResults.Forbidden(); }
             if (ValidToken(token)) { try { File.Delete(ImportFile(token)); File.Delete(ImportFile(token) + ".json"); } catch { } }
             return Results.NoContent();
         });

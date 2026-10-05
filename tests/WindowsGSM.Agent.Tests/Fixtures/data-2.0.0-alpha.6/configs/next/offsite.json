@@ -1,0 +1,11 @@
+{
+  "Enabled": true,
+  "Provider": "b2",
+  "Endpoint": "",
+  "Region": "us-west-004",
+  "Bucket": "wgsm-upgrade-test",
+  "AccessKeyId": "key-id",
+  "SecretAccessKey": "dpapi:AQAAANCMnd8BFdERjHoAwE/Cl\u002BsBAAAAORE/YurX6U2ppGP8eOAyAAAAAAACAAAAAAAQZgAAAAEAACAAAAC8pKiwJcT4ys7AoWXKVjdQmOHuRnBjKOuGWaDhOdeyzQAAAAAOgAAAAAIAACAAAACvN5eDRNWPjfxUZ42PPnhnDDHow8ulvlqN0ppbDThiGCAAAADQ5\u002B6LRsJsPQOi9g5ue84zMioi4Am9BjgPfhDxEr\u002BvVUAAAADjKn3v9BhTRJhaHHAY9hYldRSKU1bh3Z6L238yHipft7AjzKfvpV9Nk5tw5Xa39\u002BbLuSeVlr68lct6KBRR6iDP",
+  "Prefix": "windowsgsm",
+  "KeepCount": 5
+}

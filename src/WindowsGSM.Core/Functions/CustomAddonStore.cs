@@ -22,25 +22,15 @@ namespace WindowsGSM.Functions
 
         public static List<CustomAddon> Load(string serverId)
         {
-            try
-            {
-                string f = ConfigFile(serverId);
-                if (File.Exists(f))
-                {
-                    return JsonConvert.DeserializeObject<List<CustomAddon>>(File.ReadAllText(f)) ?? new List<CustomAddon>();
-                }
-            }
-            catch { /* defaults */ }
-            return new List<CustomAddon>();
+            return global::WindowsGSM.Hosting.SafeJson.ReadWith(ConfigFile(serverId), text => JsonConvert.DeserializeObject<List<CustomAddon>>(text, global::WindowsGSM.Hosting.SafeJson.LenientNewtonsoft()))
+                ?? new List<CustomAddon>();
         }
 
         private static void Save(string serverId, List<CustomAddon> list)
         {
             try
             {
-                string f = ConfigFile(serverId);
-                Directory.CreateDirectory(Path.GetDirectoryName(f));
-                File.WriteAllText(f, JsonConvert.SerializeObject(list, Formatting.Indented));
+                global::WindowsGSM.Hosting.SafeJson.WriteText(ConfigFile(serverId), JsonConvert.SerializeObject(list, Formatting.Indented));
             }
             catch { /* best effort */ }
         }

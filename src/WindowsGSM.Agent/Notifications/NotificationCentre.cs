@@ -91,8 +91,7 @@ public sealed class NotificationCentre : IDisposable
         _stream = stream;
         _machines = machines;
         _file = Path.Combine(ctx.ConfigDir, "notifications.json");
-        try { _state = File.Exists(_file) ? JsonSerializer.Deserialize<State>(File.ReadAllText(_file), Json) ?? new() : new(); }
-        catch { _state = new(); }
+        _state = global::WindowsGSM.Hosting.SafeJson.Read<State>(_file, Json) ?? new();
         _saver = new Timer(_ => Flush(), null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
         stream.Published += OnPublished;
     }
@@ -254,17 +253,16 @@ public sealed class NotificationCentre : IDisposable
 
     public void Flush()
     {
-        string json;
+        JsonElement snapshot;
         lock (_gate)
         {
             if (!_dirty) { return; }
             _dirty = false;
-            json = JsonSerializer.Serialize(_state, Json);
+            snapshot = JsonSerializer.SerializeToElement(_state, Json); // a copy, written outside the lock
         }
         try
         {
-            File.WriteAllText(_file + ".tmp", json);
-            File.Move(_file + ".tmp", _file, overwrite: true);
+            global::WindowsGSM.Hosting.SafeJson.Write(_file, snapshot, Json);
         }
         catch { lock (_gate) { _dirty = true; } }
     }

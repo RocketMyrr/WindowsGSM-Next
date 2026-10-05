@@ -1,0 +1,17 @@
+{
+  "Enabled": false,
+  "Token": "dpapi:AQAAANCMnd8BFdERjHoAwE/Cl\u002BsBAAAAORE/YurX6U2ppGP8eOAyAAAAAAACAAAAAAAQZgAAAAEAACAAAAASp5DtkLPIELq6F23p5br8Jt/DRSIPlhsaO6RBZsNZmQAAAAAOgAAAAAIAACAAAADAzczWAJtDweLu1G/4lbN8E8nyePdDJ90MnuCiEe05XSAAAAAOiVJlWu5k6BVuFEEuHsOL9zcSzuUX44\u002BaI\u002BsTT7wJVUAAAABQa0UkYW0M6Yu5iHu9OL9/5WICQT5pDS63\u002B51VOj4DfS//S8rfQKe40C5M4U8lGX49FQItDoEoPRN1D4u7lYZa",
+  "GuildId": "876543210987654321",
+  "BotName": "WGSM",
+  "PostActions": true,
+  "Admins": [
+    {
+      "DiscordId": "123456789012345678",
+      "Name": "Admin",
+      "Servers": [
+        "*"
+      ]
+    }
+  ],
+  "ImportedFromLegacy": false
+}

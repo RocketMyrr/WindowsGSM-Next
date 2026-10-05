@@ -7,17 +7,15 @@ WindowsGSM Next is the rebuild of [WindowsGSM](https://github.com/WindowsGSM/Win
 whether or not any window is open, every existing game plugin keeps working, and your current WindowsGSM folder —
 servers, backups, accounts, schedules, Discord bot — carries straight over.
 
-> **Status: 2.0.0-alpha.6 (pre-release).** Everything below is built and tested, but it's an alpha: keep backups,
-> and try it on a copy of your WindowsGSM folder first if you're switching from the old app.
+> **Status: 2.0.0-beta.1 (pre-release).** Everything planned for 2.0 is in; from here on it's fixes. Settings files
+> are stable: later versions read them as they are. Keep backups, and try it on a copy of your WindowsGSM folder
+> first if you're switching from the old app. What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
 ## Contents
 
 - [Highlights](#highlights)
-- [What's new in 2.0.0-alpha.6](#whats-new-in-200-alpha6)
-- [What's new in 2.0.0-alpha.5](#whats-new-in-200-alpha5)
-- [What's new in 2.0.0-alpha.4](#whats-new-in-200-alpha4)
 - [Requirements](#requirements)
 - [Install](#install)
 - [Coming from WindowsGSM](#coming-from-windowsgsm)
@@ -49,92 +47,6 @@ servers, backups, accounts, schedules, Discord bot — carries straight over.
 - **Safe by default.** Accounts with roles and per-server permissions, two-factor sign-in and passkeys, an audit
   log of who did what, and secrets stored encrypted.
 - **Help built in.** A ? next to settings, page tips and a searchable Help page.
-
-## What's new in 2.0.0-alpha.6
-
-**Off-site backups**
-- Agent settings → **Off-site backups**: any S3-compatible storage — Backblaze B2, Cloudflare R2, Wasabi, Amazon S3,
-  MinIO — with *Test connection*. Turn on *Also upload each backup off-site* per server (Backups tab): every new
-  backup uploads in the background, the newest few are kept there, and **Bring back** restores one if this PC loses
-  its backups.
-
-**Rust plugins from uMod**
-- A **Plugins** tab on Rust servers with Oxide or Carbon: search uMod (most downloaded first), install with the plugins
-  it requires, **Update all**, remove, and *Keep up to date* for plugins you added by hand. Checked against uMod's
-  checksum, never overwrites your edits, no restart needed. Optionally update them before every start.
-
-**Clean stops for more games**
-- When a plugin "presses" Ctrl+C on a server that has no window of its own (captured, or found again after an agent
-  restart), the Ctrl+C now reaches the server instead of going nowhere — most community plugins stop games this way.
-- After an agent restart, plugins use their normal clean stop again.
-- New: *Send Ctrl+C before the game's own stop* (Settings → Stopping safely), and a warning for games whose plugin
-  just ends the process (ARK: Survival Evolved, DayZ, The Forest…).
-
-**Fixes**
-- Typing a Console-tab command to a server re-adopted after an agent restart could crash the agent (alpha.4–5).
-- Restoring a backup's settings can no longer bring back a script for someone who isn't an admin.
-- Games always read input from their own console.
-- The console handling is now covered by automated end-to-end tests.
-
-## What's new in 2.0.0-alpha.5
-
-**Scripts before start and after stop**
-- Settings → **Scripts**: your own `.bat` or `.ps1` before every start (restarts and crash restarts too) and after
-  every stop — rotate logs, clean up files. For every game, not just Rust as in the old app (whose setting carries
-  over). Only admins can choose a script, and only those two kinds of file. Output goes to the server's log; a time
-  limit stops a script that hangs; optionally, a failing before-start script stops the start.
-
-**Rust's console (and games like it)**
-- Rust leaves the console it's started in and joins the console of the program that started it. WindowsGSM now
-  follows it, so **Show window**, commands from the Console tab and a clean `quit` on stop all work — before, its
-  real console stayed hidden and stops ended in a kill. Several such servers starting together each get their own.
-- Commands are typed straight into a game's console instead of being sent to its (often hidden) window, where they
-  could sit unread.
-- Games whose plugin can't capture the console (Rust, ARK, DayZ…) are no longer asked to: Settings greys the option
-  out, as the old app did.
-
-**Fixes**
-- 7 Days to Die commands from the Console tab work again, and simulated key presses only go to a game's window when
-  it's really in front — never into another app.
-- Many servers starting at once no longer tie up the agent while their consoles are set up.
-
-## What's new in 2.0.0-alpha.4
-
-**Game files on other drives**
-- Choose a drive and folder for a server's game files when installing, or move an existing server's files later
-  (⋯ menu → *Move files to another drive…*). Spread big servers across drives.
-- A server's Overview shows where its files are, with **Open folder** when you're using the panel on that PC.
-
-**Console windows that actually work**
-- Servers whose console isn't captured into the panel now get a real console window of their own. **Show the
-  console window on this machine** shows or hides it the moment you save — no restart needed — and the Console
-  tab's *Show window* button works too.
-- Commands typed in the Console tab go into that window, and the window is found again after the agent restarts.
-- Its close button is greyed out: closing a console window ends the game without saving. Stop it from the panel.
-
-**Graceful stops for every kind of game**
-- Plugins that stop a game by typing `quit` or `stop` into its window now reach it (before, the stop silently
-  failed and the game was killed when the timeout ran out).
-- Plugins that "press" Ctrl+C or keys (Conan Exiles, 7 Days to Die, Space Engineers, Minecraft Bedrock) now send
-  them to the game's own console — never into whatever app you happen to be using.
-- If a plugin's own way doesn't stop the game in time, it gets a real Ctrl+C and 10 more seconds before it's
-  ended.
-
-**Discord bot with several machines**
-- `/panel` pages through servers 25 at a time — before, servers past the first 25 (usually every other machine's)
-  couldn't be picked.
-- `/stats` and `/list` stay within Discord's limits for big fleets (`/stats` used to fail from 7 machines on).
-- Machines are asked in parallel; one slow machine no longer holds up the panel, and the panel says which one
-  didn't answer.
-- Machines that report to a hub leave the bot to the hub, and a second copy answering with the same token is
-  detected and shown.
-
-**Also**
-- Sign-in cookie keys are now stored encrypted (fixes the *No XML encryptor configured* warning in Diagnostics).
-  Everyone signs in once more after updating.
-- Server **Settings** has a tidier layout: one column of sections on a shared grid, so fields, switches and their
-  ? buttons line up.
-- The performance chart no longer shows "1 pl." on servers nobody has joined.
 
 ## Requirements
 
@@ -324,6 +236,11 @@ optional, and owners can point updates at another repository or their own feed.
   since plugins run as code.
 - Nothing is sent anywhere you haven't set up. The old app posted crash logs to its author's Discord; this one
   doesn't.
+- **Settings that survive damage**: every settings file keeps its previous copy. A file that can't be read (cut off
+  mid-write, a bad hand edit) is never silently replaced by an empty one: it's kept aside and shown in Health
+  checks. Upgrades are tested against data written by earlier releases.
+
+More detail, and how to report a security problem privately: [SECURITY.md](SECURITY.md).
 
 ## Troubleshooting
 

@@ -241,17 +241,42 @@ public static class AuthEndpoints
     }
 }
 
-/// <summary>A one-time code allowing first-run setup from another computer. Lives only in memory.</summary>
+/// <summary>
+/// A one-time code allowing first-run setup from another computer. Lives only in memory. After a few wrong
+/// guesses in total (from anywhere) it's replaced with a new one, written to the agent's log — so guessing it
+/// can't work even from many addresses at once.
+/// </summary>
 public sealed class SetupTokens
 {
-    private string? _token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(4));
+    public const int WrongGuessesAllowed = 10;
+    private readonly Action<string>? _log;
+    private readonly object _gate = new();
+    private string? _token = NewToken();
+    private int _wrong;
 
-    public string? Current => _token;
+    public SetupTokens() { }
+    public SetupTokens(Action<string> log) => _log = log;
 
-    public bool Matches(string? token) =>
-        _token != null && token != null
-        && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
-            System.Text.Encoding.UTF8.GetBytes(_token), System.Text.Encoding.UTF8.GetBytes(token.Trim().ToUpperInvariant()));
+    public string? Current { get { lock (_gate) { return _token; } } }
 
-    public void Consume() => _token = null;
+    public bool Matches(string? token)
+    {
+        lock (_gate)
+        {
+            if (_token == null || token == null) { return false; }
+            bool ok = System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                System.Text.Encoding.UTF8.GetBytes(_token), System.Text.Encoding.UTF8.GetBytes(token.Trim().ToUpperInvariant()));
+            if (!ok && ++_wrong >= WrongGuessesAllowed)
+            {
+                _wrong = 0;
+                _token = NewToken();
+                _log?.Invoke($"Too many wrong setup codes were tried, so it was replaced. The new setup code is {_token}.");
+            }
+            return ok;
+        }
+    }
+
+    public void Consume() { lock (_gate) { _token = null; } }
+
+    private static string NewToken() => Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(4));
 }

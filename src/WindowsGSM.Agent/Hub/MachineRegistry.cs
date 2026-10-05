@@ -36,8 +36,7 @@ public sealed class MachineRegistry
     public MachineRegistry(string configDir)
     {
         _file = Path.Combine(configDir, "machines.json");
-        try { if (File.Exists(_file)) { _machines = JsonSerializer.Deserialize<List<RemoteMachine>>(File.ReadAllText(_file), Json) ?? new(); } }
-        catch { _machines = new(); }
+        _machines = global::WindowsGSM.Hosting.SafeJson.Read<List<RemoteMachine>>(_file, Json) ?? new();
     }
 
     public IReadOnlyList<RemoteMachine> All() { lock (_gate) { return _machines.ToList(); } }
@@ -113,8 +112,7 @@ public sealed class MachineRegistry
         _lastSave = DateTimeOffset.UtcNow;
         try
         {
-            File.WriteAllText(_file + ".tmp", JsonSerializer.Serialize(_machines, Json));
-            File.Move(_file + ".tmp", _file, overwrite: true);
+            global::WindowsGSM.Hosting.SafeJson.Write(_file, _machines, Json);
         }
         catch { /* retried on the next change */ }
     }

@@ -168,6 +168,18 @@ const TOPICS = [
         "The bell shows crashes, updates, automations and more. Notification channels (Discord webhooks and others) are set up in Notifications; the Discord bot lets your community start, stop and check servers from Discord.",
     ], [["/notifications", "Notifications"]]],
 
+    ["setupbackup", "Moving to a new PC, or after a disk dies", "save", "setup backup restore move new pc reinstall disk failure accounts settings export import", [
+        "Agent settings → Setup backup downloads WindowsGSM's whole setup in one file: accounts, settings, automations, notification channels, the Discord bot, templates, plugins and each server's settings. Game files aren't in it — each server's Backups tab has those.",
+        "• Tick \"Include passwords and tokens\" and choose a passphrase to carry them; otherwise you enter them again after restoring.",
+        "• Restore on the new PC (same panel): it's applied when the agent restarts, after the current settings are saved to the backups folder. Game servers keep running.",
+        "• To replace a PC that's gone, tick \"This PC replaces the one the backup came from\" — it takes over its identity and hub membership.",
+    ], [["/settings", "Agent settings"]]],
+
+    ["diagnostics", "Reporting a problem", "help", "bug report diagnostics logs export support issue crash", [
+        "Health checks → Export diagnostics downloads one zip with versions, health checks, recent logs and settings. Attach it to a bug report.",
+        "Passwords, tokens and keys are taken out; server names, folders and IP addresses stay — look through it before posting it publicly.",
+    ], [["/health", "Health checks"]]],
+
     ["machines", "Several machines", "machine", "hub machine multi remote agent connect", [
         "Each PC runs the agent. One of them can be the hub: the others connect to it, and you manage every server from one panel. A machine that goes offline keeps running its servers; the hub shows what it last knew.",
     ], [["/machines", "Machines"]]],

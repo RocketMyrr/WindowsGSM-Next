@@ -1,0 +1,11 @@
+{"at":"2026-10-05T20:31:09.85891+00:00","user":"owner","ip":"127.0.0.1","action":"setup","machine":"m-r86qjqaspn","server":null,"ok":true,"detail":"owner account created"}
+{"at":"2026-10-05T20:31:09.8926947+00:00","user":"owner","ip":"127.0.0.1","action":"user-create","machine":"m-r86qjqaspn","server":null,"ok":true,"detail":"ops (Operator)"}
+{"at":"2026-10-05T20:31:09.9518088+00:00","user":"owner","ip":"127.0.0.1","action":"schedules","machine":"m-r86qjqaspn","server":"1","ok":true,"detail":"2 schedule(s)"}
+{"at":"2026-10-05T20:31:09.9848577+00:00","user":"owner","ip":"127.0.0.1","action":"backup-settings","machine":"m-r86qjqaspn","server":"1","ok":true,"detail":"beforeStart=True, keep=7/0d, paths=1, external=0"}
+{"at":"2026-10-05T20:31:09.993528+00:00","user":"owner","ip":"127.0.0.1","action":"automation","machine":"m-r86qjqaspn","server":null,"ok":true,"detail":"Empty restart: empty \u2192 restart"}
+{"at":"2026-10-05T20:31:10.0005516+00:00","user":"owner","ip":"127.0.0.1","action":"notify-channel-create","machine":"m-r86qjqaspn","server":null,"ok":true,"detail":"Crashes"}
+{"at":"2026-10-05T20:31:10.0100221+00:00","user":"owner","ip":"127.0.0.1","action":"restart-warnings","machine":"m-r86qjqaspn","server":"1","ok":true,"detail":"on: 5 minutes, 1 minute"}
+{"at":"2026-10-05T20:31:10.017065+00:00","user":"owner","ip":"127.0.0.1","action":"template","machine":"m-r86qjqaspn","server":"1","ok":true,"detail":"saved \u0022Rust base\u0022 (2 settings, 0 files)"}
+{"at":"2026-10-05T20:31:10.0268468+00:00","user":"owner","ip":"127.0.0.1","action":"discord-bot","machine":"m-r86qjqaspn","server":null,"ok":true,"detail":"off, 1 admin, token changed"}
+{"at":"2026-10-05T20:31:10.0340321+00:00","user":"owner","ip":"127.0.0.1","action":"offsite","machine":"m-r86qjqaspn","server":null,"ok":true,"detail":"on, bucket wgsm-upgrade-test, keep 5, key changed"}
+{"at":"2026-10-05T20:31:10.0475911+00:00","user":"owner","ip":"127.0.0.1","action":"settings","machine":"m-r86qjqaspn","server":"2","ok":true,"detail":"servername"}

@@ -108,10 +108,13 @@ public sealed class UserStore
     {
         Directory.CreateDirectory(configDir);
         _file = Path.Combine(configDir, "users.json");
-        if (File.Exists(_file))
+        // A damaged file falls back to its previous copy. With none, the agent refuses to start rather than run with no
+        // accounts (anyone reaching it could then claim it); the damaged file is kept aside as .unreadable-<time>.
+        _users = global::WindowsGSM.Hosting.SafeJson.Read<List<AgentUser>>(_file, Json) ?? new();
+        if (global::WindowsGSM.Hosting.SafeJson.Lost(_file))
         {
-            try { _users = JsonSerializer.Deserialize<List<AgentUser>>(File.ReadAllText(_file), Json) ?? new(); }
-            catch (Exception ex) { throw new InvalidDataException($"{_file} can't be read ({ex.Message}). Fix or remove it; the agent won't start with an unreadable account list.", ex); }
+            var p = global::WindowsGSM.Hosting.SafeJson.Problems.First(x => string.Equals(x.File, _file, StringComparison.OrdinalIgnoreCase));
+            throw new InvalidDataException($"{_file} can't be read and has no readable previous copy ({p.Message}). Fix it, or put back a copy from a backup; the agent won't start with an unreadable account list.");
         }
     }
 
@@ -137,14 +140,24 @@ public sealed class UserStore
     public LoginOutcome Validate(string username, string password, string? code, out AgentUser? user)
     {
         user = null;
+        if (string.IsNullOrWhiteSpace(username) || password == null) { return LoginOutcome.BadCredentials; }
+        var now = Clock();
+        string? hash;
         lock (_gate)
         {
-            if (string.IsNullOrWhiteSpace(username) || password == null) { return LoginOutcome.BadCredentials; }
-            var now = Clock();
             if (_lockouts.TryGetValue(username, out var lk) && now < lk.until) { return LoginOutcome.BadCredentials; }
+            hash = Find(username)?.PasswordHash;
+        }
+        // The slow part runs outside the lock (every request reads accounts), and always runs — against a dummy
+        // hash for an unknown name — so the answer takes as long whether or not the account exists.
+        bool passwordOk = PasswordHasher.Verify(password, hash ?? PasswordHasher.Dummy) && hash != null;
+        string? upgraded = passwordOk && PasswordHasher.NeedsRehash(hash!) ? PasswordHasher.Hash(password) : null;
 
+        lock (_gate)
+        {
             var u = Find(username);
-            if (u == null || !u.Enabled || !PasswordHasher.Verify(password, u.PasswordHash))
+            // The account may have changed meanwhile (password reset, disabled): only the hash that was checked counts.
+            if (!passwordOk || u == null || !u.Enabled || u.PasswordHash != hash)
             {
                 Fail(username, now);
                 return LoginOutcome.BadCredentials;
@@ -163,6 +176,7 @@ public sealed class UserStore
             }
 
             _lockouts.Remove(username);
+            if (upgraded != null) { u.PasswordHash = upgraded; Save(); } // stronger hashing from now on
             user = u.Clone();
             return LoginOutcome.Ok;
         }
@@ -170,6 +184,11 @@ public sealed class UserStore
 
     private void Fail(string username, DateTimeOffset now)
     {
+        // Attempts with made-up names would otherwise grow this forever: past a size, forget what isn't locked now.
+        if (_lockouts.Count > 10_000)
+        {
+            foreach (var stale in _lockouts.Where(kv => kv.Value.until < now).Select(kv => kv.Key).ToList()) { _lockouts.Remove(stale); }
+        }
         _lockouts.TryGetValue(username, out var lk);
         int fails = lk.fails + 1;
         _lockouts[username] = fails >= MaxFails ? (0, now + LockFor) : (fails, DateTimeOffset.MinValue);
@@ -451,8 +470,6 @@ public sealed class UserStore
 
     private void Save()
     {
-        string temp = _file + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(_users, Json));
-        File.Move(temp, _file, overwrite: true);
+        global::WindowsGSM.Hosting.SafeJson.Write(_file, _users, Json);
     }
 }

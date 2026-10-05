@@ -18,26 +18,15 @@ namespace WindowsGSM.Functions
 
         public static HashSet<string> Load(string serverId)
         {
-            try
-            {
-                string f = ConfigFile(serverId);
-                if (File.Exists(f))
-                {
-                    var keys = JsonConvert.DeserializeObject<List<string>>(File.ReadAllText(f));
-                    if (keys != null) { return new HashSet<string>(keys, System.StringComparer.OrdinalIgnoreCase); }
-                }
-            }
-            catch { /* defaults */ }
-            return new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+            var keys = global::WindowsGSM.Hosting.SafeJson.ReadWith(ConfigFile(serverId), text => JsonConvert.DeserializeObject<List<string>>(text, global::WindowsGSM.Hosting.SafeJson.LenientNewtonsoft()));
+            return new HashSet<string>((keys ?? new List<string>()).Where(k => k != null), System.StringComparer.OrdinalIgnoreCase);
         }
 
         private static void Save(string serverId, HashSet<string> keys)
         {
             try
             {
-                string f = ConfigFile(serverId);
-                Directory.CreateDirectory(Path.GetDirectoryName(f));
-                File.WriteAllText(f, JsonConvert.SerializeObject(keys.ToList(), Formatting.Indented));
+                global::WindowsGSM.Hosting.SafeJson.WriteText(ConfigFile(serverId), JsonConvert.SerializeObject(keys.ToList(), Formatting.Indented));
             }
             catch { /* best effort */ }
         }

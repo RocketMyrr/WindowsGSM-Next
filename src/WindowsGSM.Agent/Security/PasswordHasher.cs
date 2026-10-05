@@ -14,7 +14,23 @@ namespace WindowsGSM.Agent.Security
     {
         private const int SaltSize = 16;
         private const int HashSize = 32;
-        private const int Iterations = 100_000;
+        // OWASP's current figure for PBKDF2-HMAC-SHA256. Older hashes (100 000, and those adopted from the legacy
+        // dashboard) still verify, and are upgraded at the next successful sign-in (NeedsRehash).
+        private const int Iterations = 600_000;
+
+        /// <summary>
+        /// Checked against when the account doesn't exist, so a wrong username takes as long as a wrong password
+        /// (otherwise timing reveals which usernames are real).
+        /// </summary>
+        public static string Dummy => _dummy.Value;
+        private static readonly Lazy<string> _dummy = new(() => Hash(Convert.ToBase64String(RandomNumberGenerator.GetBytes(16))));
+
+        /// <summary>True for a hash made with fewer iterations than new ones get.</summary>
+        public static bool NeedsRehash(string encoded)
+        {
+            string[] parts = (encoded ?? string.Empty).Split('$');
+            return parts.Length != 4 || !int.TryParse(parts[1], out int n) || n < Iterations;
+        }
 
         public static string Hash(string password)
         {

@@ -159,7 +159,7 @@ public static class AgentApp
 
         var context = new AgentContext(engine, settings, configDir, users, sessions, audit, new MachineMetrics());
         builder.Services.AddSingleton(context);
-        builder.Services.AddSingleton<SetupTokens>();
+        builder.Services.AddSingleton(_ => new SetupTokens(options.Log));
         builder.Services.AddSingleton(new GameArt(global::WindowsGSM.Hosting.WgsmEnvironment.DataRoot, options.Log));
         builder.Services.AddSingleton<EventStream>();
         builder.Services.AddSingleton(new Hub.MachineRegistry(configDir));
@@ -250,6 +250,7 @@ public static class AgentApp
         NotificationEndpoints.Map(api);
         DiscordEndpoints.Map(api);
         UpdateEndpoints.Map(api);
+        SetupEndpoints.Map(api);
         LocalEndpoints.Map(api, LocalEndpoints.WriteKey(configDir));
         api.Map("/events", (HttpContext http, EventStream stream) => stream.HandleAsync(http));
         api.MapFallback((HttpContext _) => ApiResults.NotFound("No such API endpoint."));

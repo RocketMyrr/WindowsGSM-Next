@@ -73,12 +73,8 @@ public sealed class AgentSettings
     {
         Directory.CreateDirectory(configDir);
         string file = Path.Combine(configDir, "agent.json");
-        AgentSettings? settings = null;
-        try
-        {
-            if (File.Exists(file)) { settings = JsonSerializer.Deserialize<AgentSettings>(File.ReadAllText(file), Json); }
-        }
-        catch { /* unreadable: fall back to defaults, but keep the machine id if we can */ }
+        // Damaged: the previous copy, or defaults with the damaged file kept aside (see SafeJson).
+        AgentSettings? settings = global::WindowsGSM.Hosting.SafeJson.Read<AgentSettings>(file, Json);
 
         settings ??= new AgentSettings();
         settings.FilePath = file;
@@ -92,7 +88,7 @@ public sealed class AgentSettings
         // Releases moved to their own repository; copies that still point at the old one follow.
         if (string.Equals(settings.UpdateRepo, FormerUpdateRepo, StringComparison.OrdinalIgnoreCase)) { settings.UpdateRepo = DefaultUpdateRepo; changed = true; }
         // Secrets saved before encryption existed are encrypted now.
-        if ((settings.CertPassword.Length > 0 || !string.IsNullOrEmpty(settings.HubCredential)) && File.Exists(file) && !File.ReadAllText(file).Contains("dpapi:")) { changed = true; }
+        if ((settings.CertPassword.Length > 0 || !string.IsNullOrEmpty(settings.HubCredential)) && File.Exists(file) && !SafeRead(file).Contains("dpapi:")) { changed = true; }
         if (changed || !File.Exists(file)) { settings.Save(); }
         return settings;
     }
@@ -103,12 +99,9 @@ public sealed class AgentSettings
         SaveToDisk();
     }
 
-    private void SaveToDisk()
-    {
-        string temp = FilePath + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(this, Json));
-        File.Move(temp, FilePath, overwrite: true);
-    }
+    private void SaveToDisk() => global::WindowsGSM.Hosting.SafeJson.Write(FilePath, this, Json);
+
+    private static string SafeRead(string file) { try { return File.ReadAllText(file); } catch { return string.Empty; } }
 
     /// <summary>Short, URL-safe and readable: "m-" + 10 lowercase letters/digits.</summary>
     private static string NewMachineId()

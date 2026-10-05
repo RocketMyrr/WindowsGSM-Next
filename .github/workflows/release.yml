@@ -6,8 +6,8 @@
 # The tag is the version: the app, the zip (WindowsGSM-<version>.zip) and its .sha256 all get it, so there's
 # nothing to edit first. A version with a dash (2.0.0-alpha.4, 2.1.0-beta.1) is published as a pre-release;
 # installed copies offer pre-releases only when "include pre-releases" is on in Agent settings → Updates.
-# The release text is generated from the commits since the last release — edit it on GitHub afterwards if you
-# like; installed copies show it as "What's new".
+# The release text is the version's "## <version>" section of CHANGELOG.md (installed copies show it as "What's
+# new"), so write that section before tagging — a release without one is refused.
 
 name: Release
 
@@ -51,6 +51,19 @@ jobs:
           "version=$v" >> $env:GITHUB_OUTPUT
           "prerelease=$(if ($v.Contains('-')) { 'true' } else { 'false' })" >> $env:GITHUB_OUTPUT
           Write-Host "Releasing WindowsGSM $v"
+
+      - name: Release notes
+        shell: pwsh
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+          $changelog = Get-Content CHANGELOG.md -Raw
+          $m = [regex]::Match($changelog, '(?ms)^## ' + [regex]::Escape($v) + '[ \t]*\r?\n(.*?)(?=^## |\z)')
+          if (-not $m.Success -or $m.Groups[1].Value.Trim().Length -eq 0) { throw "CHANGELOG.md has no '## $v' section. Write what changed there, then release again." }
+          $notes = $m.Groups[1].Value.Trim() + "`n`n---`n`n" +
+            "**Updating:** in WindowsGSM, Agent settings → Updates → Check now (with *Include pre-releases* on for alpha and beta versions). Game servers keep running.`n`n" +
+            "**New install:** download ``WindowsGSM-$v.zip`` below, extract it, and run ``WindowsGSM.exe``. See [docs/INSTALL.md](https://github.com/${{ github.repository }}/blob/v$v/docs/INSTALL.md)."
+          Set-Content -Path release-notes.md -Value $notes -Encoding utf8
+          Write-Host $notes
 
       # The commit being released was normally just pushed to main, so "Build and test" has run (or is running)
       # on exactly this code: use that result rather than testing the same thing twice. Only when it didn't pass
@@ -97,7 +110,7 @@ jobs:
         run: |
           $v = "${{ steps.version.outputs.version }}"
           $zip = "dist/WindowsGSM-$v.zip"
-          $ghArgs = @("release", "create", "v$v", $zip, "$zip.sha256", "--title", "WindowsGSM $v", "--generate-notes", "--target", "${{ github.sha }}")
+          $ghArgs = @("release", "create", "v$v", $zip, "$zip.sha256", "--title", "WindowsGSM $v", "--notes-file", "release-notes.md", "--target", "${{ github.sha }}")
           if ("${{ steps.version.outputs.prerelease }}" -eq "true") { $ghArgs += "--prerelease" }
           gh @ghArgs
           if ($LASTEXITCODE -ne 0) { throw "Couldn't create the release (does v$v already exist?)" }

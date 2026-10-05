@@ -66,13 +66,9 @@ namespace WindowsGSM.Engine.Backups
 
         public static BackupSettings Load(string serverId)
         {
-            BackupSettings? settings = null;
-            try
-            {
-                string file = FilePath(serverId);
-                if (File.Exists(file)) { settings = JsonConvert.DeserializeObject<BackupSettings>(File.ReadAllText(file)); }
-            }
-            catch { /* unreadable — rebuild from legacy below */ }
+            // Damaged: the previous copy; with none, rebuilt from the legacy settings (the damaged file is kept aside).
+            BackupSettings? settings = global::WindowsGSM.Hosting.SafeJson.ReadWith(FilePath(serverId),
+                text => JsonConvert.DeserializeObject<BackupSettings>(text, global::WindowsGSM.Hosting.SafeJson.LenientNewtonsoft()));
 
             settings ??= FromLegacy(serverId);
             settings.ServerId = serverId;
@@ -82,11 +78,7 @@ namespace WindowsGSM.Engine.Backups
 
         public void Save()
         {
-            string file = FilePath(ServerId);
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            string temp = file + ".tmp";
-            File.WriteAllText(temp, JsonConvert.SerializeObject(this, Formatting.Indented));
-            File.Move(temp, file, overwrite: true);
+            global::WindowsGSM.Hosting.SafeJson.WriteText(FilePath(ServerId), JsonConvert.SerializeObject(this, Formatting.Indented));
         }
 
         /// <summary>Builds settings from the legacy desktop + web configs (without touching them).</summary>

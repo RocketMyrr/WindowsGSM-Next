@@ -19,6 +19,11 @@ const CAPS = [
     ["Backup", "Back up"], ["Restore", "Restore"], ["Console", "Console"], ["EditConfig", "Settings"], ["Files", "Files"],
     ["Addons", "Add-ons"], ["Schedules", "Schedules"], ["Delete", "Delete"],
 ];
+// Permissions that let someone change the programs a server runs — on this PC, as WindowsGSM.
+const RUNS_CODE = {
+    Files: "Can change any file in the server's folder — including the programs it runs. Only for people you'd trust with this PC.",
+    Addons: "Installs mods and plugins from anywhere — code the server runs. Only for people you'd trust with this PC.",
+};
 const PRESETS = {
     none: [],
     view: ["View"],
@@ -111,7 +116,7 @@ export default async function users(host, { scope }) {
                 const set = grants.get(scopeKey) || new Set();
                 const chips = h("div", { class: "cap-chips" }, ...CAPS.map(([cap, label]) => {
                     const on = set.has(cap);
-                    return h("button", { type: "button", class: ["cap-chip", on && "on"], "aria-pressed": String(on), onclick: () => {
+                    return h("button", { type: "button", class: ["cap-chip", on && "on"], "aria-pressed": String(on), title: RUNS_CODE[cap] || null, onclick: () => {
                         const cur = grants.get(scopeKey) || new Set();
                         if (cur.has(cap)) cur.delete(cap); else { cur.add(cap); cur.add("View"); }
                         if (cap === "View" && !cur.has("View")) cur.clear();
@@ -135,7 +140,7 @@ export default async function users(host, { scope }) {
 
         grantsSection.append(
             h("div", { class: "upper", text: "Server access" }),
-            h("p", { class: "small muted", text: "On top of the role. 'Play' is start/stop/restart and the console — ideal for a friend running their own server." }),
+            h("p", { class: "small muted", text: "On top of the role. 'Play' is start/stop/restart and the console — ideal for a friend running their own server. 'Manage' includes Files and Add-ons, which can change the programs a server runs on this PC: give those only to people you'd trust with the PC itself." }),
             grid,
             ...[...installBoxes].map(([m, box]) => h("label", { class: "row small" }, box,
                 store.multiMachine ? `May install new servers on ${store.machineName(m)}` : "May install new servers on this machine")));

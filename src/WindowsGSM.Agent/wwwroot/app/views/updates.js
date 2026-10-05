@@ -66,7 +66,7 @@ export function updatesPanel(machine, scope) {
             doing ? h("div", { class: "stack tight" }, h("div", { class: "small", text: doing }), u.state === "Downloading" ? bar : null) : null,
             u.error && u.state === "Error" ? h("div", { class: "callout bad" }, icon("warn"), h("span", { text: u.error })) : null,
             !u.installed ? h("div", { class: "callout info" }, icon("info"), h("span", { text: "This copy runs from a build folder, so it can't update itself. Install WindowsGSM with setup to get one-click updates." })) : null,
-            u.available && u.notes ? h("details", { class: "update-notes" }, h("summary", { text: "What's new" }), h("pre", { text: u.notes })) : null,
+            u.available && u.notes ? h("details", { class: "update-notes" }, h("summary", { text: "What's new" }), h("pre", { text: readable(u.notes) })) : null,
             owner ? feedSettings(u) : null]);
     }
 
@@ -98,4 +98,15 @@ export async function updateAll() {
     }
     if (failed.length) toastError(new Error(failed.join(" · ")), "Some machines didn't start updating");
     else toast("Updating", { type: "good", text: "Machines reconnect on the new version in about a minute." });
+}
+
+/** Release notes are Markdown: shown as plain, tidy text (no ** or `, links as their text, bullets as •). */
+function readable(md) {
+    return md.replace(/\r\n/g, "\n")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .replace(/\*\*([^*]+)\*\*/g, "$1")
+        .replace(/`([^`]+)`/g, "$1")
+        .replace(/^#{1,6}\s+/gm, "")
+        .replace(/^(\s*)[-*] /gm, "$1• ")
+        .trim();
 }

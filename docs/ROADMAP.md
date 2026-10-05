@@ -201,6 +201,9 @@ servers on either from a single login, including from a phone.
       alpha.1 → alpha.2 with a running server re-attached → rollback)
 - [x] Docs: [INSTALL.md](INSTALL.md) — install, switching, updates, uninstall, pairing, Discord bot, plugin
       authoring notes, publishing
+- [x] Ready for beta (2.0.0-beta.1): settings files keep their previous copy and are never silently emptied; a
+      data-format stamp with upgrade steps; upgrade tests against data saved by published releases; a security
+      review; setup backup and restore; diagnostics export; release pages written from CHANGELOG.md
 - [ ] Beta on one machine alongside legacy (separate data copy) → cut over machine by machine *(yours)*
 
 **Exit test:** both machines run Next in production; the legacy app is retired.

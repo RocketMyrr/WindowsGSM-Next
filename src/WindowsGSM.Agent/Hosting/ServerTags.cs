@@ -19,8 +19,7 @@ public sealed class ServerTags
     public ServerTags(string configDir)
     {
         _file = Path.Combine(configDir, "tags.json");
-        try { _tags = File.Exists(_file) ? JsonSerializer.Deserialize<Dictionary<string, List<string>>>(File.ReadAllText(_file)) ?? new() : new(); }
-        catch { _tags = new(); }
+        _tags = global::WindowsGSM.Hosting.SafeJson.Read<Dictionary<string, List<string>>>(_file) ?? new();
     }
 
     public IReadOnlyList<string> Get(string server)
@@ -56,8 +55,7 @@ public sealed class ServerTags
     {
         try
         {
-            File.WriteAllText(_file + ".tmp", JsonSerializer.Serialize(_tags, Json));
-            File.Move(_file + ".tmp", _file, overwrite: true);
+            global::WindowsGSM.Hosting.SafeJson.Write(_file, _tags, Json);
         }
         catch { /* next change retries */ }
     }

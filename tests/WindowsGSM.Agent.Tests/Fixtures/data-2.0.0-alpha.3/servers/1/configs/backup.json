@@ -1,0 +1,11 @@
+{
+  "Paths": [
+    "server"
+  ],
+  "ExternalLocations": [],
+  "BeforeStart": true,
+  "KeepCount": 7,
+  "KeepDays": 0,
+  "Location": "",
+  "CopyTo": ""
+}

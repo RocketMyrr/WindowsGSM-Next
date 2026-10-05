@@ -1,0 +1,11 @@
+{
+  "1": {
+    "Enabled": true,
+    "Leads": [
+      300,
+      60
+    ],
+    "Command": "say {message}",
+    "Message": "Restart in {time}"
+  }
+}

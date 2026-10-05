@@ -175,20 +175,14 @@ namespace WindowsGSM.Installer
             if (records.Count > 50) { records.RemoveRange(0, records.Count - 50); }
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(RecordFile(serverId))!);
-                File.WriteAllText(RecordFile(serverId), JsonSerializer.Serialize(records, new JsonSerializerOptions { WriteIndented = true }));
+                global::WindowsGSM.Hosting.SafeJson.Write(RecordFile(serverId), records, new JsonSerializerOptions { WriteIndented = true });
             }
             catch { /* history is a nicety */ }
         }
 
         private static List<Recorded> ReadRecords(string serverId)
         {
-            try
-            {
-                string file = RecordFile(serverId);
-                return File.Exists(file) ? JsonSerializer.Deserialize<List<Recorded>>(File.ReadAllText(file)) ?? new() : new();
-            }
-            catch { return new(); }
+            return global::WindowsGSM.Hosting.SafeJson.Read<List<Recorded>>(RecordFile(serverId)) ?? new();
         }
     }
 }

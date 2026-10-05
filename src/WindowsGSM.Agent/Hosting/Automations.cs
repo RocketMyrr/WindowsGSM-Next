@@ -62,8 +62,7 @@ public sealed class Automations : IDisposable
         _ctx = ctx;
         _notes = notes;
         _file = Path.Combine(global::WindowsGSM.Hosting.WgsmEnvironment.DataRoot, "configs", "next", "automations.json");
-        try { if (File.Exists(_file)) { _rules = JsonSerializer.Deserialize<List<AutomationRule>>(File.ReadAllText(_file), Json) ?? new(); } }
-        catch { _rules = new(); }
+        _rules = global::WindowsGSM.Hosting.SafeJson.Read<List<AutomationRule>>(_file, Json) ?? new();
         _subscription = ctx.Engine.Events.Subscribe(OnEvent);
         _diskTimer = new Timer(_ => { try { CheckDisks(); } catch { /* next minute */ } }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
     }
@@ -290,10 +289,7 @@ public sealed class Automations : IDisposable
 
     private void Persist()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(_file)!);
-        string temp = _file + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(_rules, Json));
-        File.Move(temp, _file, overwrite: true);
+        global::WindowsGSM.Hosting.SafeJson.Write(_file, _rules, Json);
     }
 
     private static AutomationRule Copy(AutomationRule r) => new()

@@ -1,0 +1,21 @@
+{
+  "MachineId": "m-rrttwcq7qw",
+  "MachineName": "Upgrade test box",
+  "Port": 18991,
+  "ExposeToNetwork": false,
+  "UseHttps": false,
+  "CertPath": "",
+  "KeyPath": "",
+  "CertPassword": "",
+  "AcmeEnabled": false,
+  "AcmeDomain": "",
+  "AcmeEmail": "",
+  "AcmeStaging": false,
+  "SessionHours": 8,
+  "HubUrl": null,
+  "HubCredential": null,
+  "HubName": null,
+  "HubCertThumbprint": null,
+  "UpdateRepo": "RocketMyrr/WindowsGSM-Next",
+  "UpdatePrerelease": true
+}

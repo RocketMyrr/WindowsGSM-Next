@@ -94,14 +94,13 @@ public sealed partial class ArkTools
         var ids = mods.Select(m => m.Id).Distinct().ToList();
         SetParam(s, p => SetFlag(p, "mods", ids.Count == 0 ? null : string.Join(",", ids)));
         var names = mods.Where(m => !string.IsNullOrWhiteSpace(m.Name)).GroupBy(m => m.Id).ToDictionary(g => g.Key, g => g.First().Name!.Trim());
-        File.WriteAllText(NamesFile(s.Id), JsonSerializer.Serialize(names));
+        global::WindowsGSM.Hosting.SafeJson.Write(NamesFile(s.Id), names);
         return null;
     }
 
     private static Dictionary<string, string> ReadNames(string serverId)
     {
-        try { return File.Exists(NamesFile(serverId)) ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(NamesFile(serverId))) ?? new() : new(); }
-        catch { return new(); }
+        return global::WindowsGSM.Hosting.SafeJson.Read<Dictionary<string, string>>(NamesFile(serverId)) ?? new();
     }
 
     // ── Clusters ──

@@ -62,7 +62,7 @@ public sealed class ServerTemplates
         var list = new List<Template>();
         foreach (string f in Directory.EnumerateFiles(_dir, "*.json"))
         {
-            try { if (JsonSerializer.Deserialize<Template>(File.ReadAllText(f), Json) is { } t) { list.Add(t); } } catch { /* skip a broken one */ }
+            if (global::WindowsGSM.Hosting.SafeJson.Read<Template>(f, Json) is { } t) { list.Add(t); } // a broken one is skipped (and kept aside)
         }
         return list.OrderBy(t => t.Game).ThenBy(t => t.Name).ToList();
     }
@@ -104,7 +104,7 @@ public sealed class ServerTemplates
             }
         }
         Directory.CreateDirectory(_dir);
-        File.WriteAllText(Path.Combine(_dir, t.Id + ".json"), JsonSerializer.Serialize(t, Json));
+        global::WindowsGSM.Hosting.SafeJson.Write(Path.Combine(_dir, t.Id + ".json"), t, Json);
         return t;
     }
 

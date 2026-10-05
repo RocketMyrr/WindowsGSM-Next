@@ -20,6 +20,35 @@ public class AddonTests
     }
 
     /// <summary>Serves whatever <see cref="Zip"/> currently holds at any URL. No admin/URL ACL needed.</summary>
+    // The zip server below runs on this PC, which custom add-on downloads normally refuse.
+    static AddonTests() => WindowsGSM.Functions.Http.AllowThisPcForTests = true;
+
+    [Fact]
+    public async Task Custom_add_on_urls_cannot_reach_this_pc_or_link_local_addresses()
+    {
+        Assert.True(WindowsGSM.Functions.Http.Blocked(System.Net.IPAddress.Parse("127.0.0.1")));
+        Assert.True(WindowsGSM.Functions.Http.Blocked(System.Net.IPAddress.Parse("169.254.169.254"))); // cloud metadata
+        Assert.True(WindowsGSM.Functions.Http.Blocked(System.Net.IPAddress.Parse("::1")));
+        Assert.True(WindowsGSM.Functions.Http.Blocked(System.Net.IPAddress.Parse("::ffff:127.0.0.1")));
+        Assert.True(WindowsGSM.Functions.Http.Blocked(System.Net.IPAddress.Parse("0.0.0.0")));
+        Assert.True(WindowsGSM.Functions.Http.Blocked(System.Net.IPAddress.Parse("fe80::1")));
+        Assert.False(WindowsGSM.Functions.Http.Blocked(System.Net.IPAddress.Parse("192.168.1.20"))); // a NAS on your network is fine
+        Assert.False(WindowsGSM.Functions.Http.Blocked(System.Net.IPAddress.Parse("93.184.216.34")));
+
+        using var server = new ZipServer();
+        bool was = WindowsGSM.Functions.Http.AllowThisPcForTests;
+        try
+        {
+            WindowsGSM.Functions.Http.AllowThisPcForTests = false;
+            string file = Path.Combine(Path.GetTempPath(), "wgsm-blocked-" + Guid.NewGuid().ToString("N"));
+            var ex = await Assert.ThrowsAnyAsync<Exception>(() => WindowsGSM.Functions.Http.DownloadUserUrlAsync(server.Url, file));
+            Assert.Contains("aren't allowed", ex.ToString());
+            Assert.False(File.Exists(file) && new FileInfo(file).Length > 0);
+            TestData.DeleteFile(file);
+        }
+        finally { WindowsGSM.Functions.Http.AllowThisPcForTests = was; }
+    }
+
     private sealed class ZipServer : IDisposable
     {
         private readonly TcpListener _listener = new(IPAddress.Loopback, 0);

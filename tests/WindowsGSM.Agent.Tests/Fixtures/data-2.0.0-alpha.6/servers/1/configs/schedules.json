@@ -1,0 +1,16 @@
+[
+  {
+    "Cron": "0 6 * * *",
+    "Action": "Restart",
+    "Payload": "",
+    "Arguments": "",
+    "Enabled": true
+  },
+  {
+    "Cron": "*/30 * * * *",
+    "Action": "Command",
+    "Payload": "say hello",
+    "Arguments": "",
+    "Enabled": false
+  }
+]

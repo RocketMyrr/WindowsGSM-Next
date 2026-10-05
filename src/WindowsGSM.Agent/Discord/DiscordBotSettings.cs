@@ -60,26 +60,19 @@ public sealed class DiscordBotSettings
     public static DiscordBotSettings Load(string configDir, string legacyConfigsDir, string machineId)
     {
         string file = Path.Combine(configDir, "discord-bot.json");
-        try
+        if (File.Exists(file) || File.Exists(file + ".bak"))
         {
-            if (File.Exists(file))
-            {
-                string raw = File.ReadAllText(file);
-                var loaded = JsonSerializer.Deserialize<DiscordBotSettings>(raw, Json) ?? new();
-                // A token saved before encryption existed is encrypted now.
-                if (loaded.Token.Length > 0 && !raw.Contains("dpapi:")) { try { loaded.Save(configDir); } catch { } }
-                return loaded;
-            }
+            var loaded = global::WindowsGSM.Hosting.SafeJson.Read<DiscordBotSettings>(file, Json) ?? new();
+            // A token saved before encryption existed is encrypted now.
+            try { if (loaded.Token.Length > 0 && File.Exists(file) && !File.ReadAllText(file).Contains("dpapi:")) { loaded.Save(configDir); } } catch { }
+            return loaded;
         }
-        catch { return new(); }
         return ImportLegacy(Path.Combine(legacyConfigsDir, "discordbot"), machineId) ?? new();
     }
 
     public void Save(string configDir)
     {
-        string file = Path.Combine(configDir, "discord-bot.json");
-        File.WriteAllText(file + ".tmp", JsonSerializer.Serialize(this, Json));
-        File.Move(file + ".tmp", file, overwrite: true);
+        global::WindowsGSM.Hosting.SafeJson.Write(Path.Combine(configDir, "discord-bot.json"), this, Json);
     }
 
     /// <summary>

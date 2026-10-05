@@ -1,0 +1,36 @@
+[
+  {
+    "Username": "owner",
+    "PasswordHash": "pbkdf2.sha256$100000$lor9rQP4CfNWDPyauPWqEw==$6PzA5Y07Fdt69IsQ5xF5VIdWrDZoLjK/\u002BuElL1qO9jM=",
+    "Role": "Owner",
+    "Enabled": true,
+    "Grants": {},
+    "TwoFactorEnabled": false,
+    "TotpSecret": null,
+    "LastTotpStep": 0,
+    "CreatedAt": "2026-10-05T20:31:09.8397011+00:00",
+    "LastLoginAt": null,
+    "LastLoginIp": null,
+    "PasskeyUserHandle": null,
+    "Passkeys": [],
+    "IsAdmin": true,
+    "IsOwner": true
+  },
+  {
+    "Username": "ops",
+    "PasswordHash": "pbkdf2.sha256$100000$q7lmVv5dTS1hfvziqzPK2g==$w7VKtLoNvw8OO2aqHq56MiNJzhDIb1CZHXSn4tHpb78=",
+    "Role": "Operator",
+    "Enabled": true,
+    "Grants": {},
+    "TwoFactorEnabled": false,
+    "TotpSecret": null,
+    "LastTotpStep": 0,
+    "CreatedAt": "2026-10-05T20:31:09.8826527+00:00",
+    "LastLoginAt": null,
+    "LastLoginIp": null,
+    "PasskeyUserHandle": null,
+    "Passkeys": [],
+    "IsAdmin": false,
+    "IsOwner": false
+  }
+]

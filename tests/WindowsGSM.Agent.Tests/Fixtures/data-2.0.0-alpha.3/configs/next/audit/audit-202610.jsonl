@@ -1,0 +1,10 @@
+{"at":"2026-10-05T20:29:00.6010692+00:00","user":"owner","ip":"127.0.0.1","action":"setup","machine":"m-rrttwcq7qw","server":null,"ok":true,"detail":"owner account created"}
+{"at":"2026-10-05T20:29:00.63251+00:00","user":"owner","ip":"127.0.0.1","action":"user-create","machine":"m-rrttwcq7qw","server":null,"ok":true,"detail":"ops (Operator)"}
+{"at":"2026-10-05T20:29:00.6895578+00:00","user":"owner","ip":"127.0.0.1","action":"schedules","machine":"m-rrttwcq7qw","server":"1","ok":true,"detail":"2 schedule(s)"}
+{"at":"2026-10-05T20:29:00.7229176+00:00","user":"owner","ip":"127.0.0.1","action":"backup-settings","machine":"m-rrttwcq7qw","server":"1","ok":true,"detail":"beforeStart=True, keep=7/0d, paths=1, external=0"}
+{"at":"2026-10-05T20:29:00.731705+00:00","user":"owner","ip":"127.0.0.1","action":"automation","machine":"m-rrttwcq7qw","server":null,"ok":true,"detail":"Empty restart: empty \u2192 restart"}
+{"at":"2026-10-05T20:29:00.7389159+00:00","user":"owner","ip":"127.0.0.1","action":"notify-channel-create","machine":"m-rrttwcq7qw","server":null,"ok":true,"detail":"Crashes"}
+{"at":"2026-10-05T20:29:00.7625955+00:00","user":"owner","ip":"127.0.0.1","action":"restart-warnings","machine":"m-rrttwcq7qw","server":"1","ok":true,"detail":"on: 5 minutes, 1 minute"}
+{"at":"2026-10-05T20:29:00.7704139+00:00","user":"owner","ip":"127.0.0.1","action":"template","machine":"m-rrttwcq7qw","server":"1","ok":true,"detail":"saved \u0022Rust base\u0022 (2 settings, 0 files)"}
+{"at":"2026-10-05T20:29:00.7824369+00:00","user":"owner","ip":"127.0.0.1","action":"discord-bot","machine":"m-rrttwcq7qw","server":null,"ok":true,"detail":"off, 1 admin, token changed"}
+{"at":"2026-10-05T20:29:00.7948244+00:00","user":"owner","ip":"127.0.0.1","action":"settings","machine":"m-rrttwcq7qw","server":"2","ok":true,"detail":"servername"}
