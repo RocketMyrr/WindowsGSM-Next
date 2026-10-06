@@ -206,6 +206,7 @@ public class UpgradeTests
         try
         {
             Assert.True(await Task.Run(() => agent.WaitForExit(90000)), "The agent should refuse to start with an unreadable account list.");
+            agent.WaitForExit(); // and let its printed output finish arriving (the timed wait doesn't wait for that)
             Assert.NotEqual(0, agent.ExitCode);
             lock (output) { Assert.Contains("users.json", output.ToString()); }
             Assert.Single(Directory.GetFiles(Path.Combine(root, "configs", "next"), "users.json.unreadable-*"));
