@@ -492,11 +492,10 @@ namespace WindowsGSM.Functions
         {
             string allowedChars = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ0123456789!@$?_-";
             char[] chars = new char[12];
-            Random rd = new Random();
-
+            // NEXT: a password, so the cryptographic generator (System.Random is predictable).
             for (int i = 0; i < 12; i++)
             {
-                chars[i] = allowedChars[rd.Next(0, allowedChars.Length)];
+                chars[i] = allowedChars[System.Security.Cryptography.RandomNumberGenerator.GetInt32(allowedChars.Length)];
             }
             RconPassword = new string(chars);
             SetSetting(ServerID, SettingName.RconPassword, RconPassword);

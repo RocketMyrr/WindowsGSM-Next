@@ -122,12 +122,8 @@ namespace WindowsGSM.Functions
                 {
                     try
                     {
-                        using (var f = File.OpenRead(zipPath))
-                        using (var a = new ZipArchive(f))
-                        {
-                            a.Entries.Where(o => o.Name == string.Empty && !Directory.Exists(Path.Combine(basePath, o.FullName))).ToList().ForEach(o => Directory.CreateDirectory(Path.Combine(basePath, o.FullName)));
-                            a.Entries.Where(o => o.Name != string.Empty).ToList().ForEach(e => e.ExtractToFile(Path.Combine(basePath, e.FullName), true));
-                        }
+                        // NEXT: never outside the server folder (an entry like ..\..\x is skipped).
+                        Engine.Services.AddonService.ExtractSafely(zipPath, basePath);
                         return true;
                     }
                     catch
@@ -170,12 +166,8 @@ namespace WindowsGSM.Functions
                 {
                     try
                     {
-                        using (var f = File.OpenRead(zipPath))
-                        using (var a = new ZipArchive(f))
-                        {
-                            a.Entries.Where(o => o.Name == string.Empty && !Directory.Exists(Path.Combine(basePath, o.FullName))).ToList().ForEach(o => Directory.CreateDirectory(Path.Combine(basePath, o.FullName)));
-                            a.Entries.Where(o => o.Name != string.Empty).ToList().ForEach(e => e.ExtractToFile(Path.Combine(basePath, e.FullName), true));
-                        }
+                        // NEXT: never outside the server folder (an entry like ..\..\x is skipped).
+                        Engine.Services.AddonService.ExtractSafely(zipPath, basePath);
                         return true;
                     }
                     catch

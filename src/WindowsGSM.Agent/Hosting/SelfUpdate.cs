@@ -33,9 +33,28 @@ public sealed class SelfUpdate : IDisposable
         _log = log;
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         if (!_http.DefaultRequestHeaders.UserAgent.Any()) { _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("WindowsGSM", "2")); }
-        InstallRoot = Environment.GetEnvironmentVariable("WGSM_INSTALL_ROOT") is { Length: > 0 } r && Directory.Exists(r) ? r : null;
-        Launcher = Environment.GetEnvironmentVariable("WGSM_LAUNCHER") is { Length: > 0 } l && File.Exists(l) ? l : null;
+        (InstallRoot, Launcher) = InstallFromEnvironment();
         _timer = new Timer(_ => _ = CheckAsync(quiet: true), null, TimeSpan.FromMinutes(3), TimeSpan.FromHours(6));
+    }
+
+    /// <summary>
+    /// The install the launcher told us about (WGSM_INSTALL_ROOT / WGSM_LAUNCHER) — only if it really is one: a
+    /// folder with install.json and versions\, and WindowsGSM.exe directly in it. Anything else is ignored, so this
+    /// agent never starts some other program.
+    /// </summary>
+    public static (string? Root, string? Launcher) InstallFromEnvironment()
+    {
+        string? root = Environment.GetEnvironmentVariable("WGSM_INSTALL_ROOT"), launcher = Environment.GetEnvironmentVariable("WGSM_LAUNCHER");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(launcher)) { return (null, null); }
+        try
+        {
+            root = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
+            launcher = Path.GetFullPath(launcher);
+            bool ok = Directory.Exists(Path.Combine(root, "versions")) && File.Exists(Path.Combine(root, "install.json"))
+                && string.Equals(launcher, Path.Combine(root, "WindowsGSM.exe"), StringComparison.OrdinalIgnoreCase) && File.Exists(launcher);
+            return ok ? (root, launcher) : (null, null);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return (null, null); }
     }
 
     public string? InstallRoot { get; set; }
@@ -127,7 +146,7 @@ public sealed class SelfUpdate : IDisposable
 
             State = UpdateState.Restarting;
             _log($"Updating to {release.Version}: restarting the agent (game servers keep running).");
-            HandOver($"--switch \"{release.Version}\"", stopAgent);
+            HandOver(new[] { "--switch", release.Version }, stopAgent);
             return null;
         }
         catch (Exception ex)
@@ -146,17 +165,17 @@ public sealed class SelfUpdate : IDisposable
         if (Previous == null) { return "There's no previous version to go back to."; }
         State = UpdateState.Restarting;
         _log($"Going back to {Previous}: restarting the agent (game servers keep running).");
-        HandOver("--rollback", stopAgent);
+        HandOver(new[] { "--rollback" }, stopAgent);
         return null;
     }
 
-    private void HandOver(string what, Func<Task> stopAgent)
+    private void HandOver(string[] what, Func<Task> stopAgent)
     {
-        if (HandOverOverride != null) { HandOverOverride(what, true); return; }
-        Process.Start(new ProcessStartInfo(Launcher!, $"{what} --wait-pid {Environment.ProcessId} --start-agent")
-        {
-            UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = InstallRoot!,
-        });
+        if (HandOverOverride != null) { HandOverOverride(string.Join(" ", what.Select(a => a.Contains(' ') || a.Length == 0 ? $"\"{a}\"" : a)), true); return; }
+        var psi = new ProcessStartInfo(Launcher!) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = InstallRoot! };
+        foreach (string a in what) { psi.ArgumentList.Add(a); }
+        foreach (string a in new[] { "--wait-pid", Environment.ProcessId.ToString(), "--start-agent" }) { psi.ArgumentList.Add(a); }
+        Process.Start(psi);
         _ = Task.Run(async () => { await Task.Delay(1000); await stopAgent(); });
     }
 

@@ -21,10 +21,9 @@ public static class UpdateEndpoints
             if (update.Launcher == null || !File.Exists(update.Launcher)) { return ApiResults.BadRequest("This copy wasn't installed with setup, so it can't restart itself — restart it on that computer."); }
             ctx.Record(http, "agent-restart", null, true, null);
             ctx.Engine.Log.Write("Agent", "Restarting the agent (from the panel). Game servers keep running.");
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(update.Launcher, $"--agent-start --quiet --wait-pid {Environment.ProcessId}")
-            {
-                UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(update.Launcher)!,
-            });
+            var psi = new System.Diagnostics.ProcessStartInfo(update.Launcher) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(update.Launcher)! };
+            foreach (string a in new[] { "--agent-start", "--quiet", "--wait-pid", Environment.ProcessId.ToString() }) { psi.ArgumentList.Add(a); }
+            System.Diagnostics.Process.Start(psi);
             _ = Task.Run(async () => { await Task.Delay(1000); life.StopApplication(); });
             return Results.Json(new { restarting = true }, statusCode: 202);
         });

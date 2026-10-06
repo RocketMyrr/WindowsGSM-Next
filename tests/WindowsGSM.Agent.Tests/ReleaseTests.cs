@@ -156,7 +156,7 @@ public class ReleaseTests
             Assert.False(File.Exists(Path.Combine(root, "versions", "2.0.1", "README.txt")));
             Assert.Equal("new launcher 2.0.1", File.ReadAllText(Path.Combine(root, "WindowsGSM.exe")));
             Assert.Equal("old launcher", File.ReadAllText(Path.Combine(root, "WindowsGSM.exe.old")));
-            Assert.Equal(new[] { "--switch \"2.0.1\"" }, handovers);
+            Assert.Equal(new[] { "--switch 2.0.1" }, handovers); // passed as separate arguments, never one built string
         }
         finally { _f.Context.Settings.UpdatePrerelease = true; WindowsGSM.Core.Tests.TestData.DeleteDirectory(root); }
     }

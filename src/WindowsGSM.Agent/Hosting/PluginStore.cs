@@ -106,7 +106,8 @@ public sealed class PluginStore
     /// <summary>An installed plugin's logo: plugins/X.cs/X.png (what the legacy app showed), if it has one.</summary>
     public static string? IconPath(string file)
     {
-        if (file.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || !file.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) { return null; }
+        // A bare plugin file name only ("MyGame.cs"): no folders, no "..".
+        if (file != Path.GetFileName(file) || file.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || file.Contains("..") || !file.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) { return null; }
         string path = ServerPath.GetPlugins(file, Path.GetFileNameWithoutExtension(file) + ".png");
         return File.Exists(path) ? path : null;
     }
