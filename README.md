@@ -1,5 +1,12 @@
 # WindowsGSM Next
 
+[![CI](https://github.com/RocketMyrr/WindowsGSM-Next/actions/workflows/ci.yml/badge.svg?style=flat-square)](https://github.com/RocketMyrr/WindowsGSM-Next/actions/workflows/ci.yml)
+[![Latest Release](https://img.shields.io/github/v/release/RocketMyrr/WindowsGSM-Next?include_prereleases&label=latest%20release&style=flat-square)](https://github.com/RocketMyrr/WindowsGSM-Next/releases)
+[![Downloads](https://img.shields.io/github/downloads/RocketMyrr/WindowsGSM-Next/total?label=downloads&style=flat-square)](https://github.com/RocketMyrr/WindowsGSM-Next/releases)
+[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white&style=flat-square)](https://dotnet.microsoft.com/)
+[![Windows](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white&style=flat-square)](https://www.microsoft.com/windows/)
+[![License](https://img.shields.io/github/license/RocketMyrr/WindowsGSM-Next?style=flat-square)](https://github.com/RocketMyrr/WindowsGSM-Next/blob/main/LICENSE)
+
 **A game server manager for Windows: install, run, update and back up dedicated game servers, and control them
 from a browser, a phone, the desktop app or Discord — on one PC or many.**
 
