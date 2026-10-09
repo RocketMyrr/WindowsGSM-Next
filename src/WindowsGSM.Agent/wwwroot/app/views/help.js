@@ -3,6 +3,7 @@
 
 import { h, icon, clear, debounce } from "../dom.js";
 import { setCrumbs } from "../shell.js";
+import { reportUrl, KNOWN_ISSUES_URL } from "../report.js";
 
 /** [id, title, icon, keywords, paragraphs, links] — a paragraph starting with "• " is a list item. */
 const TOPICS = [
@@ -175,10 +176,13 @@ const TOPICS = [
         "• To replace a PC that's gone, tick \"This PC replaces the one the backup came from\" — it takes over its identity and hub membership.",
     ], [["/settings", "Agent settings"]]],
 
-    ["diagnostics", "Reporting a problem", "help", "bug report diagnostics logs export support issue crash", [
-        "Health checks → Export diagnostics downloads one zip with versions, health checks, recent logs and settings. Attach it to a bug report.",
+    ["diagnostics", "Reporting a problem", "help", "bug report diagnostics logs export support issue crash github known issues beta", [
+        "Check Known issues first — it may already be listed, with a way around it.",
+        "Report a problem opens GitHub's bug-report form in your browser, with this version filled in. Nothing is sent until you submit it there.",
+        "Health checks → Export diagnostics downloads one zip with versions, health checks, recent logs and settings. Attach it to the report.",
         "Passwords, tokens and keys are taken out; server names, folders and IP addresses stay — look through it before posting it publicly.",
-    ], [["/health", "Health checks"]]],
+        "Found a security problem? Don't post it publicly: use \"Report a vulnerability\" on the repository's Security tab.",
+    ], [[KNOWN_ISSUES_URL, "Known issues"], [() => reportUrl(), "Report a problem"], ["/health", "Health checks"]]],
 
     ["machines", "Several machines", "machine", "hub machine multi remote agent connect", [
         "Each PC runs the agent. One of them can be the hub: the others connect to it, and you manage every server from one panel. A machine that goes offline keeps running its servers; the hub shows what it last knew.",
@@ -228,9 +232,17 @@ export default async function help(host) {
             list.append(h("section", { class: "panel help-topic", id },
                 h("div", { class: "panel-head" }, icon(ico), h("h3", { text: title })),
                 h("div", { class: "panel-body" }, ...items,
-                    links.length ? h("div", { class: "row wrap help-links" }, ...links.map(([href, label]) => h("a", { class: "btn sm", href }, label, icon("chevronRight")))) : null)));
+                    links.length ? h("div", { class: "row wrap help-links" }, ...links.map(link)) : null)));
         }
     }
+    // A page here, or (http… or a function giving one) a page on GitHub, opened in the browser.
+    function link([to, label]) {
+        const href = typeof to === "function" ? to() : to;
+        return /^https?:/.test(href)
+            ? h("a", { class: "btn sm", href, target: "_blank", rel: "noopener" }, label, icon("link"))
+            : h("a", { class: "btn sm", href }, label, icon("chevronRight"));
+    }
+
     box.addEventListener("input", debounce(paint, 120));
     paint();
     const target = location.hash.slice(1);

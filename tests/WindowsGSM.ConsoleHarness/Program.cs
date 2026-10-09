@@ -1,7 +1,7 @@
 // wgsm-console-harness
 //
 //   wgsm-console-harness run <data folder> <results file>   drive the real engine through the console scenarios
-//   wgsm-console-harness game stay|move                      the stand-in game the scenarios start
+//   wgsm-console-harness game stay|move|chatty               the stand-in game the scenarios (or the soak test) start
 //
 // Started windowless by ConsoleHostScenarioTests (as the launcher starts the agent), so the console handling
 // (ConsoleHost) switches on exactly as in the agent. Each scenario writes "PASS name: detail" or "FAIL name: detail".
@@ -21,7 +21,7 @@ return args.FirstOrDefault() switch
 
 static int Usage()
 {
-    Console.Error.WriteLine("wgsm-console-harness run <data folder> <results file> | game stay|move");
+    Console.Error.WriteLine("wgsm-console-harness run <data folder> <results file> | game stay|move|chatty");
     return 64;
 }
 
@@ -62,6 +62,27 @@ internal static class StandIn
                 if (input.Trim() == "quit") { Log("quitting"); return 0; }
             }
             Thread.Sleep(Timeout.Infinite);
+        }
+        if (mode == "chatty")
+        {
+            // The long-running test's game (tools\Soak-Test.ps1): output captured, a line every second like a busy
+            // server's log, an answer to every command, and a clean exit on "quit".
+            var rng = new Random();
+            new Thread(() =>
+            {
+                for (long n = 1; ; n++)
+                {
+                    Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] tick {n}: players={rng.Next(0, 20)} fps={rng.Next(30, 61)}");
+                    Thread.Sleep(1000);
+                }
+            }) { IsBackground = true }.Start();
+            string? input;
+            while ((input = Console.In.ReadLine()) != null)
+            {
+                Console.WriteLine($"> {input}");
+                if (input.Trim() == "quit") { Console.WriteLine("Saving and quitting"); return 0; }
+            }
+            return 0;
         }
         if (mode == "move")
         {

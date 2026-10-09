@@ -1,0 +1,105 @@
+name: Bug report
+description: Something in WindowsGSM Next doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Please check [Known issues](https://github.com/RocketMyrr/WindowsGSM-Next/blob/main/docs/KNOWN-ISSUES.md) and the [open issues](https://github.com/RocketMyrr/WindowsGSM-Next/issues) first — it may already be there.
+
+        **Security problem?** Don't post it here. Use [Report a vulnerability](https://github.com/RocketMyrr/WindowsGSM-Next/security/advisories/new) instead, so it isn't public before there's a fix.
+
+  - type: input
+    id: version
+    attributes:
+      label: WindowsGSM version
+      description: Agent settings → Updates shows it. "Report a problem" in the app fills this in.
+      placeholder: 2.0.0-beta.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is it installed?
+      options:
+        - Runs game servers on this PC (full install)
+        - Controls game servers on another PC (app only)
+        - Several PCs with a hub
+        - Run from source / dotnet run
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: Press Win + R, type `winver`, press Enter.
+      placeholder: Windows 11 24H2 (build 26100)
+
+  - type: input
+    id: game
+    attributes:
+      label: Game (if it's about a server)
+      placeholder: Rust, Valheim, Minecraft (Paper 1.21.4)…
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did it happen?
+      multiple: true
+      options:
+        - Setup / installing WindowsGSM
+        - Updating WindowsGSM
+        - The panel in a browser
+        - The desktop app
+        - On a phone
+        - Installing or updating a game server
+        - Running a server (start, stop, crash handling)
+        - Backups
+        - Schedules or automations
+        - Notifications or the Discord bot
+        - Hub / several PCs
+        - Moving over from WindowsGSM 1.x
+        - Something else
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include any error message exactly as shown. Screenshots help.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      description: The steps, from the start, that make it happen again.
+      placeholder: |
+        1. Open a Rust server's Console tab
+        2. Type "status" and press Enter
+        3. …
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        Health checks → **Export diagnostics** downloads a zip with versions, health checks, recent logs and settings. Drag it here.
+        Passwords, tokens and keys are taken out; server names, folders and IP addresses stay — look through it first if that matters to you.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before posting
+      options:
+        - label: I looked at Known issues and the open issues.
+          required: true
+        - label: There are no passwords, tokens or other private details in what I'm posting.
+          required: true

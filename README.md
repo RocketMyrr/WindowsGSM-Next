@@ -16,7 +16,8 @@ servers, backups, accounts, schedules, Discord bot — carries straight over.
 
 > **Status: 2.0.0-beta.1 (pre-release).** Everything planned for 2.0 is in; from here on it's fixes. Settings files
 > are stable: later versions read them as they are. Keep backups, and try it on a copy of your WindowsGSM folder
-> first if you're switching from the old app. What changed in each version: [CHANGELOG.md](CHANGELOG.md).
+> first if you're switching from the old app. What changed in each version: [CHANGELOG.md](CHANGELOG.md). Problems
+> we already know about, with ways around them: [Known issues](docs/KNOWN-ISSUES.md).
 
 ---
 
@@ -260,7 +261,7 @@ More detail, and how to report a security problem privately: [SECURITY.md](SECUR
 | **A plugin update broke a game** | Game plugins → *Previous version* on that plugin. |
 | **A game update broke the server** | ⋯ menu → *Roll back game update…* |
 | **No console window appears** | Turn off *Capture the console here* in Settings (captured servers show output in the Console tab instead), then restart the server once. |
-| **Something else** | **Logs** (Manage → Logs) has the activity log, app log, crashes, Discord bot log and diagnostics, with a *problems only* filter. |
+| **Something else** | **Logs** (Manage → Logs) has the activity log, app log, crashes, Discord bot log and diagnostics, with a *problems only* filter. Check [Known issues](docs/KNOWN-ISSUES.md), then **Report a problem** (Help or Ctrl K) with the zip from Health checks → *Export diagnostics*. |
 
 Stopping the agent (or quitting the desktop app) leaves game servers running. To shut everything down, use the
 tray's **Stop everything and quit**.
@@ -302,6 +303,20 @@ The plugin-compatibility tests compile every community plugin in the legacy repo
 `WindowsGSM-Remaster/WindowsGSM-Plugin-Development/Plugins` through the real plugin loader. They find it when that
 folder sits next to (or above) this repository, or wherever `WGSM_PLUGIN_KIT` points; without it they're skipped.
 Every push to `main` is built and tested by GitHub Actions (`.github/workflows/ci.yml`).
+
+### Long-running test
+
+`tools\Soak-Test.ps1` runs the agent for days and reports anything that keeps growing: memory, handles, threads,
+log and settings files, leftover game processes, slower answers.
+
+```powershell
+.\tools\Soak-Test.ps1                 # a sandbox agent with stand-in servers, 48 hours (-Hours to change)
+.\tools\Soak-Test.ps1 -Watch          # measure the agent already running here, with real servers
+```
+
+The sandbox has its own data folder and port, and its servers restart, back up and take console commands on
+schedules while a client polls like an open panel. Results, with `report.html`, go to
+`%LOCALAPPDATA%\WindowsGSM-Soak\`. Ctrl+C ends it early and still writes the report.
 
 ### Try the agent
 

@@ -1,0 +1,35 @@
+name: Idea or feature request
+description: Something WindowsGSM Next could do, or do better.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        2.0 is in beta, so new features may wait until after it's released — but ideas are welcome, and they shape what comes next.
+        Support for a new game usually comes as a game plugin: check Manage → Game plugins in the app first.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The situation or problem, rather than the solution. "I run 6 servers and have to update each one by hand…"
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: How you picture it working. Sketches and screenshots are welcome.
+
+  - type: textarea
+    id: today
+    attributes:
+      label: How do you manage today?
+      description: Any workaround you use now, or another tool that does it well.
+
+  - type: input
+    id: version
+    attributes:
+      label: WindowsGSM version
+      placeholder: 2.0.0-beta.1

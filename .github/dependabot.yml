@@ -1,0 +1,31 @@
+# Keeps NuGet packages (Directory.Packages.props) and the workflows' GitHub Actions up to date. Each pull request is
+# built and tested by CI before anything is merged. Minor and patch updates come together in one weekly pull
+# request; a major version gets its own, since it may need code changes.
+
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Dependencies"
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Only the reference assemblies for building the .NET Framework 4.8 launcher; nothing ships from it.
+      - dependency-name: Microsoft.NETFramework.ReferenceAssemblies
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "CI"
+    groups:
+      actions:
+        patterns: ["*"]

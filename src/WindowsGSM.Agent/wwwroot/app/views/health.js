@@ -7,6 +7,7 @@ import { setCrumbs } from "../shell.js";
 import { loading, empty, busy, toast } from "../ui.js";
 import { serverPath } from "../router.js";
 import { machinePicker } from "./machines.js";
+import { reportUrl } from "../report.js";
 
 const ORDER = { Fail: 0, Warning: 1, Info: 2, Pass: 3 };
 const ICONS = { Pass: "checkCircle", Fail: "xCircle", Warning: "warn", Info: "info" };
@@ -25,8 +26,9 @@ export default async function health(host, { query }) {
     const diagnostics = store.me.canManageUsers ? h("a", { class: "btn", download: "",
         title: "One zip for a bug report: versions, these checks, recent logs and settings. Passwords, tokens and keys are taken out; server names, folders and IP addresses stay — look through it before posting it publicly.",
         onclick: e => { e.currentTarget.href = `/api/v2/machines/${encodeURIComponent(machine)}/diagnostics`; } }, icon("download"), "Export diagnostics") : null;
+    const report = h("a", { class: "btn", href: reportUrl(), target: "_blank", rel: "noopener", title: "Opens GitHub's bug-report form in your browser, with this version filled in. Attach the diagnostics zip there." }, icon("link"), "Report a problem");
     host.append(
-        h("div", { class: "page-head" }, h("div", {}, h("h1", { text: "Health checks" }), title), h("div", { class: "actions" }, picker, diagnostics, rerun)),
+        h("div", { class: "page-head" }, h("div", {}, h("h1", { text: "Health checks" }), title), h("div", { class: "actions" }, picker, diagnostics, report, rerun)),
         summary, groups);
 
     async function run() {

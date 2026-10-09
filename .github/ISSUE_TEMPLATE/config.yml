@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/RocketMyrr/WindowsGSM-Next/security/advisories/new
+    about: Privately, so it isn't public before there's a fix. Please don't open a public issue for these.
+  - name: Known issues
+    url: https://github.com/RocketMyrr/WindowsGSM-Next/blob/main/docs/KNOWN-ISSUES.md
+    about: Problems we already know about in the beta, with ways around them.

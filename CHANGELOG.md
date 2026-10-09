@@ -3,6 +3,15 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## Unreleased
+
+- **Report a problem** in Help, Health checks and the Ctrl K search opens GitHub's bug-report form with your
+  version filled in. Nothing is sent from the app; you write and submit the report on GitHub.
+- The desktop app and the launcher no longer wait about 2 seconds each time they connect to the agent on the
+  same PC (it now answers on IPv6's `::1` as well as `127.0.0.1`).
+- A [Known issues](docs/KNOWN-ISSUES.md) page: what's stable in the beta, how to go back a version, and known
+  problems with ways around them.
+
 ## 2.0.0-beta.1
 
 The first beta. Everything planned for 2.0 is in; from here on it's fixes. Settings files are stable: later versions

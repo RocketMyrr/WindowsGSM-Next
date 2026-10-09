@@ -8,6 +8,7 @@ import { ACTIONS, runAction } from "./actions.js";
 import { can, canInstall } from "./perms.js";
 import { statusOf, modal } from "./ui.js";
 import { applyTheme, currentTheme } from "./theme.js";
+import { openReport } from "./report.js";
 
 let open = null;
 let openJobsFn = null;
@@ -69,6 +70,7 @@ function commands() {
     }
     out.push({ group: "App", label: "Activity and jobs", icon: "activity", words: "jobs progress running", run: () => openJobsFn && openJobsFn() });
     out.push({ group: "App", label: currentTheme() === "light" ? "Switch to dark theme" : "Switch to light theme", icon: currentTheme() === "light" ? "moon" : "sun", words: "theme dark light mode", run: () => applyTheme(currentTheme() === "light" ? "dark" : "light") });
+    out.push({ group: "App", label: "Report a problem", icon: "link", words: "bug issue report github feedback crash broken", run: () => openReport() });
     out.push({ group: "App", label: "Keyboard shortcuts", icon: "help", words: "keys help shortcuts", run: () => showShortcuts() });
     out.push({ group: "App", label: "Sign out", icon: "logout", words: "logout log out", run: () => signOutFn && signOutFn() });
     return out;

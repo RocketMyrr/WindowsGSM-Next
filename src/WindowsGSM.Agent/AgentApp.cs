@@ -86,11 +86,15 @@ public static class AgentApp
             builder.WebHost.ConfigureKestrel(k =>
             {
                 k.AddServerHeader = false;
-                k.Listen(address, settings.Port, listen =>
+                void Endpoint(Microsoft.AspNetCore.Server.Kestrel.Core.ListenOptions listen)
                 {
                     // A selector (not a fixed certificate) so renewals swap in without a restart.
                     if (https && certs != null) { listen.UseHttps(h => h.ServerCertificateSelector = (_, _) => certs.Current); }
-                });
+                }
+                k.Listen(address, settings.Port, Endpoint);
+                // "localhost" is tried as ::1 first: without this, every new connection from the desktop app, the
+                // launcher or a browser on this PC waited ~2 s for that to fail before falling back to 127.0.0.1.
+                if (Ipv6LoopbackFree(settings.Port)) { k.Listen(IPAddress.IPv6Loopback, settings.Port, Endpoint); }
                 // Loopback only, random port, plain HTTP: requests relayed by this machine's hub are replayed here.
                 k.Listen(IPAddress.Loopback, 0);
             });
@@ -290,6 +294,23 @@ public static class AgentApp
             options.Log($"First run: open the agent on this machine to create the owner account, or use setup code {app.Services.GetRequiredService<SetupTokens>().Current} from another computer.");
         }
         return app;
+    }
+
+    /// <summary>
+    /// Whether [::1]:port can be listened on too: IPv6 can be switched off in Windows, and something else may hold
+    /// that port on ::1 — either way the agent carries on with 127.0.0.1 alone rather than failing to start.
+    /// </summary>
+    internal static bool Ipv6LoopbackFree(int port)
+    {
+        if (!System.Net.Sockets.Socket.OSSupportsIPv6) { return false; }
+        try
+        {
+            using var probe = new System.Net.Sockets.Socket(System.Net.Sockets.AddressFamily.InterNetworkV6, System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Tcp);
+            probe.ExclusiveAddressUse = true;
+            probe.Bind(new IPEndPoint(IPAddress.IPv6Loopback, port));
+            return true;
+        }
+        catch (System.Net.Sockets.SocketException) { return false; }
     }
 
     /// <summary>
