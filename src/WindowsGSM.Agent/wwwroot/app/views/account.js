@@ -24,19 +24,19 @@ export default async function account(host, { scope }) {
         h("div", { class: "page-head" }, h("span", { class: "avatar lg", text: me.username.slice(0, 1) }),
             h("div", {}, h("h1", { text: me.username }), h("p", { text: `${me.role} on ${store.machine.name}` }))),
         h("div", { class: "account-grid" },
-            h("section", { class: "panel" }, h("div", { class: "panel-head" }, icon("shield"), h("h3", { text: "Two-factor sign-in" })), h("div", { class: "panel-body" }, twoFactor)),
-            h("section", { class: "panel" }, h("div", { class: "panel-head" }, icon("key"), h("h3", { text: "Password" })), h("div", { class: "panel-body" }, passwordForm())),
-            h("section", { class: "panel span-2" }, h("div", { class: "panel-head" }, icon("shield"), h("h3", { text: "Passkeys" }),
+            h("section", { class: "panel" }, h("div", { class: "panel-head" }, icon("shield"), h("h2", { text: "Two-factor sign-in" })), h("div", { class: "panel-body" }, twoFactor)),
+            h("section", { class: "panel" }, h("div", { class: "panel-head" }, icon("key"), h("h2", { text: "Password" })), h("div", { class: "panel-body" }, passwordForm())),
+            h("section", { class: "panel span-2" }, h("div", { class: "panel-head" }, icon("shield"), h("h2", { text: "Passkeys" }),
                 h("span", { class: "sub", text: "Sign in with your fingerprint, face or phone — no password or code." })), h("div", { class: "panel-body" }, passkeys)),
             h("section", { class: "panel span-2" },
-                h("div", { class: "panel-head" }, icon("monitor"), h("h3", { text: "Where you're signed in" }), h("span", { class: "spacer" }),
+                h("div", { class: "panel-head" }, icon("monitor"), h("h2", { text: "Where you're signed in" }), h("span", { class: "spacer" }),
                     h("button", { class: "btn sm", onclick: e => busy(e.currentTarget, async () => {
                         const r = await post("/auth/sessions/revoke-others");
                         toast(r.revoked ? `Signed out ${r.revoked} other session${r.revoked === 1 ? "" : "s"}` : "No other sessions", { type: "good" });
                         loadSessions();
                     }) }, icon("logout"), "Sign out everywhere else")),
                 h("div", { class: "panel-body flush" }, sessions)),
-            h("section", { class: "panel" }, h("div", { class: "panel-head" }, icon("sun"), h("h3", { text: "Appearance" }), h("span", { class: "sub", text: "This browser only." })),
+            h("section", { class: "panel" }, h("div", { class: "panel-head" }, icon("sun"), h("h2", { text: "Appearance" }), h("span", { class: "sub", text: "This browser only." })),
                 h("div", { class: "panel-body" }, appearance()))));
 
     function appearance() {

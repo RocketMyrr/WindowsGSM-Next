@@ -9,6 +9,11 @@ notes on GitHub, and the "What's new" text the app shows before you update.
   version filled in. Nothing is sent from the app; you write and submit the report on GitHub.
 - The desktop app and the launcher no longer wait about 2 seconds each time they connect to the agent on the
   same PC (it now answers on IPv6's `::1` as well as `127.0.0.1`).
+- **Easier to read and to use with a keyboard or screen reader.** Text and buttons meet WCAG AA contrast in
+  both themes and every accent colour (the blue buttons are a shade deeper); servers on an offline PC stay
+  readable (dashed edge, grey picture) instead of fading out; a *Skip to content* link; form hints and errors are
+  read out with their field; the install steps say which one you're on; headings run in order; small controls
+  have bigger click areas; and switching a server's tabs keeps focus on the tabs.
 - A [Known issues](docs/KNOWN-ISSUES.md) page: what's stable in the beta, how to go back a version, and known
   problems with ways around them.
 

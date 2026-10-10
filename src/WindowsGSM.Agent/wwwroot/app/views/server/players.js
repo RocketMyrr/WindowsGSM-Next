@@ -25,7 +25,7 @@ export default async function playersTab(host, { id, machine, key, server, scope
                 q.note ? h("div", { class: "muted", text: q.note }) : null)));
     }
     host.append(h("section", { class: "panel" },
-        h("div", { class: "panel-head" }, h("h3", { text: "Players online" }), count, h("span", { class: "spacer" }),
+        h("div", { class: "panel-head" }, h("h2", { text: "Players online" }), count, h("span", { class: "spacer" }),
             can(server(), "Console") ? h("button", { class: "btn sm", onclick: () => broadcast() }, icon("send"), "Message everyone") : null),
         h("div", { class: "panel-body flush" }, body),
         queryLine));
@@ -37,8 +37,8 @@ export default async function playersTab(host, { id, machine, key, server, scope
     const daysBar = segmented([{ value: 7, label: "7 days" }, { value: 30, label: "30 days" }, { value: 365, label: "Year" }], days, v => { days = v; loadHistory(); });
     daysBar.classList.add("sm");
     host.append(h("div", { class: "players-history" },
-        h("section", { class: "panel" }, h("div", { class: "panel-head wrap" }, h("h3", { class: "grow", text: "Regulars" }), daysBar), regulars),
-        h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h3", { text: "Recent visits" })), recent)));
+        h("section", { class: "panel" }, h("div", { class: "panel-head wrap" }, h("h2", { class: "grow", text: "Regulars" }), daysBar), regulars),
+        h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", { text: "Recent visits" })), recent)));
 
     async function loadHistory() {
         let data;

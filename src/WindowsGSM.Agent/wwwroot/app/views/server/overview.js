@@ -27,17 +27,17 @@ export default async function overviewTab(host, { id, machine, key, server, scop
 
     host.append(firewall, h("div", { class: "overview-grid" },
         h("section", { class: "panel span-2" },
-            h("div", { class: "panel-head wrap" }, h("h3", { text: "Performance" }), legend, h("span", { class: "spacer" }), rangeBar),
+            h("div", { class: "panel-head wrap" }, h("h2", { text: "Performance" }), legend, h("span", { class: "spacer" }), rangeBar),
             h("div", { class: "panel-body" }, chartBox)),
         gamePerf,
         h("section", { class: "panel" },
-            h("div", { class: "panel-head" }, h("h3", { text: "Details" })),
+            h("div", { class: "panel-head" }, h("h2", { text: "Details" })),
             h("div", { class: "panel-body" }, facts)),
         h("section", { class: "panel" },
-            h("div", { class: "panel-head" }, h("h3", { text: "Recent activity" }), h("span", { class: "spacer" }), h("a", { class: "btn ghost sm", href: serverPath(machine, id, "logs") }, "All logs", icon("chevronRight"))),
+            h("div", { class: "panel-head" }, h("h2", { text: "Recent activity" }), h("span", { class: "spacer" }), h("a", { class: "btn ghost sm", href: serverPath(machine, id, "logs") }, "All logs", icon("chevronRight"))),
             h("div", { class: "panel-body flush" }, activity)),
         can(server(), "EditConfig") ? h("section", { class: "panel span-2" },
-            h("div", { class: "panel-head wrap" }, h("h3", { text: "Health check" }), h("span", { class: "sub", text: "Is everything in place to run?" }), h("span", { class: "spacer" }),
+            h("div", { class: "panel-head wrap" }, h("h2", { text: "Health check" }), h("span", { class: "sub", text: "Is everything in place to run?" }), h("span", { class: "spacer" }),
                 h("button", { class: "btn sm", onclick: () => reachDialog() }, icon("globe"), "Can players reach it?")),
             h("div", { class: "panel-body" }, checks)) : null));
 
@@ -99,7 +99,7 @@ export default async function overviewTab(host, { id, machine, key, server, scop
         const avg = points.length ? points.reduce((a, b) => a + b.v, 0) / points.length : null;
         const low = points.length ? Math.min(...points.map(x => x.min)) : null;
         append(clear(gamePerf), [
-            h("div", { class: "panel-head wrap" }, h("h3", { text: "Game performance" }), h("span", { class: "sub", text: label }), h("span", { class: "spacer" }),
+            h("div", { class: "panel-head wrap" }, h("h2", { text: "Game performance" }), h("span", { class: "sub", text: label }), h("span", { class: "spacer" }),
                 latest != null ? h("span", { class: "perf-now" }, h("b", { class: tone(latest), text: String(latest) }), h("span", { class: "muted", text: ` ${p.kind} now` })) : null,
                 avg != null ? h("span", { class: "small muted", text: `avg ${avg.toFixed(1)} · lowest ${low}` }) : null),
             h("div", { class: "panel-body" }, body)]);

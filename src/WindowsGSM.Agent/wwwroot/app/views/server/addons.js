@@ -10,10 +10,10 @@ export default async function addonsTab(host, { id, machine, key, scope }) {
     const custom = h("div");
     host.append(h("div", { class: "stack loose" },
         h("section", { class: "panel" },
-            h("div", { class: "panel-head" }, h("h3", { text: "Built-in add-ons" }), h("span", { class: "sub", text: "Mod frameworks WindowsGSM knows how to install and update." })),
+            h("div", { class: "panel-head" }, h("h2", { text: "Built-in add-ons" }), h("span", { class: "sub", text: "Mod frameworks WindowsGSM knows how to install and update." })),
             h("div", { class: "panel-body flush" }, builtIn)),
         h("section", { class: "panel" },
-            h("div", { class: "panel-head" }, h("h3", { text: "Custom add-ons" }), h("span", { class: "sub", text: "Any zip from a web address, extracted into the server." }), h("span", { class: "spacer" }),
+            h("div", { class: "panel-head" }, h("h2", { text: "Custom add-ons" }), h("span", { class: "sub", text: "Any zip from a web address, extracted into the server." }), h("span", { class: "spacer" }),
                 h("button", { class: "btn primary sm", onclick: addCustom }, icon("plus"), "Add")),
             h("div", { class: "panel-body flush" }, custom))));
 

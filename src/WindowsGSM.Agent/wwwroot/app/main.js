@@ -45,13 +45,18 @@ function inside(load) {
         }
         mountShell();
         setPageTip(null);
+        const wasFocused = document.activeElement?.id || null;
         const host = clear(contentHost());
         const mod = await load();
         if (!ctx.scope.alive) return;
         // A short tip for the page (dismissible), above it — straight away, while the page loads. Server pages show one per tab.
         if (!location.pathname.includes("/servers/")) setPageTip(tip(location.pathname === "/" ? "/" : "/" + location.pathname.split("/")[1]));
         await mod.default(host, ctx);
-        host.focus({ preventScroll: true });
+        // Keyboard and screen-reader users start at the new page: on the same control when the page redrew it (a
+        // server's tabs), wherever the page put focus itself (a form's first field), or else the page itself.
+        const again = wasFocused && document.getElementById(wasFocused);
+        if (again && host.contains(again)) again.focus({ preventScroll: true });
+        else if (!host.contains(document.activeElement)) host.focus({ preventScroll: true });
     };
 }
 

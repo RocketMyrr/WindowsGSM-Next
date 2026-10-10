@@ -12,19 +12,19 @@ export default async function backupsTab(host, { id, machine, key, server, scope
     const settingsBody = h("div", { class: "stack" });
     const offsiteList = h("div");
     const offsitePanel = h("section", { class: "panel", hidden: true },
-        h("div", { class: "panel-head" }, icon("upload"), h("h3", { text: "Off-site" }), h("span", { class: "sub", text: "Copies in this machine's off-site storage" })),
+        h("div", { class: "panel-head" }, icon("upload"), h("h2", { text: "Off-site" }), h("span", { class: "sub", text: "Copies in this machine's off-site storage" })),
         h("div", { class: "panel-body flush" }, offsiteList));
     const canRestore = can(server(), "Restore");
     let offsiteReady = false;
 
     host.append(h("div", { class: "split" },
         h("section", { class: "panel" },
-            h("div", { class: "panel-head" }, h("h3", { text: "Backups" }), h("span", { class: "spacer" }),
+            h("div", { class: "panel-head" }, h("h2", { text: "Backups" }), h("span", { class: "spacer" }),
                 h("button", { class: "btn sm", title: "Also includes the server's settings and configs", onclick: e => backup(e.currentTarget, true) }, "Full backup"),
                 h("button", { class: "btn primary sm", onclick: e => backup(e.currentTarget, false) }, icon("backup"), "Back up now")),
             h("div", { class: "panel-body flush" }, list)),
         h("section", { class: "panel" },
-            h("div", { class: "panel-head" }, h("h3", { text: "Backup settings" })),
+            h("div", { class: "panel-head" }, h("h2", { text: "Backup settings" })),
             h("div", { class: "panel-body" }, settingsBody))),
         offsitePanel);
 

@@ -21,8 +21,8 @@ export default async function schedules(host, { scope }) {
             h("div", {}, h("h1", { text: "Schedules" }), h("p", { text: "Everything that runs on its own, on every server. Times use each machine's clock." })),
             h("div", { class: "actions" }, editable().length ? addButton : null)),
         h("div", { class: "schedules-layout" },
-            h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h3", { text: "Coming up" })), upcoming),
-            h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h3", { text: "By server" })), byServer))]);
+            h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", { text: "Coming up" })), upcoming),
+            h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", { text: "By server" })), byServer))]);
 
     let data = []; // [{ server, entries }]
 

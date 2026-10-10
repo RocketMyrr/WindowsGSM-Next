@@ -30,8 +30,8 @@ export default async function storage(host, { query, scope }) {
             h("div", { class: "actions" }, picker, rescan)),
         drives,
         h("div", { class: "storage-layout" },
-            h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h3", { text: "Clean up" }), h("span", { class: "spacer" }), scanned), cleanup),
-            h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h3", { text: "By server" })), servers))]);
+            h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", { text: "Clean up" }), h("span", { class: "spacer" }), scanned), cleanup),
+            h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", { text: "By server" })), servers))]);
 
     async function load(fresh) {
         clear(cleanup).append(loading("Measuring… (big servers take a few seconds)"));

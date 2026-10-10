@@ -88,5 +88,5 @@ export function steamPanel(machineId) {
     }
 
     load();
-    return h("section", { class: "panel settings-section" }, h("div", { class: "panel-head" }, icon("steam"), h("h3", { text: "Steam account" })), body);
+    return h("section", { class: "panel settings-section" }, h("div", { class: "panel-head" }, icon("steam"), h("h2", { text: "Steam account" })), body);
 }

@@ -46,19 +46,19 @@ export default async function health(host, { query }) {
         for (const scope of scopes) {
             const items = checks.filter(c => c.scope === scope).sort((a, b) => ORDER[a.status] - ORDER[b.status]);
             groups.append(h("section", { class: "panel" },
-                h("div", { class: "panel-head" }, h("h3", { text: scope === "App" ? store.machineName(machine) : scope })),
+                h("div", { class: "panel-head" }, h("h2", { text: scope === "App" ? store.machineName(machine) : scope })),
                 h("div", { class: "panel-body flush" }, ...items.map(c => h("div", { class: ["list-item check-row", c.status.toLowerCase()] },
                     icon(ICONS[c.status]), h("div", { class: "grow" }, h("b", { text: c.name }), h("div", { class: "small muted", text: c.message })),
                     c.name === "Game servers through Windows Firewall" && c.status === "Warning" && store.me.canManageUsers ? firewallButton() : null)))));
         }
         if (broken.length) {
             groups.append(h("section", { class: "panel" },
-                h("div", { class: "panel-head" }, h("h3", { text: "Plugins that didn't load" })),
+                h("div", { class: "panel-head" }, h("h2", { text: "Plugins that didn't load" })),
                 h("div", { class: "panel-body flush" }, ...broken.map(p => h("div", { class: "list-item check-row warning" }, icon("puzzle"),
                     h("div", { class: "grow" }, h("b", { text: p.fileName }), h("div", { class: "small muted mono", text: p.error || "Unknown error" })))))));
         }
         groups.append(h("section", { class: "panel" },
-            h("div", { class: "panel-head" }, h("h3", { text: "Servers" }), h("span", { class: "sub", text: "Each server's own checks are on its Overview tab." })),
+            h("div", { class: "panel-head" }, h("h2", { text: "Servers" }), h("span", { class: "sub", text: "Each server's own checks are on its Overview tab." })),
             h("div", { class: "panel-body flush" }, ...(store.sortedServers(machine).length ? store.sortedServers(machine).map(s => h("a", { class: "list-item clickable server-link", href: serverPath(s.machine, s.id) },
                 icon("servers"), h("span", { class: "grow", text: s.name }), icon("chevronRight"))) : [empty("servers", "No servers yet", "")]))));
     }

@@ -52,7 +52,7 @@ export function placePicker(machine, { allowUsual = true, usualLabel = "With Win
     }
 
     function card(value, title, sub, drive, low = false) {
-        return h("button", { type: "button", class: ["place-card", choice === value && "active", low && "low"], onclick: () => {
+        return h("button", { type: "button", class: ["place-card", choice === value && "active", low && "low"], "aria-pressed": String(choice === value), onclick: () => {
             choice = value;
             folderField.hidden = value === "usual";
             if (drive && (!folder.value.trim() || !folder.value.toLowerCase().startsWith(drive.name.toLowerCase()))) folder.value = drive.suggestion;

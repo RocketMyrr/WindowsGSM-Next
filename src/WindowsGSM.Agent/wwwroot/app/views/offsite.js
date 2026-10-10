@@ -22,7 +22,7 @@ const PROVIDERS = [
 export function offsitePanel(machine) {
     const body = h("div", { class: "panel-body stack" }, h("div", { class: "small muted", text: "Loading…" }));
     const section = h("section", { class: "panel settings-section" },
-        h("div", { class: "panel-head" }, icon("upload"), h("h3", { text: "Off-site backups" }), h("span", { class: "sub", text: "A copy of backups away from this PC" })),
+        h("div", { class: "panel-head" }, icon("upload"), h("h2", { text: "Off-site backups" }), h("span", { class: "sub", text: "A copy of backups away from this PC" })),
         body);
     load();
     return section;

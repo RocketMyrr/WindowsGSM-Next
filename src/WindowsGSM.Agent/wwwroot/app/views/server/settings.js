@@ -65,7 +65,7 @@ export default async function settingsTab(host, { id, machine, key, server, scop
         return f;
     };
     const section = (title, sub, ...content) => h("section", { class: "panel settings-section" },
-        h("div", { class: "panel-head" }, h("h3", { text: title }), sub ? h("span", { class: "sub", text: sub }) : null),
+        h("div", { class: "panel-head" }, h("h2", { text: title }), sub ? h("span", { class: "sub", text: sub }) : null),
         h("div", { class: "panel-body stack" }, ...content));
 
     // ── Sections ──

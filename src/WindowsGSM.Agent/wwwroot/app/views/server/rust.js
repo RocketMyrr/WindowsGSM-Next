@@ -34,7 +34,7 @@ export default async function rustTab(host, { id, machine, server, scope }) {
     function paint() {
         if (!state.framework) {
             append(clear(panel), [
-                h("div", { class: "panel-head" }, icon("puzzle"), h("h3", { text: "Plugins" })),
+                h("div", { class: "panel-head" }, icon("puzzle"), h("h2", { text: "Plugins" })),
                 h("div", { class: "panel-body" }, h("div", { class: "callout info" }, icon("info"), h("span", {},
                     "Rust loads plugins through Oxide (uMod) or Carbon. Install one in the ",
                     h("a", { href: `/machines/${machine}/servers/${id}/addons`, text: "Add-ons tab" }), ", then come back here.")))]);
@@ -91,7 +91,7 @@ export default async function rustTab(host, { id, machine, server, scope }) {
         });
 
         append(clear(panel), [
-            h("div", { class: "panel-head wrap" }, icon("puzzle"), h("h3", { text: "Plugins" }),
+            h("div", { class: "panel-head wrap" }, icon("puzzle"), h("h2", { text: "Plugins" }),
                 h("span", { class: "sub", text: `${state.framework} · ${state.folder}\\ · no restart needed: ${state.framework} loads changes itself` }),
                 h("span", { class: "spacer" }), updateAll),
             h("div", { class: "panel-body stack" }, list, state.tracked.length ? beforeStart : null,
@@ -136,7 +136,7 @@ export default async function rustTab(host, { id, machine, server, scope }) {
         }
 
         append(clear(finder), [
-            h("div", { class: "panel-head" }, icon("search"), h("h3", { text: "Add plugins from uMod" }), h("span", { class: "sub", text: "Most downloaded first" })),
+            h("div", { class: "panel-head" }, icon("search"), h("h2", { text: "Add plugins from uMod" }), h("span", { class: "sub", text: "Most downloaded first" })),
             h("div", { class: "panel-body stack" }, h("div", { class: "search" }, icon("search"), box), results),
         ]);
         search("");

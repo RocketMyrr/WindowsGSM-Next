@@ -24,7 +24,7 @@ export default async function schedulesTab(host, { id, machine, key, server, sco
     let entries = [];
 
     host.append(h("section", { class: "panel" },
-        h("div", { class: "panel-head" }, h("h3", { text: "Schedules" }), h("span", { class: "sub", text: "Times use this machine's clock." }), h("span", { class: "spacer" }),
+        h("div", { class: "panel-head" }, h("h2", { text: "Schedules" }), h("span", { class: "sub", text: "Times use this machine's clock." }), h("span", { class: "spacer" }),
             editable ? h("button", { class: "btn primary sm", onclick: () => edit(null) }, icon("plus"), "Add schedule") : null),
         h("div", { class: "panel-body flush" }, body)));
 
@@ -81,7 +81,7 @@ export default async function schedulesTab(host, { id, machine, key, server, sco
     // ── Warn players before scheduled restarts, updates and stops ──
     const warnBody = h("div", { class: "panel-body stack" });
     host.append(h("section", { class: "panel warn-panel" },
-        h("div", { class: "panel-head" }, h("h3", { text: "Warn players first" }), h("span", { class: "sub", text: "Chat messages before scheduled restarts, updates and stops." })),
+        h("div", { class: "panel-head" }, h("h2", { text: "Warn players first" }), h("span", { class: "sub", text: "Chat messages before scheduled restarts, updates and stops." })),
         warnBody));
 
     const COMMANDS = [

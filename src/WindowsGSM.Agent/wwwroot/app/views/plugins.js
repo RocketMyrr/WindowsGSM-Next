@@ -35,12 +35,12 @@ export default async function plugins(host, { query, scope }) {
             h("b", { text: "Plugins run as code on this machine. " }), "Install ones from authors you trust — check the repository, stars and recent activity first.")),
         h("div", { class: "stack loose plugins-page" },
             h("section", { class: "panel" },
-                h("div", { class: "panel-head wrap" }, h("h3", { class: "grow", text: "Installed" }),
+                h("div", { class: "panel-head wrap" }, h("h2", { class: "grow", text: "Installed" }),
                     owner ? h("button", { class: "btn sm", onclick: () => addFromLink() }, icon("link"), "Add from a GitHub link") : null,
                     owner ? h("button", { class: "btn sm", onclick: () => addFromFile() }, icon("upload"), "Add your own") : null),
                 installedBody),
             h("section", { class: "panel" },
-                h("div", { class: "panel-head wrap" }, h("h3", { text: "Find more" }), h("span", { class: "spacer" }), h("div", { class: "search grow plugin-search" }, icon("search"), search)),
+                h("div", { class: "panel-head wrap" }, h("h2", { text: "Find more" }), h("span", { class: "spacer" }), h("div", { class: "search grow plugin-search" }, icon("search"), search)),
                 h("div", { class: "panel-body stack" }, status, results)))]);
 
     // ── Installed ──

@@ -24,7 +24,7 @@ export default async function arkTab(host, { id, machine, server }) {
     // ── Mods (ASA) ──
     function paintMods() {
         if (state.kind !== "asa") {
-            append(clear(modsPanel), [h("div", { class: "panel-head" }, icon("puzzle"), h("h3", { text: "Mods" })),
+            append(clear(modsPanel), [h("div", { class: "panel-head" }, icon("puzzle"), h("h2", { text: "Mods" })),
                 h("div", { class: "panel-body" }, h("div", { class: "callout info" }, icon("info"), h("span", { text: "ARK: Survival Evolved loads Steam Workshop mods — use the Workshop tab." })))]);
             return;
         }
@@ -62,7 +62,7 @@ export default async function arkTab(host, { id, machine, server }) {
         }
         newId.addEventListener("keydown", e => { if (e.key === "Enter") add(); });
         append(clear(modsPanel), [
-            h("div", { class: "panel-head wrap" }, icon("puzzle"), h("h3", { text: "Mods" }), h("span", { class: "sub", text: "CurseForge · loaded top to bottom" }), h("span", { class: "spacer" }), save),
+            h("div", { class: "panel-head wrap" }, icon("puzzle"), h("h2", { text: "Mods" }), h("span", { class: "sub", text: "CurseForge · loaded top to bottom" }), h("span", { class: "spacer" }), save),
             h("div", { class: "panel-body stack" }, list,
                 editable ? h("div", { class: "row wrap" }, h("div", { class: "grow" }, newId), h("div", { class: "grow" }, newName), h("button", { class: "btn", onclick: add }, icon("plus"), "Add")) : null,
                 h("p", { class: "tiny faint", text: "Saved as -mods=… in the server's extra start parameters (Settings). The server downloads and updates the mods itself when it starts." })),
@@ -93,7 +93,7 @@ export default async function arkTab(host, { id, machine, server }) {
         }, "Couldn't leave the cluster") }, "Leave cluster") : null;
 
         append(clear(clusterPanel), [
-            h("div", { class: "panel-head wrap" }, icon("link"), h("h3", { text: "Cluster" }),
+            h("div", { class: "panel-head wrap" }, icon("link"), h("h2", { text: "Cluster" }),
                 h("span", { class: "sub", text: c.id ? `"${c.id}" · ${c.members.length} server${c.members.length === 1 ? "" : "s"}` : "Not in a cluster" })),
             h("div", { class: "panel-body stack" },
                 h("p", { class: "small muted", text: "Servers in one cluster share a folder, so players can upload a character, dinos and items at an obelisk or terminal and download them on another map." }),

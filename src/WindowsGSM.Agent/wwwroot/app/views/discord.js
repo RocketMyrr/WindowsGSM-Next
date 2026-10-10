@@ -40,7 +40,7 @@ export default async function discordBot(host, { scope }) {
         h("div", { class: "discord-layout" },
             h("div", { class: "stack loose" },
                 h("section", { class: "panel" },
-                    h("div", { class: "panel-head" }, h("h3", { text: "Connection" })),
+                    h("div", { class: "panel-head" }, h("h2", { text: "Connection" })),
                     h("div", { class: "panel-body stack" },
                         statusBox,
                         enabled,
@@ -50,7 +50,7 @@ export default async function discordBot(host, { scope }) {
                             field("Bot name", botName, { hint: "Renames the bot in Discord (Discord allows this twice an hour)." })),
                         post)),
                 h("section", { class: "panel" },
-                    h("div", { class: "panel-head" }, h("h3", { class: "grow", text: "Who can use it" }),
+                    h("div", { class: "panel-head" }, h("h2", { class: "grow", text: "Who can use it" }),
                         h("button", { class: "btn sm", onclick: () => editAdmin(null) }, icon("plus"), "Add someone")),
                     adminList),
                 h("div", { class: "row" }, h("span", { class: "spacer" }),
@@ -173,7 +173,7 @@ export default async function discordBot(host, { scope }) {
     function howTo() {
         const step = (n, title, text) => h("li", {}, h("b", { text: title }), h("span", { class: "small muted", text }));
         return h("section", { class: "panel subtle" },
-            h("div", { class: "panel-head" }, h("h3", { text: "Setting it up" })),
+            h("div", { class: "panel-head" }, h("h2", { text: "Setting it up" })),
             h("div", { class: "panel-body" },
                 h("ol", { class: "pair-steps" },
                     step(1, "Create a bot", "At discord.com/developers → New Application → Bot. Press Reset Token and paste it here."),

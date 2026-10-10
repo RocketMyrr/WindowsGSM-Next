@@ -27,6 +27,9 @@
     --accent: #3b82f6;
     --accent-strong: #5b95f8;
     --accent-ink: #ffffff;
+    /* Behind white text (buttons, badges): darker than --accent so it reads at 4.5:1 or more. */
+    --accent-fill: #2563eb;
+    --accent-fill-hover: #1d4ed8;
     --accent-text: #7fb0ff;
     --accent-soft: rgba(59, 130, 246, 0.16);
     --accent-line: rgba(59, 130, 246, 0.45);
@@ -42,10 +45,13 @@
     --green-line: rgba(45, 189, 110, 0.42);
     --cyan: #22b8cf;
     --cyan-soft: rgba(34, 184, 207, 0.14);
+    --cyan-text: #22b8cf;
     --amber: #f5a524;
     --amber-soft: rgba(245, 165, 36, 0.14);
+    --amber-text: #f5a524;
     --rose: #f0506e;
     --rose-soft: rgba(240, 80, 110, 0.14);
+    --rose-text: #f0506e;
     --sky: #60a5fa;
     --slate: #8089a0;
     --slate-soft: rgba(128, 137, 160, 0.15);
@@ -135,10 +141,13 @@
     --green-line: rgba(22, 163, 74, 0.38);
     --cyan: #0891b2;
     --cyan-soft: rgba(8, 145, 178, 0.10);
+    --cyan-text: #0e7490;
     --amber: #d97706;
     --amber-soft: rgba(217, 119, 6, 0.11);
+    --amber-text: #a3480b;
     --rose: #e11d48;
     --rose-soft: rgba(225, 29, 72, 0.09);
+    --rose-text: #be123c;
     --sky: #2563eb;
     --slate: #6b7280;
     --slate-soft: rgba(107, 114, 128, 0.12);
@@ -177,10 +186,13 @@
         --green-line: rgba(22, 163, 74, 0.38);
         --cyan: #0891b2;
         --cyan-soft: rgba(8, 145, 178, 0.10);
+        --cyan-text: #0e7490;
         --amber: #d97706;
         --amber-soft: rgba(217, 119, 6, 0.11);
+        --amber-text: #a3480b;
         --rose: #e11d48;
         --rose-soft: rgba(225, 29, 72, 0.09);
+        --rose-text: #be123c;
         --sky: #2563eb;
         --slate: #6b7280;
         --slate-soft: rgba(107, 114, 128, 0.12);
@@ -192,6 +204,10 @@
 }
 
 /* ── Accent colour (Your account → Appearance; blue is the default above). Light and dark each have their own shade. ── */
+:root[data-accent="violet"] { --accent-fill: #7c3aed; --accent-fill-hover: #6d28d9; }
+:root[data-accent="teal"] { --accent-fill: #0f766e; --accent-fill-hover: #115e59; }
+:root[data-accent="orange"] { --accent-fill: #c2410c; --accent-fill-hover: #9a3412; }
+:root[data-accent="rose"] { --accent-fill: #e11d48; --accent-fill-hover: #be123c; }
 :root[data-accent="violet"] { --accent: #8b5cf6; --accent-strong: #a07cf8; --accent-text: #b79cff; --accent-soft: rgba(139, 92, 246, 0.16); --accent-line: rgba(139, 92, 246, 0.45); }
 :root[data-theme="light"][data-accent="violet"] { --accent: #7c3aed; --accent-strong: #6d28d9; --accent-text: #6d28d9; --accent-soft: rgba(124, 58, 237, 0.10); --accent-line: rgba(124, 58, 237, 0.38); }
 :root[data-accent="teal"] { --accent: #14b8a6; --accent-strong: #2dd4bf; --accent-text: #5eead4; --accent-soft: rgba(20, 184, 166, 0.16); --accent-line: rgba(20, 184, 166, 0.45); }

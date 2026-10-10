@@ -33,12 +33,12 @@ export default async function notifications(host, { scope }) {
             h("div", {}, h("h1", { text: "Notifications" }), h("p", { text: "What happened while you weren't looking — and where else to send it." }))),
         h("div", { class: "notif-layout" },
             h("section", { class: "panel" },
-                h("div", { class: "panel-head wrap" }, h("h3", { class: "grow", text: "History" }), picker, filterBar),
+                h("div", { class: "panel-head wrap" }, h("h2", { class: "grow", text: "History" }), picker, filterBar),
                 list),
             h("div", { class: "stack loose" },
                 devicePanel(),
                 admin ? h("section", { class: "panel" },
-                    h("div", { class: "panel-head" }, h("h3", { class: "grow", text: "Send to Discord or a webhook" }),
+                    h("div", { class: "panel-head" }, h("h2", { class: "grow", text: "Send to Discord or a webhook" }),
                         owner ? h("button", { class: "btn sm primary", onclick: () => editChannel(null) }, icon("plus"), "Add") : null),
                     channelsBody) : null))]);
 
@@ -82,7 +82,7 @@ export default async function notifications(host, { scope }) {
 
     function devicePanel() {
         if (inDesktopApp) {
-            return h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h3", { text: "This computer" })),
+            return h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", { text: "This computer" })),
                 h("div", { class: "panel-body small muted", text: "The WindowsGSM app shows these as Windows notifications while its window is hidden. Turn them on or off from its tray icon's menu." }));
         }
         const supported = desktopSupported();
@@ -95,7 +95,7 @@ export default async function notifications(host, { scope }) {
                 if (on && !now) toast("Notifications are blocked", { type: "warn", text: "Allow them for this site in your browser's settings, then try again." });
             },
         });
-        return h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h3", { text: "This device" })), h("div", { class: "panel-body" }, t));
+        return h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", { text: "This device" })), h("div", { class: "panel-body" }, t));
     }
 
     // ── Channels ──

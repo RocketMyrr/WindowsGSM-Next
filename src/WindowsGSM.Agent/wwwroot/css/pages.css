@@ -6,7 +6,7 @@
 .stepper .step-num { width: 26px; height: 26px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--hover); color: var(--text-2); font-size: var(--fs-xs); font-weight: 750; }
 .stepper .step-num .ico { width: 14px; height: 14px; }
 .stepper li.active { color: var(--text); border-color: var(--accent-line); box-shadow: var(--glow-accent); }
-.stepper li.active .step-num { background: var(--accent); color: var(--accent-ink); }
+.stepper li.active .step-num { background: var(--accent-fill); color: var(--accent-ink); }
 .stepper li.done { color: var(--text-2); }
 .stepper li.done .step-num { background: var(--accent-soft); color: var(--accent-text); }
 
@@ -50,7 +50,7 @@
 .role-badge { display: inline-flex; height: 24px; align-items: center; padding: 0 10px; border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: 700; background: var(--slate-soft); color: var(--text-2); }
 .role-badge.owner { background: var(--grad-brand); color: var(--brand-ink); }
 .role-badge.admin { background: var(--violet-soft); color: var(--violet-text); }
-.role-badge.operator { background: var(--cyan-soft); color: var(--cyan); }
+.role-badge.operator { background: var(--cyan-soft); color: var(--cyan-text); }
 .role-badge.viewer { background: var(--accent-soft); color: var(--accent-text); }
 .disabled-row td { opacity: 0.55; }
 .table .tag { margin-left: 6px; }
@@ -88,9 +88,9 @@
 .health-stat.zero { opacity: 0.55; }
 .check-row > .ico { width: 20px; height: 20px; }
 .check-row.pass > .ico { color: var(--green-text); }
-.check-row.fail > .ico { color: var(--rose); }
-.check-row.warning > .ico { color: var(--amber); }
-.check-row.info > .ico { color: var(--cyan); }
+.check-row.fail > .ico { color: var(--rose-text); }
+.check-row.warning > .ico { color: var(--amber-text); }
+.check-row.info > .ico { color: var(--cyan-text); }
 .server-link { color: var(--text); }
 .server-link:hover { text-decoration: none; }
 
@@ -100,7 +100,7 @@
 .machine-pick select { min-width: 180px; }
 .machine-row .machine-icon { width: 36px; height: 36px; flex: none; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-text); }
 .machine-row .machine-icon .ico { width: 18px; height: 18px; }
-.machine-row.offline .machine-icon { background: var(--rose-soft); color: var(--rose); }
+.machine-row.offline .machine-icon { background: var(--rose-soft); color: var(--rose-text); }
 .machine-row-main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .machine-row-meters { display: grid; grid-template-columns: repeat(3, 96px); gap: 14px; }
 .machine-row .tag .dot { width: 6px; height: 6px; }
@@ -151,8 +151,8 @@
 .notif.unread:hover { background: var(--accent-soft); }
 .notif-icon { width: 30px; height: 30px; flex: none; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--raised); color: var(--text-2); }
 .notif-icon .ico { width: 15px; height: 15px; }
-.notif.bad .notif-icon { background: var(--rose-soft); color: var(--rose); }
-.notif.warn .notif-icon { background: var(--amber-soft); color: var(--amber); }
+.notif.bad .notif-icon { background: var(--rose-soft); color: var(--rose-text); }
+.notif.warn .notif-icon { background: var(--amber-soft); color: var(--amber-text); }
 .notif.good .notif-icon { background: var(--green-soft); color: var(--green-text); }
 .notif.info .notif-icon { background: var(--accent-soft); color: var(--accent-text); }
 .notif-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -171,7 +171,7 @@
 .channel-icon { width: 34px; height: 34px; flex: none; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-text); }
 .channel-icon.discord { background: rgba(88, 101, 242, 0.18); color: #8b95f8; }
 .channel-icon .ico { width: 16px; height: 16px; }
-.rose-text { color: var(--rose); }
+.rose-text { color: var(--rose-text); }
 .green-text { color: var(--green-text); }
 .uptime b { font-weight: 700; }
 .event-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; padding: 12px 14px; border: 1px solid var(--line-soft); border-radius: var(--r); background: var(--raised); }
@@ -195,7 +195,7 @@ label.checkline input { flex: none; }
 
 /* ── Game plugins ── */
 .plugins-page { margin-top: 18px; }
-.plugin-row.broken .plugin-icon { background: var(--rose-soft); color: var(--rose); }
+.plugin-row.broken .plugin-icon { background: var(--rose-soft); color: var(--rose-text); }
 .plugin-icon { width: 34px; height: 34px; flex: none; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--violet-soft); color: var(--violet-text); }
 .plugin-icon .ico { width: 16px; height: 16px; }
 .plugin-main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -206,7 +206,7 @@ label.checkline input { flex: none; }
 .plugin-card:hover { border-color: var(--line); }
 .plugin-desc { color: var(--text-2); line-height: 1.45; flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .plugin-meta { gap: 12px; }
-.plugin-meta .ico { width: 13px; height: 13px; color: var(--rose); vertical-align: -2px; }
+.plugin-meta .ico { width: 13px; height: 13px; color: var(--rose-text); vertical-align: -2px; }
 .install-more { margin-top: 16px; text-align: center; } .install-more .ico { width: 14px; height: 14px; vertical-align: -2px; }
 
 /* ── Schedules (fleet) ── */
@@ -222,7 +222,7 @@ label.checkline input { flex: none; }
 .sched-server-head:hover { text-decoration: none; color: var(--accent-text); }
 .sched-server-head .ico { width: 14px; height: 14px; color: var(--text-3); }
 .sched-line { display: flex; align-items: center; gap: 8px; padding: 3px 0 3px 36px; color: var(--text-2); }
-.sched-line .ico { width: 14px; height: 14px; color: var(--cyan); flex: none; }
+.sched-line .ico { width: 14px; height: 14px; color: var(--cyan-text); flex: none; }
 .sched-line.off { opacity: 0.55; }
 a.sched-line { text-decoration: none; border-radius: var(--r-sm); }
 a.sched-line:hover { color: var(--text); background: var(--hover); }
@@ -245,7 +245,7 @@ a.sched-line:hover { color: var(--text); background: var(--hover); }
 /* ── Logs ── */
 .logs-about { margin: 10px 0 12px; }
 .logs-layout { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: 16px; align-items: start; }
-.logs-side .panel-head h3 { font-size: var(--fs-sm); }
+.logs-side .panel-head h2, .logs-side .panel-head h3 { font-size: var(--fs-sm); }
 .logs-files { display: flex; flex-direction: column; max-height: 70vh; overflow-y: auto; padding: 4px; }
 .logs-file { appearance: none; background: none; border: 0; font: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 8px 10px; border-radius: var(--r-sm); color: var(--text-2); min-width: 0; }
 .logs-file:hover { background: var(--hover); color: var(--text); }
@@ -254,8 +254,8 @@ a.sched-line:hover { color: var(--text); background: var(--hover); }
 .logs-title { display: flex; flex-direction: column; min-width: 0; }
 .logs-viewer .search { width: min(260px, 100%); }
 .logs-text { margin: 0; height: 68vh; overflow: auto; padding: 12px 14px; background: var(--console-bg); color: var(--console-text); font: 12px/1.55 var(--font-mono); white-space: pre-wrap; word-break: break-word; border-top: 1px solid var(--line-soft); }
-.logs-line.bad { color: var(--rose); }
-.logs-line.warn { color: var(--amber); }
+.logs-line.bad { color: var(--rose-text); }
+.logs-line.warn { color: var(--amber-text); }
 .logs-status { padding: 8px 14px; border-top: 1px solid var(--line-soft); }
 @media (max-width: 860px) {
     .logs-layout { grid-template-columns: 1fr; }
@@ -263,7 +263,7 @@ a.sched-line:hover { color: var(--text); background: var(--hover); }
     .logs-text { height: 60vh; }
 }
 .sched-actions { flex: none; }
-.btn.danger-text { color: var(--rose); }
+.btn.danger-text { color: var(--rose-text); }
 .btn.danger-text:hover { background: var(--rose-soft); }
 
 /* Phones: a panel's subtitle goes under its title; a schedule's buttons go under its description. */
@@ -318,7 +318,7 @@ a.sched-line:hover { color: var(--text); background: var(--hover); }
 .perf-band { fill: var(--accent-soft); stroke: none; }
 .perf-target { stroke: var(--green); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.7; }
 .perf-now b { font-size: 1.15em; }
-.amber-text { color: var(--amber); }
+.amber-text { color: var(--amber-text); }
 
 /* Server → Minecraft: software cards, plugin/mod lists */
 .mc-flavors { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
@@ -376,7 +376,7 @@ a.sched-line:hover { color: var(--text); background: var(--hover); }
 .place-card:hover { background: var(--hover); }
 .place-card.active { border-color: var(--accent-line); background: var(--accent-soft); }
 .place-card b { display: block; }
-.place-card small { display: block; color: var(--text-3); font-size: var(--fs-xs); }
+.place-card small { display: block; color: var(--text-2); font-size: var(--fs-xs); }
 .place-card > .ico { flex: none; color: var(--text-2); }
 .place-box { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 14px; }
 .place-box > summary { cursor: pointer; display: flex; align-items: center; gap: 8px; list-style: none; font-weight: 600; }

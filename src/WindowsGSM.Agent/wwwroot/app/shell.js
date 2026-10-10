@@ -73,7 +73,10 @@ export function mountShell() {
     const pageBody = h("div", { class: "page-body", tabindex: "-1" });
     const content = h("main", { class: "content", id: "content" }, tipSlot, pageBody);
 
+    // First Tab stop: past the sidebar's links straight to the page (it only shows while focused).
+    const skip = h("a", { class: "skip-link", href: "#content", onclick: e => { e.preventDefault(); pageBody.focus(); } }, "Skip to content");
     const app = h("div", { class: "app" },
+        skip,
         sidebar,
         h("div", { class: "main" },
             h("header", { class: "topbar" }, menuToggle, crumbs, search, conn,

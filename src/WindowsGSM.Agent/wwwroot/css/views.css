@@ -29,7 +29,7 @@
 
 .attention { margin-bottom: 20px; border-radius: var(--r-lg); border: 1px solid color-mix(in srgb, var(--amber) 30%, var(--line-soft)); background: var(--surface); overflow: hidden; }
 .attention-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); background: linear-gradient(90deg, var(--amber-soft), transparent 60%); }
-.attention-head .ico { color: var(--amber); }
+.attention-head .ico { color: var(--amber-text); }
 .attention-head h2 { font-size: var(--fs-md); }
 .attention-head .count-badge { background: var(--amber); color: #1b1304; }
 .attention-list { display: flex; flex-direction: column; }
@@ -98,7 +98,7 @@
 .machine-card:focus-visible { outline: none; box-shadow: var(--glow-accent); border-color: var(--accent-line); }
 .machine-card.active { border-color: var(--accent-line); box-shadow: 0 0 0 1px var(--accent-line), var(--shadow-1); }
 .machine-card.offline { border-style: dashed; }
-.machine-card.offline .machine-icon { background: var(--rose-soft); color: var(--rose); }
+.machine-card.offline .machine-icon { background: var(--rose-soft); color: var(--rose-text); }
 .machine-card-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .machine-card-head b { display: block; font-size: var(--fs); }
 .machine-card-head .tiny { display: flex; align-items: center; gap: 4px; }
@@ -118,8 +118,10 @@
 .server-grid.list .machine-group .rule { display: none; }
 
 /* Servers on an offline machine: their last known state, dimmed. */
-.server-card.stale, .server-row.stale { opacity: 0.62; }
-.server-card.stale:hover, .server-row.stale:hover { opacity: 0.85; }
+/* A machine that's offline: its servers show what was last known. Greyed picture and a dashed edge — the text keeps
+   full contrast so it stays readable. */
+.server-card.stale { border-style: dashed; }
+.server-card.stale .game-tile, .server-row.stale .game-tile { opacity: 0.5; filter: grayscale(1); }
 
 @media (max-width: 1280px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 760px) {

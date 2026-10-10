@@ -54,7 +54,7 @@
 .sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
 .me-card { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: 0; border-radius: var(--r); background: transparent; color: var(--text); cursor: pointer; text-align: left; }
 .me-card:hover { background: var(--hover); }
-.avatar { width: 32px; height: 32px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--violet); color: #fff; font-weight: 750; font-size: 13px; text-transform: uppercase; }
+.avatar { width: 32px; height: 32px; flex: none; border-radius: 50%; display: grid; place-items: center; background: #7c3aed; color: #fff; font-weight: 750; font-size: 13px; text-transform: uppercase; }
 .me-card b { display: block; font-size: var(--fs-sm); }
 .me-card small { font-size: var(--fs-xs); color: var(--text-3); }
 
@@ -79,7 +79,7 @@
 .conn .dot { width: 7px; height: 7px; }
 .conn.live .dot { background: var(--st-running); }
 .conn.connecting .dot { background: var(--amber); }
-.conn.offline { color: var(--rose); border-color: color-mix(in srgb, var(--rose) 40%, transparent); }
+.conn.offline { color: var(--rose-text); border-color: color-mix(in srgb, var(--rose) 40%, transparent); }
 .conn.offline .dot { background: var(--rose); }
 
 .jobs-button, .bell-button { position: relative; }
@@ -92,7 +92,7 @@
 .page-head p { color: var(--text-2); margin-top: 4px; }
 .page-head .actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
 
-.offline-banner { display: flex; align-items: center; gap: 10px; padding: 10px 24px; background: var(--rose-soft); color: var(--rose); border-bottom: 1px solid color-mix(in srgb, var(--rose) 30%, transparent); font-size: var(--fs-sm); font-weight: 600; }
+.offline-banner { display: flex; align-items: center; gap: 10px; padding: 10px 24px; background: var(--rose-soft); color: var(--rose-text); border-bottom: 1px solid color-mix(in srgb, var(--rose) 30%, transparent); font-size: var(--fs-sm); font-weight: 600; }
 
 /* ─────────────────────────── Drawer ─────────────────────────── */
 
@@ -113,9 +113,9 @@
 .job-log { margin: 0; max-height: 180px; overflow: auto; padding: 10px; border-radius: var(--r-sm); background: var(--console-bg); color: var(--console-text); font-family: var(--font-mono); font-size: 11.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
 .job-icon { width: 30px; height: 30px; flex: none; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--raised); color: var(--text-2); }
 .job-icon .ico { width: 16px; height: 16px; }
-.job.running .job-icon { background: var(--cyan-soft); color: var(--cyan); }
+.job.running .job-icon { background: var(--cyan-soft); color: var(--cyan-text); }
 .job.succeeded .job-icon { background: var(--green-soft); color: var(--green-text); }
-.job.failed .job-icon, .job.cancelled .job-icon { background: var(--rose-soft); color: var(--rose); }
+.job.failed .job-icon, .job.cancelled .job-icon { background: var(--rose-soft); color: var(--rose-text); }
 
 .prompt-card { margin: 14px 18px; padding: 16px; border-radius: var(--r); border: 1px solid var(--violet-line); background: var(--violet-soft); display: flex; flex-direction: column; gap: 10px; }
 .prompt-card h3 { display: flex; align-items: center; gap: 8px; }
@@ -146,7 +146,9 @@
 .auth-art .features .ico { width: 14px; height: 14px; color: #7eaaf5; }
 .auth-form { display: grid; place-items: center; padding: 32px; background: var(--bg); }
 .auth-card { width: min(400px, 100%); display: flex; flex-direction: column; gap: 18px; animation: fade-up var(--t) var(--ease); }
-.auth-card h2 { font-size: var(--fs-xl); }
+.skip-link { position: fixed; left: 12px; top: 8px; z-index: 1000; padding: 8px 14px; border-radius: var(--r-sm); background: var(--accent-fill); color: #fff; font-weight: 600; transform: translateY(-200%); }
+.skip-link:focus, .skip-link:focus-visible { transform: none; text-decoration: none; }
+.auth-card h1, .auth-card h2 { font-size: var(--fs-xl); }
 .auth-card .lead { color: var(--text-2); margin-top: 6px; }
 .steps { display: flex; gap: 6px; }
 .steps span { height: 4px; flex: 1; border-radius: 4px; background: var(--hover); }

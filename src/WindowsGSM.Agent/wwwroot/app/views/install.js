@@ -33,7 +33,7 @@ export default async function install(host, { scope, query }) {
 
     function paintSteps(active) {
         clear(stepper).append(...["Choose a game", "Name & options", "Install"].map((label, i) =>
-            h("li", { class: [i < active && "done", i === active && "active"] }, h("span", { class: "step-num" }, i < active ? icon("check") : String(i + 1)), h("span", { text: label }))));
+            h("li", { class: [i < active && "done", i === active && "active"], "aria-current": i === active ? "step" : null }, h("span", { class: "step-num" }, i < active ? icon("check") : String(i + 1)), h("span", { text: label }))));
     }
 
     // ── Step 1 ──

@@ -94,7 +94,7 @@ export default async function logs(host, { query, scope }) {
         pre.addEventListener("scroll", () => { follow = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 24; });
 
         host.append(h("div", { class: "logs-layout" },
-            h("section", { class: "panel logs-side" }, h("div", { class: "panel-head" }, h("h3", { text: `${list.length} file${list.length === 1 ? "" : "s"}` })), side),
+            h("section", { class: "panel logs-side" }, h("div", { class: "panel-head" }, h("h2", { text: `${list.length} file${list.length === 1 ? "" : "s"}` })), side),
             h("section", { class: "panel logs-viewer" },
                 h("div", { class: "panel-head wrap" },
                     h("div", { class: "grow logs-title" }, title, meta),

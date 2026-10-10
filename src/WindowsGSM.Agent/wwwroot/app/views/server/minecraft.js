@@ -67,7 +67,7 @@ export default async function minecraftTab(host, { id, machine, server, scope })
         }
 
         append(clear(software), [
-            h("div", { class: "panel-head wrap" }, icon("box"), h("h3", { text: "Server software" }),
+            h("div", { class: "panel-head wrap" }, icon("box"), h("h2", { text: "Server software" }),
                 i ? h("span", { class: "sub", text: `${flavorName(i.flavor)} ${i.version}${i.build ? ` · build ${i.build}` : ""}${i.followLatest ? " · follows the newest version" : ""}` })
                   : h("span", { class: "sub", text: "Vanilla, as installed (updates take the newest Minecraft)" })),
             h("div", { class: "panel-body stack" },
@@ -83,7 +83,7 @@ export default async function minecraftTab(host, { id, machine, server, scope })
     function paintAddons() {
         const a = state.addons;
         if (!a) {
-            append(clear(addons), [h("div", { class: "panel-head" }, icon("puzzle"), h("h3", { text: "Plugins & mods" })),
+            append(clear(addons), [h("div", { class: "panel-head" }, icon("puzzle"), h("h2", { text: "Plugins & mods" })),
                 h("div", { class: "panel-body" }, h("div", { class: "callout info" }, icon("info"), h("span", { text: "Vanilla can't load plugins or mods. Install Paper or Purpur for plugins, or Fabric for mods." })))]);
             return;
         }
@@ -144,7 +144,7 @@ export default async function minecraftTab(host, { id, machine, server, scope })
         }, "Couldn't update") }, icon("update"), "Update all") : null;
 
         append(clear(addons), [
-            h("div", { class: "panel-head wrap" }, icon("puzzle"), h("h3", { text: a.kind === "plugin" ? "Plugins" : "Mods" }),
+            h("div", { class: "panel-head wrap" }, icon("puzzle"), h("h2", { text: a.kind === "plugin" ? "Plugins" : "Mods" }),
                 h("span", { class: "sub", text: `${a.folder}\\ · from Modrinth, for this Minecraft version` }), h("span", { class: "spacer" }), updateAll),
             h("div", { class: "panel-body stack" }, list,
                 canEdit ? h("div", { class: "search" }, icon("search"), box) : null,

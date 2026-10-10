@@ -10,7 +10,7 @@ export function setupBackupPanel(machine) {
     const base = `/machines/${encodeURIComponent(machine)}`;
     const body = h("div", { class: "panel-body stack" });
     const section = h("section", { class: "panel settings-section" },
-        h("div", { class: "panel-head" }, icon("save"), h("h3", { text: "Setup backup" }), h("span", { class: "sub", text: "WindowsGSM's own setup in one file" })),
+        h("div", { class: "panel-head" }, icon("save"), h("h2", { text: "Setup backup" }), h("span", { class: "sub", text: "WindowsGSM's own setup in one file" })),
         body);
     paint();
     return section;

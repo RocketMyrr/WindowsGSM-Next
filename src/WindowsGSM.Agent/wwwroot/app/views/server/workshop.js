@@ -24,12 +24,12 @@ export default async function workshopTab(host, { id, machine, key, server, scop
 
     host.append(h("div", { class: "split workshop-split" },
         h("section", { class: "panel" },
-            h("div", { class: "panel-head wrap" }, h("h3", { text: "Workshop mods" }), status, h("span", { class: "spacer" }),
+            h("div", { class: "panel-head wrap" }, h("h2", { text: "Workshop mods" }), status, h("span", { class: "spacer" }),
                 h("button", { class: "btn ghost sm", title: "Check Steam for newer versions", onclick: e => busy(e.currentTarget, async () => { await post(srv(machine, id, "/workshop/refresh")); await load(); }, "Couldn't reach Steam") }, icon("refresh")),
                 updateBtn),
             h("form", { class: "panel-body row workshop-add", onsubmit: e => { e.preventDefault(); add(); } }, h("div", { class: "grow" }, link), addBtn),
             list),
-        h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h3", { text: "Settings" })), settingsBody)));
+        h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", { text: "Settings" })), settingsBody)));
 
     async function load() {
         try { data = await get(srv(machine, id, "/workshop")); }

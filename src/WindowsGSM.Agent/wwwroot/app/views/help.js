@@ -230,7 +230,7 @@ export default async function help(host) {
                 else { ul = null; items.push(h("p", { text: p })); }
             }
             list.append(h("section", { class: "panel help-topic", id },
-                h("div", { class: "panel-head" }, icon(ico), h("h3", { text: title })),
+                h("div", { class: "panel-head" }, icon(ico), h("h2", { text: title })),
                 h("div", { class: "panel-body" }, ...items,
                     links.length ? h("div", { class: "row wrap help-links" }, ...links.map(link)) : null)));
         }

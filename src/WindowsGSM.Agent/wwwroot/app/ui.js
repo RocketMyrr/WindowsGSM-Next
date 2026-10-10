@@ -6,15 +6,23 @@ import { h, icon, clear, append } from "./dom.js";
 
 let toastHost = null;
 
+// The announcer is on the page from the start: screen readers only read out changes to a live region that already
+// exists, so one made together with the first toast would stay silent.
+function toastArea() {
+    if (!toastHost) {
+        toastHost = h("div", { class: "toasts", role: "status", "aria-live": "polite" });
+        document.body.append(toastHost);
+    }
+    return toastHost;
+}
+if (document.body) toastArea();
+
 /**
  * toast("Saved", { type: "good" | "bad" | "warn" | "info", text, action: {label, onClick}, timeout })
  * Errors stay up longer; everything can be clicked away.
  */
 export function toast(title, { type = "info", text = "", action = null, timeout } = {}) {
-    if (!toastHost) {
-        toastHost = h("div", { class: "toasts", role: "status", "aria-live": "polite" });
-        document.body.append(toastHost);
-    }
+    toastArea();
     const iconName = { good: "checkCircle", bad: "xCircle", warn: "warn", info: "info" }[type] || "info";
     const el = h("div", { class: ["toast", type] },
         icon(iconName),
@@ -347,11 +355,22 @@ function agoLabel(ms) {
 export function field(label, control, { hint, id, span, help } = {}) {
     const fid = id || control.id || "f-" + Math.random().toString(36).slice(2);
     control.id = fid;
-    const err = h("div", { class: "error", hidden: true });
+    const err = h("div", { class: "error", id: fid + "-error", hidden: true });
+    const hintEl = hint ? h("div", { class: "hint", id: fid + "-hint", text: hint }) : null;
     const helpBtn = help ? helpButton(label, help) : null;
     const labelRow = help ? h("div", { class: "label-row" }, h("label", { for: fid, text: label }), helpBtn) : h("label", { for: fid, text: label });
-    const el = h("div", { class: ["field", span && "span-all"] }, labelRow, helpBtn ? helpBtn.helpBox : null, control, hint ? h("div", { class: "hint", text: hint }) : null, err);
-    el.setError = (msg) => { err.textContent = msg || ""; err.hidden = !msg; el.classList.toggle("invalid", !!msg); };
+    const el = h("div", { class: ["field", span && "span-all"] }, labelRow, helpBtn ? helpBtn.helpBox : null, control, hintEl, err);
+    // Screen readers read the hint (and any error) with the field's name.
+    const describe = withError => {
+        const ids = [withError && err.id, hintEl && hintEl.id].filter(Boolean).join(" ");
+        if (ids) control.setAttribute("aria-describedby", ids); else control.removeAttribute("aria-describedby");
+    };
+    describe(false);
+    el.setError = (msg) => {
+        err.textContent = msg || ""; err.hidden = !msg; el.classList.toggle("invalid", !!msg);
+        if (msg) control.setAttribute("aria-invalid", "true"); else control.removeAttribute("aria-invalid");
+        describe(!!msg);
+    };
     return el;
 }
 
@@ -402,7 +421,7 @@ export async function busy(button, fn, errorTitle) {
 }
 
 export function empty(iconName, title, text, ...actions) {
-    return h("div", { class: "empty" }, icon(iconName), h("h3", { text: title }), text ? h("p", { text }) : null, actions.length ? h("div", { class: "row wrap" }, actions) : null);
+    return h("div", { class: "empty" }, icon(iconName), h("h2", { text: title }), text ? h("p", { text }) : null, actions.length ? h("div", { class: "row wrap" }, actions) : null);
 }
 
 export function loading(text = "Loading…") {

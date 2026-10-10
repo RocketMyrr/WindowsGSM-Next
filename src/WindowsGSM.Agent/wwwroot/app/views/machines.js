@@ -71,7 +71,7 @@ export default async function machines(host, { scope }) {
         h("div", { class: "stack loose" },
             linkPanel,
             h("section", { class: "panel" },
-                h("div", { class: "panel-head" }, h("h3", { text: "Controlled from this panel" })),
+                h("div", { class: "panel-head" }, h("h2", { text: "Controlled from this panel" })),
                 list),
             howItWorks())]);
 
@@ -93,7 +93,7 @@ export default async function machines(host, { scope }) {
         if (member) {
             const state = { Connected: ["good", "checkCircle", "Connected"], Connecting: ["info", "refresh", "Connecting…"], Offline: ["warn", "warn", "Can't reach the hub — retrying"] }[link.state] || ["warn", "warn", link.state];
             linkPanel.append(h("section", { class: "panel member-panel" },
-                h("div", { class: "panel-head" }, h("h3", { text: "This machine reports to a hub" })),
+                h("div", { class: "panel-head" }, h("h2", { text: "This machine reports to a hub" })),
                 h("div", { class: "panel-body stack" },
                     h("div", { class: ["callout", state[0]] }, icon(state[1]), h("div", { class: "grow" },
                         h("b", { text: `${state[2]} · ${link.hubName || "Hub"}` }),
@@ -253,13 +253,13 @@ export default async function machines(host, { scope }) {
             if (!body.hidden) url.focus();
         } }, icon("link"), h("span", { text: "Join a hub" }));
         return h("section", { class: "panel" },
-            h("div", { class: "panel-head" }, h("h3", { text: "Control this machine from another one" }), h("span", { class: "spacer" }), toggleButton),
+            h("div", { class: "panel-head" }, h("h2", { text: "Control this machine from another one" }), h("span", { class: "spacer" }), toggleButton),
             body);
     }
 
     function howItWorks() {
         return h("section", { class: "panel subtle" },
-            h("div", { class: "panel-head" }, h("h3", { text: "How it works" })),
+            h("div", { class: "panel-head" }, h("h2", { text: "How it works" })),
             h("div", { class: "panel-body how-grid" },
                 how("machine", "One panel, many machines", "Pick one machine as the hub. Others join it and show up here with their servers."),
                 how("shield", "Your permissions follow you", "What people can do on each machine's servers is set here, on the hub, under Users & access."),

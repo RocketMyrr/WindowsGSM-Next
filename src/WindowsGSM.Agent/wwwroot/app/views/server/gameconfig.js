@@ -76,7 +76,7 @@ export default async function gameConfigTab(host, { id, machine, key, scope }) {
         append(clear(editor), [
             h("div", { class: "panel-head wrap" },
                 h("div", { class: "grow" },
-                    h("h3", { text: file?.label || current.path.split("/").pop() }),
+                    h("h2", { text: file?.label || current.path.split("/").pop() }),
                     h("div", { class: "small faint mono truncate", text: `${current.path} · ${current.format} · edited ${timeAgo(current.modified)}` })),
                 h("div", { class: "search" }, icon("search"), search),
                 h("button", { class: "btn sm", title: "Earlier versions of this file — compare or put one back", onclick: () => historyDialog({ machine, id, path: current.path, title: "History", onRestored: () => open(current.path) }) }, icon("clock"), "History"),

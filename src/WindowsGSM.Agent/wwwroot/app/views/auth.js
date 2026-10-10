@@ -17,7 +17,8 @@ function frame(root, card) {
             h("div", { class: "features" },
                 ...[["zap", "Live console & stats"], ["update", "DepotDownloader updates"], ["backup", "Safe backups"], ["shield", "Roles & 2FA"], ["machine", "Multi-machine ready"]]
                     .map(([i, t]) => h("span", {}, icon(i), t)))),
-        h("section", { class: "auth-form" }, card)));
+        // The brand side is decoration (hidden from screen readers); the form is the page.
+        h("main", { class: "auth-form" }, card)));
 }
 
 function errorBox() {
@@ -60,7 +61,7 @@ export async function login(root, { query }) {
     }) }, icon("key"), "Sign in with a passkey") : null;
 
     const form = h("form", { class: "auth-card", novalidate: true },
-        h("div", {}, h("h2", { text: "Welcome back" }), h("p", { class: "lead", text: info ? `Sign in to ${info.machineName}.` : "Sign in to continue." })),
+        h("div", {}, h("h1", { text: "Welcome back" }), h("p", { class: "lead", text: info ? `Sign in to ${info.machineName}.` : "Sign in to continue." })),
         err,
         field("Username", username),
         field("Password", password),
@@ -96,7 +97,7 @@ export async function setup(root) {
     if (!info.setupRequired) { navigate("/login", { replace: true }); return; }
     document.title = "Set up · WindowsGSM";
 
-    const steps = h("div", { class: "steps" }, h("span", { class: "done" }), h("span"));
+    const steps = h("div", { class: "steps", role: "img", "aria-label": "Step 1 of 2" }, h("span", { class: "done" }), h("span"));
     const username = input({ autocomplete: "username", value: "", autofocus: true });
     const password = input({ type: "password", autocomplete: "new-password" });
     const confirmPw = input({ type: "password", autocomplete: "new-password" });
@@ -111,7 +112,7 @@ export async function setup(root) {
 
     const form = h("form", { class: "auth-card", novalidate: true },
         steps,
-        h("div", {}, h("h2", { text: "Set up WindowsGSM" }), h("p", { class: "lead", text: "Create the owner account. The owner can manage everything, including other people's access." })),
+        h("div", {}, h("h1", { text: "Set up WindowsGSM" }), h("p", { class: "lead", text: "Create the owner account. The owner can manage everything, including other people's access." })),
         err,
         field("Your name", username, { hint: "What you'll sign in with." }),
         pwField,
