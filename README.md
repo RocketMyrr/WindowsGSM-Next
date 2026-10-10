@@ -14,7 +14,7 @@ WindowsGSM Next is the rebuild of [WindowsGSM](https://github.com/WindowsGSM/Win
 whether or not any window is open, every existing game plugin keeps working, and your current WindowsGSM folder —
 servers, backups, accounts, schedules, Discord bot — carries straight over.
 
-> **Status: 2.0.0-beta.1 (pre-release).** Everything planned for 2.0 is in; from here on it's fixes. Settings files
+> **Status: 2.0.0-beta.2 (pre-release).** Everything planned for 2.0 is in; from here on it's fixes. Settings files
 > are stable: later versions read them as they are. Keep backups, and try it on a copy of your WindowsGSM folder
 > first if you're switching from the old app. What changed in each version: [CHANGELOG.md](CHANGELOG.md). Problems
 > we already know about, with ways around them: [Known issues](docs/KNOWN-ISSUES.md).

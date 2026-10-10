@@ -3,7 +3,10 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
-## Unreleased
+## 2.0.0-beta.2
+
+Fixes and polish on the way to 2.0: reporting problems is built in, the panel is easier to read and to use
+with a keyboard or screen reader, and the app on the same PC connects to the agent instantly.
 
 - **Report a problem** in Help, Health checks and the Ctrl K search opens GitHub's bug-report form with your
   version filled in. Nothing is sent from the app; you write and submit the report on GitHub.
@@ -14,6 +17,7 @@ notes on GitHub, and the "What's new" text the app shows before you update.
   readable (dashed edge, grey picture) instead of fading out; a *Skip to content* link; form hints and errors are
   read out with their field; the install steps say which one you're on; headings run in order; small controls
   have bigger click areas; and switching a server's tabs keeps focus on the tabs.
+- Updated libraries: Discord.Net (the bot), Fido2 (passkeys) and the AWS S3 client (off-site backups).
 - A [Known issues](docs/KNOWN-ISSUES.md) page: what's stable in the beta, how to go back a version, and known
   problems with ways around them.
 

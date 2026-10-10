@@ -13,7 +13,7 @@
     <Nullable>disable</Nullable>
 
     <Version>2.0.0</Version>
-    <VersionSuffix>beta.1</VersionSuffix>
+    <VersionSuffix>beta.2</VersionSuffix>
     <Product>WindowsGSM</Product>
     <Company>WindowsGSM</Company>
     <Copyright>WindowsGSM contributors</Copyright>
