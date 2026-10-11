@@ -304,6 +304,10 @@ The plugin-compatibility tests compile every community plugin in the legacy repo
 folder sits next to (or above) this repository, or wherever `WGSM_PLUGIN_KIT` points; without it they're skipped.
 Every push to `main` is built and tested by GitHub Actions (`.github/workflows/ci.yml`).
 
+Some agent tests run against real servers rather than stand-ins: Pebble (Let's Encrypt's test server) for HTTPS
+certificates and SeaweedFS for S3 off-site backups. `.\tools\Get-TestTools.ps1` fetches both (pinned, checksum
+checked); without them those tests are skipped locally. CI always runs them.
+
 ### Long-running test
 
 `tools\Soak-Test.ps1` runs the agent for days and reports anything that keeps growing: memory, handles, threads,

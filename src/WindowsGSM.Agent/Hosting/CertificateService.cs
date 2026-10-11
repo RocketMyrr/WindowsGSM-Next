@@ -33,6 +33,20 @@ public sealed class CertificateService : IAsyncDisposable
         _log = log;
     }
 
+    /// <summary>
+    /// NEXT: tests only — a test ACME server (Pebble) instead of Let's Encrypt, the client that trusts it, and the
+    /// port it validates on. The challenge listener then listens on this PC only, with no firewall rule.
+    /// </summary>
+    internal sealed record AcmeTestServer(Uri Directory, HttpClient Http, int ChallengePort);
+
+    internal AcmeTestServer? TestServer
+    {
+        get => _test;
+        init { _test = value; _acme.DirectoryOverride = value?.Directory; _acme.HttpOverride = value?.Http; }
+    }
+    private readonly AcmeTestServer? _test;
+    private int ChallengePort => _test?.ChallengePort ?? 80;
+
     /// <summary>The certificate every TLS handshake uses (swapped in place on renewal).</summary>
     public X509Certificate2? Current { get; private set; }
 
@@ -167,12 +181,17 @@ public sealed class CertificateService : IAsyncDisposable
     {
         if (_challengeHost == null)
         {
-            string? hint = await Firewall.EnsureAsync(Firewall.AcmeRule, 80);
-            if (hint != null) { _log(hint); }
+            if (_test == null)
+            {
+                string? hint = await Firewall.EnsureAsync(Firewall.AcmeRule, 80);
+                if (hint != null) { _log(hint); }
+            }
 
             var builder = WebApplication.CreateSlimBuilder();
             builder.Logging.ClearProviders();
-            builder.WebHost.ConfigureKestrel(o => o.Listen(IPAddress.Any, 80));
+            // IPv6 too: Let's Encrypt checks over IPv6 when the domain has an AAAA record, and an IPv4-only listener
+            // then fails validation even with port 80 forwarded. (Tests: this PC only, both loopbacks.)
+            builder.WebHost.ConfigureKestrel(o => { if (_test == null) { o.ListenAnyIP(ChallengePort); } else { o.ListenLocalhost(ChallengePort); } });
             var app = builder.Build();
             app.MapGet("/.well-known/acme-challenge/{token}", (string token) =>
                 _challenges.TryGetValue(token, out var keyAuthz) ? Results.Text(keyAuthz, "text/plain") : Results.NotFound());
@@ -199,7 +218,7 @@ public sealed class CertificateService : IAsyncDisposable
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-            var res = await http.GetAsync($"http://127.0.0.1:80/.well-known/acme-challenge/{probe}");
+            var res = await http.GetAsync($"http://127.0.0.1:{ChallengePort}/.well-known/acme-challenge/{probe}");
             if (res.IsSuccessStatusCode) { return true; }
             _log($"The Let's Encrypt challenge listener answered {(int)res.StatusCode} instead of 200 — something is intercepting port 80.");
             return false;

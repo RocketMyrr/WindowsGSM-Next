@@ -45,7 +45,23 @@ jobs:
       - name: Core tests
         run: dotnet test tests/WindowsGSM.Core.Tests -c Release --no-build --nologo --blame-hang-timeout 10m --logger trx --results-directory TestResults/core
 
+      # Real servers some agent tests talk to: Pebble (Let's Encrypt's test server) and SeaweedFS (S3). Pinned and
+      # checksum-checked by the script; kept between runs.
+      - name: Test tools cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/wgsm-test-tools
+          key: test-tools-${{ hashFiles('tools/Get-TestTools.ps1') }}
+
+      - name: Test tools
+        shell: pwsh
+        run: ./tools/Get-TestTools.ps1 -Dir "${{ runner.temp }}/wgsm-test-tools"
+
+      # Here the tools must be there: a missing one fails its tests instead of skipping them.
       - name: Agent tests
+        env:
+          WGSM_TEST_TOOLS: ${{ runner.temp }}/wgsm-test-tools
+          WGSM_REQUIRE_TEST_TOOLS: "1"
         run: dotnet test tests/WindowsGSM.Agent.Tests -c Release --no-build --nologo --blame-hang-timeout 10m --logger trx --results-directory TestResults/agent
 
       - name: Keep the test results

@@ -3,6 +3,12 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## Unreleased
+
+- **Let's Encrypt:** renewing or re-issuing soon after a successful one no longer fails ("Cannot update challenge
+  with status valid") — an approval Let's Encrypt still remembers is used as it is.
+- **Let's Encrypt:** the port-80 check also answers over IPv6, so a domain with an IPv6 (AAAA) record validates.
+
 ## 2.0.0-beta.2
 
 Fixes and polish on the way to 2.0: reporting problems is built in, the panel is easier to read and to use

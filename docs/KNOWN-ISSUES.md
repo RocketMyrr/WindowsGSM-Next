@@ -10,8 +10,9 @@ Problems we already know about in WindowsGSM Next, with ways around them. If you
 
 - **Stable:** WindowsGSM's settings files. Later versions read them as they are, and every release is tested
   against data saved by earlier ones. Your game servers' own files are never changed by an update.
-- **Least tested so far,** so worth extra care: several PCs with a hub, off-site backups to S3-compatible
-  storage, and HTTPS with Let's Encrypt.
+- **Least tried by people so far,** so worth extra care: several PCs with a hub, off-site backups to
+  S3-compatible storage, and HTTPS with Let's Encrypt. Each is tested automatically against the real thing (two
+  agents, a real S3 server, Let's Encrypt's test server), but real setups vary more.
 - **Going back:** Agent settings → Updates → *Go back to <version>* returns to the version you had before the
   last update. Game servers keep running.
 - **Before switching from WindowsGSM 1.x:** try it on a copy of your WindowsGSM folder first, and keep backups.

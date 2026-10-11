@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using Certes;
@@ -30,6 +31,10 @@ namespace WindowsGSM.Agent.Hosting
 
         /// <summary>Human-readable reason the last obtain/renew attempt failed, or null if it succeeded.</summary>
         public string LastError { get; private set; }
+
+        /// <summary>NEXT: tests only — another ACME server (Pebble) and the client that trusts its certificate.</summary>
+        internal Uri DirectoryOverride { get; set; }
+        internal HttpClient HttpOverride { get; set; }
 
         private static string AccountKeyPath(string configDir) => Path.Combine(configDir, "acme-account.pem");
         private static string PfxPath(string configDir, string domain) => Path.Combine(configDir, $"acme-{SanitizeForFilename(domain)}.pfx");
@@ -105,17 +110,18 @@ namespace WindowsGSM.Agent.Hosting
                 if (string.IsNullOrWhiteSpace(domain)) { LastError = "No domain configured."; return null; }
                 if (string.IsNullOrWhiteSpace(email)) { LastError = "An email address is required for the Let's Encrypt account."; return null; }
 
-                Uri serverUri = staging ? WellKnownServers.LetsEncryptStagingV2 : WellKnownServers.LetsEncryptV2;
+                Uri serverUri = DirectoryOverride ?? (staging ? WellKnownServers.LetsEncryptStagingV2 : WellKnownServers.LetsEncryptV2);
+                IAcmeHttpClient http = HttpOverride != null ? new AcmeHttpClient(serverUri, HttpOverride) : null;
                 AcmeContext acme;
                 string accountKeyPath = AccountKeyPath(configDir);
                 if (File.Exists(accountKeyPath))
                 {
                     var key = KeyFactory.FromPem(File.ReadAllText(accountKeyPath));
-                    acme = new AcmeContext(serverUri, key);
+                    acme = new AcmeContext(serverUri, key, http);
                 }
                 else
                 {
-                    acme = new AcmeContext(serverUri);
+                    acme = new AcmeContext(serverUri, null, http);
                     await acme.NewAccount(email, true);
                     System.IO.Directory.CreateDirectory(configDir);
                     File.WriteAllText(accountKeyPath, acme.AccountKey.ToPem());
@@ -124,45 +130,24 @@ namespace WindowsGSM.Agent.Hosting
                 var order = await acme.NewOrder(new[] { domain });
                 var authorizations = await order.Authorizations();
                 var authz = authorizations.First();
-                var httpChallenge = await authz.Http();
-                if (httpChallenge == null)
+                // NEXT: the CA can reuse a recent successful validation for the domain (Let's Encrypt does, for a
+                // while after one): the authorization is already valid, and asking to validate it again is refused
+                // ("Cannot update challenge with status valid") — which failed renewals and re-issues.
+                if ((await authz.Resource()).Status != AuthorizationStatus.Valid && await ValidateAsync(authz, domain, challengeStore) is { } failure)
                 {
-                    LastError = "Let's Encrypt didn't offer an HTTP-01 challenge for this domain.";
-                    return null;
-                }
-
-                challengeStore[httpChallenge.Token] = httpChallenge.KeyAuthz;
-                Challenge status;
-                try
-                {
-                    await httpChallenge.Validate();
-
-                    status = null;
-                    for (int i = 0; i < 30; i++)
-                    {
-                        await Task.Delay(2000);
-                        status = await httpChallenge.Resource();
-                        if (status.Status == ChallengeStatus.Valid || status.Status == ChallengeStatus.Invalid) { break; }
-                    }
-                }
-                finally
-                {
-                    challengeStore.TryRemove(httpChallenge.Token, out _);
-                }
-
-                if (status == null || status.Status != ChallengeStatus.Valid)
-                {
-                    string detail = status?.Error?.Detail;
-                    LastError = "Domain validation failed" + (string.IsNullOrEmpty(detail) ? "." : $": {detail}") +
-                        " Check that port 80 is forwarded to this machine from the internet and that " +
-                        $"{domain}'s DNS A record points at this server's public IP.";
+                    LastError = failure;
                     return null;
                 }
 
                 var certKey = KeyFactory.NewKey(KeyAlgorithm.RS256);
                 var certChain = await order.Generate(new CsrInfo { CommonName = domain }, certKey);
 
-                byte[] pfxBytes = certChain.ToPfx(certKey).Build(domain, PfxPassword);
+                // NEXT: the full chain up to a root Certes knows (Let's Encrypt's); for any other CA (a test one) the
+                // certificate and the intermediates the ACME server sent.
+                var pfx = certChain.ToPfx(certKey);
+                byte[] pfxBytes;
+                try { pfxBytes = pfx.Build(domain, PfxPassword); }
+                catch (Exception) when (DirectoryOverride != null) { pfx.FullChain = false; pfxBytes = pfx.Build(domain, PfxPassword); }
                 System.IO.Directory.CreateDirectory(configDir);
                 File.WriteAllBytes(PfxPath(configDir, domain), pfxBytes);
 
@@ -174,6 +159,44 @@ namespace WindowsGSM.Agent.Hosting
                 LastError = ex.Message;
                 return null;
             }
+        }
+
+        /// <summary>Answers the HTTP-01 challenge and waits for the CA's verdict. Null when valid, or why not.</summary>
+        private static async Task<string> ValidateAsync(IAuthorizationContext authz, string domain, ConcurrentDictionary<string, string> challengeStore)
+        {
+            var httpChallenge = await authz.Http();
+            if (httpChallenge == null)
+            {
+                return "Let's Encrypt didn't offer an HTTP-01 challenge for this domain.";
+            }
+
+            challengeStore[httpChallenge.Token] = httpChallenge.KeyAuthz;
+            Challenge status;
+            try
+            {
+                await httpChallenge.Validate();
+
+                status = null;
+                for (int i = 0; i < 30; i++)
+                {
+                    await Task.Delay(2000);
+                    status = await httpChallenge.Resource();
+                    if (status.Status == ChallengeStatus.Valid || status.Status == ChallengeStatus.Invalid) { break; }
+                }
+            }
+            finally
+            {
+                challengeStore.TryRemove(httpChallenge.Token, out _);
+            }
+
+            if (status == null || status.Status != ChallengeStatus.Valid)
+            {
+                string detail = status?.Error?.Detail;
+                return "Domain validation failed" + (string.IsNullOrEmpty(detail) ? "." : $": {detail}") +
+                    " Check that port 80 is forwarded to this machine from the internet and that " +
+                    $"{domain}'s DNS A record points at this server's public IP.";
+            }
+            return null;
         }
     }
 }
