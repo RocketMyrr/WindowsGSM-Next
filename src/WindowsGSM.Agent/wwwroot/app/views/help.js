@@ -184,8 +184,9 @@ const TOPICS = [
         "Found a security problem? Don't post it publicly: use \"Report a vulnerability\" on the repository's Security tab.",
     ], [[KNOWN_ISSUES_URL, "Known issues"], [() => reportUrl(), "Report a problem"], ["/health", "Health checks"]]],
 
-    ["machines", "Several machines", "machine", "hub machine multi remote agent connect", [
+    ["machines", "Several machines", "machine", "hub machine multi remote agent connect version update mixed older", [
         "Each PC runs the agent. One of them can be the hub: the others connect to it, and you manage every server from one panel. A machine that goes offline keeps running its servers; the hub shows what it last knew.",
+        "Machines on different WindowsGSM versions keep working together. A machine that can update shows \"Update to …\" on the Machines page (and in Needs attention); Update all updates every one that can, and game servers keep running. A feature newer than a machine's version says so on that machine, until it's updated.",
     ], [["/machines", "Machines"]]],
 
     ["agent", "The agent (keeping it running)", "activity", "agent start stop restart windows startup service desktop tray signed in", [

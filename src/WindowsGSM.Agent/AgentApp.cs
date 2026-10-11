@@ -272,7 +272,14 @@ public static class AgentApp
         _ = app.Services.GetRequiredService<GamePerformance>(); // asks games for server FPS / TPS each minute
         app.Services.GetRequiredService<UpdateWatch>().Start();
         _ = app.Services.GetRequiredService<RestartWarnings>();
-        _ = app.Services.GetRequiredService<SelfUpdate>();
+        // A hub tells about its other machines' updates too (when it checks, and when one connects).
+        var selfUpdate = app.Services.GetRequiredService<SelfUpdate>();
+        {
+            var registry = app.Services.GetRequiredService<Hub.MachineRegistry>();
+            var links = app.Services.GetRequiredService<Hub.HubLinks>();
+            selfUpdate.OtherMachines = () => registry.All().Where(m => links.IsOnline(m.Id)).Select(m => (m.Id, m.Name, links.VersionOf(m.Id) ?? m.Version)).ToList();
+            links.Connected += _ => selfUpdate.AnnounceOthers();
+        }
         _ = app.Services.GetRequiredService<Automations>(); // starts watching
         _ = app.Services.GetRequiredService<PortForwarding>(); // forwards router ports as servers start
         engine.Lifecycle.PreStartSteps.Add(new WorkshopBeforeStart(app.Services.GetRequiredService<Workshop>()));

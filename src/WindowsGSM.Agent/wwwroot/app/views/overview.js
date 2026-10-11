@@ -205,6 +205,16 @@ export default async function overview(host, { scope, query }) {
                 text: `${m.lastSeen ? "Last seen " + timeAgo(m.lastSeen) + ". " : ""}Its servers show their last known state until it reconnects.`,
                 action: store.me.canManageUsers ? ["Machines", () => navigate("/machines")] : null });
         }
+        // WindowsGSM itself: a newer release for this PC or (on a hub) others — machines on different versions keep
+        // working together, but newer features need the newer version everywhere.
+        const behind = store.me.canManageUsers ? [...store.machines.values()].filter(m => m.updateTo && (!focus || focus === m.id)) : [];
+        if (behind.length) {
+            const others = behind.filter(m => !m.isLocal);
+            items.push({ tone: "violet", icon: "update",
+                title: behind.length === 1 ? (store.multiMachine ? `${behind[0].name} can update to WindowsGSM ${behind[0].updateTo}` : `WindowsGSM ${behind[0].updateTo} is available`) : `${behind.length} machines can update WindowsGSM`,
+                text: (behind.length > 1 ? behind.map(m => m.name).join(", ") + ". " : "") + "Game servers keep running while it updates.",
+                action: others.length ? ["Machines", () => navigate("/machines")] : ["Update", () => navigate("/settings")] });
+        }
         for (const p of [...store.prompts.values()].filter(inScope)) {
             items.push({ tone: "violet", icon: "help", title: "A job is waiting for your answer", text: p.title, action: ["Answer", () => openJobs()] });
         }

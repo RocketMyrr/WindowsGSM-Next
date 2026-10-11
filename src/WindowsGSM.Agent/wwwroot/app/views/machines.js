@@ -116,16 +116,24 @@ export default async function machines(host, { scope }) {
         if (all.length === 1) list.append(h("div", { class: "list-item small faint" }, icon("info"), h("span", { text: link?.joined ? "Other machines are added on the hub." : "Only this machine so far. Add another to see its servers here too." })));
     }
 
+    function openUpdates(m) {
+        if (m.online === false) { toast(`${m.name} is offline`, { type: "warn", text: "Its updates can be installed once it reconnects." }); return; }
+        modal({ title: `${m.name} — updates`, iconName: "update", wide: true, body: updatesPanel(m.id, null), footer: close => [h("button", { class: "btn primary", onclick: () => close(true) }, "Close")] });
+    }
+
     function machineRow(m) {
         const on = m.online !== false;
         const mm = on ? m.metrics : null;
         const status = m.isLocal ? h("span", { class: "tag accent", text: "This machine" })
             : on ? h("span", { class: "tag green" }, h("span", { class: "dot st-running" }), "Online")
                 : h("span", { class: "tag rose" }, h("span", { class: "dot st-bad" }), "Offline");
+        // A newer WindowsGSM is out for this machine (machines on different versions keep working together).
+        const update = m.updateTo ? h("button", { class: "tag chip amber", title: `Runs ${m.version.replace(/^v/i, "")} — open its updates`, onclick: () => openUpdates(m) },
+            icon("update"), `Update to ${m.updateTo}`) : null;
         return h("div", { class: ["list-item machine-row", !on && "offline"] },
             h("span", { class: "machine-icon" }, icon("machine")),
             h("div", { class: "grow machine-row-main" },
-                h("div", { class: "row wrap" }, h("b", { class: "truncate", text: m.name }), status),
+                h("div", { class: "row wrap" }, h("b", { class: "truncate", text: m.name }), status, update),
                 h("div", { class: "small muted" }, [
                     `${m.serverCount} server${m.serverCount === 1 ? "" : "s"}`,
                     m.version ? "v" + m.version.replace(/^v/i, "") : null,
@@ -139,7 +147,7 @@ export default async function machines(host, { scope }) {
             h("button", { class: "btn ghost sm icon-only", "aria-label": `Actions for ${m.name}`, "aria-haspopup": "menu", onclick: e => showMenu(e.currentTarget, [
                 { label: "Show its servers", icon: "grid", onClick: () => navigate(store.multiMachine ? "/?machine=" + encodeURIComponent(m.id) : "/") },
                 { label: "Performance history", icon: "activity", disabled: !on, onClick: () => machineHistoryDialog(m) },
-                { label: "Updates…", icon: "update", disabled: !on, onClick: () => modal({ title: `${m.name} — updates`, iconName: "update", wide: true, body: updatesPanel(m.id, null), footer: close => [h("button", { class: "btn primary", onclick: () => close(true) }, "Close")] }) },
+                { label: "Updates…", icon: "update", disabled: !on, onClick: () => openUpdates(m) },
                 { label: "Health checks", icon: "checkCircle", disabled: !on, onClick: () => navigate("/health?machine=" + encodeURIComponent(m.id)) },
                 { label: "Logs", icon: "logs", disabled: !on, onClick: () => navigate("/logs?machine=" + encodeURIComponent(m.id)) },
                 ...(m.isLocal || !owner ? [] : ["-",

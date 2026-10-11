@@ -13,8 +13,9 @@ public sealed record JobAccepted(string JobId, JobDto Job);
 
 // ── Machines ──
 
+/// <param name="UpdateTo">A newer WindowsGSM release this machine can update to, when the hub knows of one.</param>
 public sealed record MachineDto(string Id, string Name, bool IsLocal, bool Online, string Version, DateTimeOffset? LastSeen,
-    HostMetricsDto? Metrics, int ServerCount);
+    HostMetricsDto? Metrics, int ServerCount, string? UpdateTo = null);
 
 public sealed record HostMetricsDto(double CpuPercent, double RamPercent, double RamTotalGb, double DiskPercent, double DiskTotalGb,
     int Cores, string? CpuName, DateTimeOffset At);

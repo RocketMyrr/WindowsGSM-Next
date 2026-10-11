@@ -241,6 +241,44 @@ public class HubTests
     }
 
     [Fact]
+    public async Task A_machine_that_can_update_is_flagged_and_announced_on_the_hub()
+    {
+        var update = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<WindowsGSM.Agent.Hosting.SelfUpdate>(_f.App.Services);
+        var (link, _) = await PairAndConnect();
+        try
+        {
+            // A newer release than every machine here: both this PC and the other one can update to it.
+            update.FeedOverride = _ => Task.FromResult<IReadOnlyList<WindowsGSM.Agent.Hosting.AppRelease>>(new[]
+                { new WindowsGSM.Agent.Hosting.AppRelease("99.0.0", "99.0.0", null, "https://feed/x.zip", null, 1, null, false) });
+            await update.CheckAsync();
+            var machines = await _f.Owner.GetJsonAsync<List<MachineDto>>("/api/v2/machines");
+            Assert.Equal("99.0.0", machines.Single(m => m.Id == Remote).UpdateTo);
+            Assert.Equal("99.0.0", machines.Single(m => m.IsLocal).UpdateTo);
+            Assert.Equal("99.0.0", (await _f.Owner.GetJsonAsync<MachineDto>($"/api/v2/machines/{Remote}")).UpdateTo);
+
+            // The hub's own bell says so for the other machine — once per release, however often it checks.
+            await update.CheckAsync();
+            var notes = await _f.Owner.GetJsonAsync<JsonElement>("/api/v2/notifications?limit=50");
+            var about = (notes.ValueKind == JsonValueKind.Array ? notes : notes.GetProperty("items")).EnumerateArray()
+                .Where(n => n.GetProperty("title").GetString() == "Remote Box can update to WindowsGSM 99.0.0").ToList();
+            Assert.Single(about);
+            Assert.Equal(Remote, about[0].GetProperty("machine").GetString());
+
+            // Nothing newer: nothing flagged.
+            update.FeedOverride = _ => Task.FromResult<IReadOnlyList<WindowsGSM.Agent.Hosting.AppRelease>>(Array.Empty<WindowsGSM.Agent.Hosting.AppRelease>());
+            await update.CheckAsync();
+            Assert.All(await _f.Owner.GetJsonAsync<List<MachineDto>>("/api/v2/machines"), m => Assert.Null(m.UpdateTo));
+        }
+        finally
+        {
+            update.FeedOverride = _ => Task.FromResult<IReadOnlyList<WindowsGSM.Agent.Hosting.AppRelease>>(Array.Empty<WindowsGSM.Agent.Hosting.AppRelease>());
+            await update.CheckAsync();
+            await _f.Owner.DeleteAsync($"/api/v2/hub/machines/{Remote}");
+            await link.StopAsync();
+        }
+    }
+
+    [Fact]
     public async Task Removing_a_machine_tells_it_to_forget_the_hub()
     {
         var (link, settings) = await PairAndConnect();

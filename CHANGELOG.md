@@ -3,8 +3,15 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
-## Unreleased
+## 2.0.0-beta.3
 
+Several PCs on different versions are clear about it, and two Let's Encrypt fixes found by new tests against
+Let's Encrypt's own test server.
+
+- **PCs on different versions.** They keep working together as before, and now it's visible: Machines shows
+  *Update to …* on each PC that can update, Overview lists them under *Needs attention*, and the hub's
+  notifications say when another PC has an update waiting. *Update all* updates them together. A feature newer
+  than a PC's version says "Second PC runs 2.0.0-beta.1, which doesn't have this yet" instead of "not found".
 - **Let's Encrypt:** renewing or re-issuing soon after a successful one no longer fails ("Cannot update challenge
   with status valid") — an approval Let's Encrypt still remembers is used as it is.
 - **Let's Encrypt:** the port-80 check also answers over IPv6, so a domain with an IPv6 (AAAA) record validates.

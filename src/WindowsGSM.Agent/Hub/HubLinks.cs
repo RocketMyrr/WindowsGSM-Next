@@ -60,6 +60,9 @@ public sealed class HubLinks
 
     public string? VersionOf(string machine) => _links.TryGetValue(machine, out var l) ? l.Version : null;
 
+    /// <summary>A machine connected and said which version it runs.</summary>
+    public event Action<string>? Connected;
+
     // ───────────────────────────── Members connecting ─────────────────────────────
 
     /// <summary>GET /api/v2/hub/link — a member's long-lived connection. Auth: "WGSM-Machine {id}:{credential}".</summary>
@@ -119,6 +122,7 @@ public sealed class HubLinks
                 _registry.Seen(link.MachineId, (string?)m["name"], link.Version, null, null);
                 _stream.PublishMachine(link.MachineId, new { online = true, version = link.Version });
                 await SendWatchAsync(link);
+                try { Connected?.Invoke(link.MachineId); } catch (Exception ex) { _log($"After {link.MachineId} connected: {ex.Message}"); }
                 break;
             case "snapshot":
                 List<ServerDto>? servers = null;
@@ -223,7 +227,18 @@ public sealed class HubLinks
                 return;
             }
 
-            http.Response.StatusCode = (int?)head["status"] ?? 502;
+            int status = (int?)head["status"] ?? 502;
+            string? contentType = (string?)head["headers"]?["Content-Type"];
+            // A feature this hub has and that machine doesn't yet (it runs an older version): say so, not "not found".
+            if (Versions.MissingOnOlder(status, contentType, link.Version, global::WindowsGSM.Hosting.WgsmEnvironment.Version))
+            {
+                string name = _registry.Get(machine)?.Name ?? machine;
+                await ApiResults.Error(409, "machine_outdated",
+                    $"{name} runs WindowsGSM {Versions.Bare(link.Version!)}, which doesn't have this yet (this PC runs {Versions.Bare(global::WindowsGSM.Hosting.WgsmEnvironment.Version)}). " +
+                    "Update it from Machines → Update all — its game servers keep running.").ExecuteAsync(http);
+                return;
+            }
+            http.Response.StatusCode = status;
             if (head["headers"] is JsonObject headers)
             {
                 foreach (string name in CopiedResponseHeaders)

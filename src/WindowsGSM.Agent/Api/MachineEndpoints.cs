@@ -14,17 +14,17 @@ public static class MachineEndpoints
     {
         // The machine list: just this agent for now; a hub (Phase 5) adds the machines it relays.
         // This machine first, then (on a hub) every paired machine — online or not.
-        api.MapGet("/machines", (HttpContext http, AgentContext ctx, WindowsGSM.Agent.Hub.MachineRegistry registry, WindowsGSM.Agent.Hub.HubLinks links) =>
+        api.MapGet("/machines", (HttpContext http, AgentContext ctx, WindowsGSM.Agent.Hub.MachineRegistry registry, WindowsGSM.Agent.Hub.HubLinks links, SelfUpdate update) =>
         {
             if (ctx.CurrentUser(http) == null) { return ApiResults.Unauthorized(); }
-            var list = new List<MachineDto> { This(ctx) };
-            list.AddRange(registry.All().OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase).Select(m => WindowsGSM.Agent.Hub.Forwarder.Describe(m, links)));
+            var list = new List<MachineDto> { This(ctx, update) };
+            list.AddRange(registry.All().OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase).Select(m => WindowsGSM.Agent.Hub.Forwarder.Describe(m, links, update.Latest)));
             return Results.Json(list);
         });
 
         var machine = api.MapGroup("/machines/{machine}").RequireMachine();
 
-        machine.MapGet("", (AgentContext ctx) => Results.Json(This(ctx)));
+        machine.MapGet("", (AgentContext ctx, SelfUpdate update) => Results.Json(This(ctx, update)));
 
         // ── Games ──
 
@@ -195,7 +195,7 @@ public static class MachineEndpoints
         });
     }
 
-    private static MachineDto This(AgentContext ctx) =>
+    private static MachineDto This(AgentContext ctx, SelfUpdate update) =>
         new(ctx.MachineId, ctx.Settings.MachineName, true, true, WgsmEnvironment.Version, DateTimeOffset.UtcNow,
-            ctx.Metrics.Sample(), ctx.Engine.Servers.All.Count);
+            ctx.Metrics.Sample(), ctx.Engine.Servers.All.Count, WindowsGSM.Agent.Hub.Versions.UpdateFor(WgsmEnvironment.Version, update.Latest));
 }

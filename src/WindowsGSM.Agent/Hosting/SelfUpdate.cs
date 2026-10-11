@@ -25,6 +25,7 @@ public sealed class SelfUpdate : IDisposable
     private readonly Timer _timer;
     private readonly SemaphoreSlim _busy = new(1, 1);
     private string? _announced;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _announcedFor = new(StringComparer.OrdinalIgnoreCase);
 
     public SelfUpdate(AgentContext ctx, NotificationCentre notifications, Action<string> log, HttpClient? http = null)
     {
@@ -84,6 +85,28 @@ public sealed class SelfUpdate : IDisposable
         }
     }
 
+    /// <summary>On a hub: its other machines that are connected now (id, name, the version they run).</summary>
+    public Func<IEnumerable<(string Id, string Name, string? Version)>>? OtherMachines { get; set; }
+
+    /// <summary>
+    /// On a hub: a notification for each connected machine that can update to the newest release this hub knows of
+    /// (once per machine and release) — so a PC that's behind shows up here, not only on its own panel.
+    /// </summary>
+    public void AnnounceOthers()
+    {
+        var latest = Latest;
+        if (latest == null || OtherMachines == null) { return; }
+        foreach (var (id, name, version) in OtherMachines())
+        {
+            if (WindowsGSM.Agent.Hub.Versions.UpdateFor(version, latest) is not { } to) { continue; }
+            if (_announcedFor.TryGetValue(id, out var done) && done == to) { continue; }
+            _announcedFor[id] = to;
+            _notifications.Record("appUpdate", $"{name} can update to WindowsGSM {to}",
+                $"It runs {WindowsGSM.Agent.Hub.Versions.Bare(version!)}. Update it from Machines → Update all (its game servers keep running).",
+                id, null, null, Visibility.Admin);
+        }
+    }
+
     /// <summary>Swappable for tests: the feed's releases.</summary>
     public Func<CancellationToken, Task<IReadOnlyList<AppRelease>>>? FeedOverride { get; set; }
     /// <summary>Swappable for tests: how the switch is started once files are in place.</summary>
@@ -103,6 +126,7 @@ public sealed class SelfUpdate : IDisposable
             Latest = releases.Where(r => pre || !r.Prerelease).OrderByDescending(r => r.Version, Comparer<string>.Create(Compare)).FirstOrDefault();
             CheckedAt = DateTimeOffset.UtcNow;
             State = UpdateState.Idle;
+            AnnounceOthers();
             if (Available && _announced != Latest!.Version)
             {
                 _announced = Latest.Version;

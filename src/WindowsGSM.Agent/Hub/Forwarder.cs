@@ -33,7 +33,7 @@ public static class Forwarder
 
         if (get && rest.Length == 0)
         {
-            await Results.Json(Describe(machine, links)).ExecuteAsync(http);
+            await Results.Json(Describe(machine, links, http.RequestServices.GetService<WindowsGSM.Agent.Hosting.SelfUpdate>()?.Latest)).ExecuteAsync(http);
             return;
         }
         if (!links.IsOnline(machine.Id))
@@ -55,7 +55,11 @@ public static class Forwarder
         await links.ForwardAsync(http, machine.Id, user);
     }
 
-    public static MachineDto Describe(RemoteMachine m, HubLinks links) =>
-        new(m.Id, m.Name, false, links.IsOnline(m.Id), links.VersionOf(m.Id) ?? m.Version ?? "?", links.IsOnline(m.Id) ? DateTimeOffset.UtcNow : m.LastSeen,
-            m.Metrics, m.Snapshot.Count);
+    /// <param name="latest">The newest release this hub knows of: says whether the machine can update to it.</param>
+    public static MachineDto Describe(RemoteMachine m, HubLinks links, WindowsGSM.Agent.Hosting.AppRelease? latest = null)
+    {
+        string version = links.VersionOf(m.Id) ?? m.Version ?? "?";
+        return new(m.Id, m.Name, false, links.IsOnline(m.Id), version, links.IsOnline(m.Id) ? DateTimeOffset.UtcNow : m.LastSeen,
+            m.Metrics, m.Snapshot.Count, Versions.UpdateFor(version, latest));
+    }
 }
