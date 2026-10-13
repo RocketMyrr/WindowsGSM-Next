@@ -109,11 +109,13 @@ internal static class PcProbe
         {
             X509Certificate2? cert = null;
             SslPolicyErrors errors = SslPolicyErrors.None;
-            using var handler = new HttpClientHandler
+            // Nothing listening fails fast (the connect timeout); a slow first TLS handshake on a busy PC still gets time.
+            using var handler = new SocketsHttpHandler
             {
-                ServerCertificateCustomValidationCallback = (_, c, _, e) => { cert = c == null ? null : new X509Certificate2(c); errors = e; return true; },
+                ConnectTimeout = TimeSpan.FromSeconds(6),
+                SslOptions = { RemoteCertificateValidationCallback = (_, c, _, e) => { cert = c == null ? null : new X509Certificate2(c); errors = e; return true; } },
             };
-            using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(6) };
+            using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
             http.DefaultRequestHeaders.UserAgent.ParseAdd("WindowsGSM-Desktop/2");
             try
             {
