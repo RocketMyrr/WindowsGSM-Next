@@ -11,7 +11,7 @@ public class NotificationTests
     private static string[] Discord(bool crashAlert = true) => new[]
     {
         "discordalert=\"1\"",
-        "discordwebhook=\"https://discord.example/webhook\"",
+        "discordwebhook=\"https://discord.com/api/webhooks/1/test\"",
         "discordmessage=\"@here\"",
         $"crashalert=\"{(crashAlert ? 1 : 0)}\"",
         "autorestartalert=\"1\"",
@@ -36,7 +36,7 @@ public class NotificationTests
         await Settle();
 
         Assert.Equal(new[] { "Crashed", "Restarted | Auto Restart" }, sent.Select(n => n.Status).OrderBy(x => x, StringComparer.Ordinal).ToArray());
-        Assert.All(sent, n => Assert.Equal(("191", "https://discord.example/webhook", "@here"), (n.ServerId, n.WebhookUrl, n.CustomMessage)));
+        Assert.All(sent, n => Assert.Equal(("191", "https://discord.com/api/webhooks/1/test", "@here"), (n.ServerId, n.WebhookUrl, n.CustomMessage)));
     }
 
     [Fact]
@@ -112,5 +112,29 @@ public class NotificationTests
     public async Task The_test_button_only_posts_to_Discord_webhooks(string url)
     {
         Assert.Contains("isn't a Discord webhook", await NotificationService.TestWebhookAsync(url, "", false, "Test"));
+    }
+    [Theory]
+    [InlineData("https://discord.com/api/webhooks/123/abc", true)]
+    [InlineData("https://discordapp.com/api/webhooks/123/abc", true)]
+    [InlineData("http://192.168.1.1/api/webhooks/1/x", false)]          // a router inside the network
+    [InlineData("https://127.0.0.1:8971/api/v2/servers", false)]
+    [InlineData("https://discord.com.evil.example/api/webhooks/1/x", false)]
+    [InlineData("https://user@discord.com/api/webhooks/1/x", false)]
+    [InlineData("https://discord.com:8443/api/webhooks/1/x", false)]
+    [InlineData("https://discord.com/channels/1/2", false)]
+    public void A_servers_webhook_must_be_Discords(string url, bool ok) => Assert.Equal(ok, NotificationService.IsDiscordWebhook(url));
+
+    [Fact]
+    public async Task A_webhook_saved_before_the_check_is_never_posted_to()
+    {
+        EngineFixture.CreateServer("154", extraSettings: new[] { "discordalert=\"1\"", "discordwebhook=\"http://192.168.1.1/hook\"", "crashalert=\"1\"" });
+        using var engine = await EngineFixture.StartEngineAsync();
+        var sent = new ConcurrentQueue<Notification>();
+        engine.Notifications.Sender = n => { sent.Enqueue(n); return Task.CompletedTask; };
+        engine.Events.Publish(new ServerAlert("154", AlertKind.Crashed, "x", "y"));
+        await Settle();
+        Assert.Empty(sent);
+        // And it can't be saved as one now.
+        Assert.NotEmpty(engine.Settings.Update("154", new Dictionary<string, string?> { ["discordwebhook"] = "http://192.168.1.1/hook" }));
     }
 }

@@ -14,7 +14,14 @@ namespace WindowsGSM.Engine.Services
     /// <summary>A built-in add-on as it applies to one server.</summary>
     /// <param name="Present">Its files are on disk (maybe put there by a custom add-on).</param>
     /// <param name="Managed">WindowsGSM installed or adopted it, so "update add-ons" keeps it current.</param>
-    public sealed record AddonState(string Key, string Label, bool Present, bool Managed);
+    /// <param name="InstalledVersion">The version on disk, when the add-on's version can be read (Oxide, Carbon).</param>
+    /// <param name="LatestVersion">The newest release on GitHub, once asked (see <see cref="AddonVersions"/>).</param>
+    /// <param name="Staging">The installed one is a staging/development build, not the release Update installs.</param>
+    public sealed record AddonState(string Key, string Label, bool Present, bool Managed,
+        string? InstalledVersion = null, string? LatestVersion = null, bool Staging = false)
+    {
+        public bool UpdateAvailable => Present && AddonVersions.Newer(LatestVersion, InstalledVersion);
+    }
 
     /// <summary>
     /// Built-in add-ons (Oxide, Carbon, SourceMod, …) and custom zip add-ons. Port of the legacy web add-on
@@ -64,7 +71,8 @@ namespace WindowsGSM.Engine.Services
                 bool? exists;
                 try { exists = d.Exists(row); } catch { continue; }
                 if (exists == null) { continue; } // not for this game
-                result.Add(new AddonState(d.Key, d.Label, exists == true, managed.Contains(d.Key)));
+                var (installed, staging) = exists == true ? AddonVersions.Installed(d.Key, id) : (null, false);
+                result.Add(new AddonState(d.Key, d.Label, exists == true, managed.Contains(d.Key), installed, AddonVersions.LatestKnown(d.Key), staging));
             }
             return result;
         }

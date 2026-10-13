@@ -3,7 +3,7 @@
 
 /**
  * h("div", { class: "x", onclick: fn, text: "hi", attrs: {...} }, child, [children], "text")
- * Props: class, text, html (trusted constants only), style (object → CSSOM, CSP-safe), dataset, on* handlers,
+ * Props: class, text, style (object → CSSOM, CSP-safe), dataset, on* handlers, href (script: addresses refused),
  * any other key → attribute (false/null skips, true → empty attribute).
  */
 export function h(tag, props = {}, ...children) {
@@ -13,7 +13,8 @@ export function h(tag, props = {}, ...children) {
         if (value === undefined || value === null || value === false) continue;
         if (key === "class") el.setAttribute("class", Array.isArray(value) ? value.filter(Boolean).join(" ") : value);
         else if (key === "text") el.textContent = value;
-        else if (key === "html") el.innerHTML = value;
+        // Links can come from outside (the plugin catalogue, uMod): only web, mail and in-app addresses.
+        else if ((key === "href" || key === "src") && /^\s*(javascript|vbscript|data):/i.test(String(value))) continue;
         else if (key === "style") for (const [p, v] of Object.entries(value)) { if (v != null) el.style.setProperty(p, v); }
         else if (key === "dataset") Object.assign(el.dataset, value);
         else if (key.startsWith("on") && typeof value === "function") el.addEventListener(key.slice(2).toLowerCase(), value);

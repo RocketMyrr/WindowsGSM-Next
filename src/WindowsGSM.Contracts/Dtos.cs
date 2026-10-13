@@ -100,7 +100,8 @@ public sealed record RestoreRequest(string Name, bool IncludeConfig = false);
 
 // ── Add-ons ──
 
-public sealed record AddonDto(string Key, string Label, bool Present, bool Managed);
+public sealed record AddonDto(string Key, string Label, bool Present, bool Managed,
+    string? InstalledVersion = null, string? LatestVersion = null, bool Staging = false, bool UpdateAvailable = false);
 
 public sealed record CustomAddonDto(string Id, string Name, string Url, string? Subfolder);
 

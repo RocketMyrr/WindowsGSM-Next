@@ -49,6 +49,7 @@ namespace WindowsGSM.Engine.Services
             if (s == null) { return; }
             var cfg = s.Config;
             if (!cfg.DiscordAlert || string.IsNullOrWhiteSpace(cfg.DiscordWebhook)) { return; }
+            if (!IsDiscordWebhook(cfg.DiscordWebhook)) { return; } // set before this check existed: never posted anywhere else
 
             // Which switch governs which alert, and what legacy sent for it.
             (bool enabled, string? status, string? text) = alert.Kind switch
@@ -101,9 +102,7 @@ namespace WindowsGSM.Engine.Services
         /// </summary>
         public static async Task<string?> TestWebhookAsync(string url, string mention, bool skipUserSetup, string serverName)
         {
-            if (!Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var uri) || uri.Scheme != "https"
-                || !(uri.Host is "discord.com" or "discordapp.com" or "ptb.discord.com" or "canary.discord.com")
-                || !uri.AbsolutePath.StartsWith("/api/webhooks/", StringComparison.Ordinal))
+            if (!IsDiscordWebhook(url) || !Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri))
             {
                 return "That isn't a Discord webhook URL — it starts with https://discord.com/api/webhooks/.";
             }
@@ -111,6 +110,15 @@ namespace WindowsGSM.Engine.Services
             bool sent = await webhook.SendPlain(":white_check_mark: Test from WindowsGSM — alerts for **" + serverName + "** will arrive in this channel.").ConfigureAwait(false);
             return sent ? null : "Discord didn't accept it — check the webhook URL (it may have been deleted in Discord).";
         }
+
+        /// <summary>
+        /// NEXT: a server's Discord webhook must be Discord's: anyone who may edit one server's settings sets it, and the
+        /// agent posts to it — an address inside the network (a router, another PC) would be posted to otherwise.
+        /// </summary>
+        public static bool IsDiscordWebhook(string? url) =>
+            Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var uri) && uri.Scheme == "https" && uri.IsDefaultPort && string.IsNullOrEmpty(uri.UserInfo)
+            && uri.Host is "discord.com" or "discordapp.com" or "ptb.discord.com" or "canary.discord.com"
+            && uri.AbsolutePath.StartsWith("/api/webhooks/", StringComparison.Ordinal);
 
         public void Dispose() => _subscription.Dispose();
     }

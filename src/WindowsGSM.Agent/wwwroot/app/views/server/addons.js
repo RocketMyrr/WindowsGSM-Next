@@ -31,9 +31,10 @@ export default async function addonsTab(host, { id, machine, key, scope }) {
             });
             builtIn.append(h("div", { class: "list-item" },
                 h("span", { class: ["addon-icon", a.present && "present"] }, icon("puzzle")),
-                h("div", { class: "grow" }, h("b", { text: a.label }), h("div", { class: "small muted", text: a.present ? "Installed" : "Not installed" })),
+                h("div", { class: "grow" }, h("b", { text: a.label }), h("div", { class: "small muted" }, versionLine(a))),
                 a.present ? managed : null,
-                h("button", { class: ["btn sm", !a.present && "primary"], onclick: e => install(e.currentTarget, a) }, icon(a.present ? "refresh" : "download"), a.present ? "Reinstall" : "Install")));
+                h("button", { class: ["btn sm", (!a.present || a.updateAvailable) && "primary"], onclick: e => install(e.currentTarget, a) },
+                    icon(a.present ? "refresh" : "download"), !a.present ? "Install" : a.updateAvailable ? `Update to ${a.latestVersion}` : "Reinstall")));
         }
         clear(custom);
         if (!data.custom.length) custom.append(empty("link", "No custom add-ons", "Add a plugin pack, map or mod from a download link — it's re-downloaded whenever you reinstall."));
@@ -47,6 +48,17 @@ export default async function addonsTab(host, { id, machine, key, scope }) {
                     try { await del(srv(machine, id, `/addons/custom/${c.id}`)); load(); } catch (e) { toastError(e); }
                 } }, icon("trash"))));
         }
+    }
+
+    // "Installed 2.0.7807 · Latest 2.0.7830", with a staging build called out (Update installs the release).
+    function versionLine(a) {
+        if (!a.present) return a.latestVersion ? [`Not installed · Latest ${a.latestVersion}`] : ["Not installed"];
+        const parts = [h("span", { text: a.installedVersion ? `Installed ${a.installedVersion}` : "Installed" })];
+        if (a.staging) parts.push(" ", h("span", { class: "tag amber", title: "A staging/development build, not the release. Update installs the release.", text: "staging" }));
+        if (a.latestVersion) parts.push(` · Latest ${a.latestVersion}`);
+        if (a.updateAvailable) parts.push(" ", h("span", { class: "tag violet", text: "Update available" }));
+        else if (a.installedVersion && a.latestVersion) parts.push(" ", h("span", { class: "tag green", text: "Up to date" }));
+        return parts;
     }
 
     async function install(button, a) {

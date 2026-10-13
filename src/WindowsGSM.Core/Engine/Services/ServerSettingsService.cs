@@ -140,6 +140,12 @@ namespace WindowsGSM.Engine.Services
                 {
                     if (value.Length > 0 && (!int.TryParse(value, out int n) || n < 0)) { errors.Add($"{canonical}: expected a whole number."); continue; }
                 }
+                // NEXT: the agent posts to it, so only Discord's own webhook addresses — never one inside this network.
+                else if (canonical == ServerConfig.SettingName.DiscordWebhook && value.Trim().Length > 0 && !NotificationService.IsDiscordWebhook(value))
+                {
+                    errors.Add($"{canonical}: that isn't a Discord webhook URL — it starts with https://discord.com/api/webhooks/.");
+                    continue;
+                }
                 accepted.Add((canonical, value));
             }
             if (errors.Count > 0) { return errors; }

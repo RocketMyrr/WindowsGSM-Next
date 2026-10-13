@@ -219,12 +219,14 @@ public static class ServerDataEndpoints
 
     private static void MapAddons(RouteGroupBuilder server)
     {
-        server.MapGet("/addons", (HttpContext http, AgentContext ctx) =>
+        server.MapGet("/addons", async (HttpContext http, AgentContext ctx) =>
         {
             string id = Scopes.Server(http).Id;
+            // The newest versions on GitHub (cached for an hour): waited for briefly, so the first look already has them.
+            await WindowsGSM.Engine.Services.AddonVersions.RefreshAsync(ctx.Engine.Addons.List(id).Where(a => a.Present).Select(a => a.Key), TimeSpan.FromSeconds(4));
             return Results.Json(new
             {
-                builtIn = ctx.Engine.Addons.List(id).Select(a => new AddonDto(a.Key, a.Label, a.Present, a.Managed)),
+                builtIn = ctx.Engine.Addons.List(id).Select(a => new AddonDto(a.Key, a.Label, a.Present, a.Managed, a.InstalledVersion, a.LatestVersion, a.Staging, a.UpdateAvailable)),
                 custom = ctx.Engine.Addons.ListCustom(id).Select(c => new CustomAddonDto(c.Id, c.Name, c.Url, c.Subfolder)),
             });
         }).Needs(Capability.Addons);

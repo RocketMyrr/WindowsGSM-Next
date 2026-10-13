@@ -3,8 +3,16 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
-## Unreleased
+## 2.0.0-beta.5
 
+Add-on versions at a glance, more Discord alert options, and security hardening.
+
+- **Add-ons show their versions:** Oxide and Carbon say which version is installed and the newest on GitHub
+  ("Installed 2.0.7807 · Latest 2.0.7830"), with **Update to …** when there's a newer one and a *staging* tag on a
+  staging build. GitHub is asked at most once an hour.
+- **Security:** a server's Discord webhook must be a Discord address (https://discord.com/api/webhooks/…), checked when
+  it's saved and before anything is sent — so nobody who may edit one server can make WindowsGSM post to an address
+  inside your network. Links from outside (the plugin list, uMod) can't run script.
 - **Discord alerts: "Started"** — a message when someone starts or restarts the server by hand (Settings → Discord
   alerts; auto-starts and automatic or scheduled restarts keep their own switches).
 - **Send a test** next to the webhook URL posts a test message, so a wrong URL shows up straight away.
