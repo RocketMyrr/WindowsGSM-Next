@@ -84,6 +84,7 @@ namespace WindowsGSM.Engine.Services
                 Port("Server port", cfg.ServerPort),
                 Port("Query port", cfg.ServerQueryPort, optional: true),
                 PortCollisions(s),
+                ServerIp(s),
                 Firewall(s),
             };
 
@@ -218,6 +219,19 @@ namespace WindowsGSM.Engine.Services
                 ? new ReadinessCheck("Network", "Game servers through Windows Firewall", CheckStatus.Pass, "Every server's program is allowed in (or doesn't name one).")
                 : new ReadinessCheck("Network", "Game servers through Windows Firewall", CheckStatus.Warning,
                     $"No firewall rule (or a blocking one) for {string.Join(", ", problems)} — players on other computers probably can't connect. Use \"Allow through firewall\" here or on the server's overview.");
+        }
+
+        /// <summary>NEXT: the server's IP must be an address of this PC (or 0.0.0.0) — otherwise the game can't open its socket.</summary>
+        private static ReadinessCheck ServerIp(ServerInstance s)
+        {
+            string? ip = s.Config.ServerIP?.Trim();
+            if (LocalAddresses.IsUsable(ip)) { return new ReadinessCheck("Server", "Server IP", CheckStatus.Pass, string.IsNullOrEmpty(ip) || ip == "0.0.0.0" ? "Listens on every address of this PC." : $"{ip} is an address of this PC."); }
+            string? now = LocalAddresses.Best(ip);
+            bool auto = s.Config.GetCustomSetting(LifecycleService.AutoServerIpKey, "1") != "0";
+            string where = now != null ? $" This PC's address is {now}." : "";
+            return auto
+                ? new ReadinessCheck("Server", "Server IP", CheckStatus.Warning, $"{ip} isn't an address of this PC (its address changed, or it's the router's public one).{where} It's updated automatically at the next start.")
+                : new ReadinessCheck("Server", "Server IP", CheckStatus.Fail, $"{ip} isn't an address of this PC, so the game can't start on it.{where} Set Server IP in Settings, or turn on \"Update the IP when this PC's address changes\".");
         }
 
         private ReadinessCheck PortCollisions(ServerInstance s)

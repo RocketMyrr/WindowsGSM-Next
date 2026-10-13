@@ -58,6 +58,7 @@ namespace WindowsGSM.Engine.Services
                 AlertKind.AutoStarted => (cfg.AutoStartAlert, "Started | Auto Start", null),
                 AlertKind.ScheduledRestart => (cfg.RestartCrontabAlert, "Restarted | Restart Crontab", null),
                 AlertKind.AutoUpdated => (cfg.AutoUpdateAlert, "Updated | Auto Update", null),
+                AlertKind.ServerIpChanged => (cfg.AutoIpUpdate, null, $":globe_with_meridians: **{s.Name}**: {alert.Text}"),
                 AlertKind.CrashLoopSuspended => (cfg.CrashAlert, null,
                     $":octagonal_sign: **{s.Name}** keeps crashing. Auto-restart has been **suspended** — please check the server. ({alert.Text})"),
                 AlertKind.MemoryGuard => (cfg.AutoRestartAlert, null, $":warning: **{s.Name}**: {alert.Text} Restarting to reclaim memory."),

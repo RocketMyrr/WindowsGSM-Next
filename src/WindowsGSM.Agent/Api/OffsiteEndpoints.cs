@@ -36,7 +36,9 @@ public static class OffsiteEndpoints
             var candidate = Build(offsite.Settings, body, out string? problem);
             if (problem != null) { return ApiResults.BadRequest(problem); }
             string? failed = await offsite.TestAsync(candidate!, http.RequestAborted);
-            return Results.Json(new { ok = failed == null, message = failed ?? $"Connected: wrote, read back and removed a test file in {candidate!.Bucket}." });
+            string where = candidate!.FileServer ? OffsiteFileServer.Address(candidate).Host : candidate.Bucket;
+            string warning = candidate.Provider == "ftp" ? " Plain FTP sends your password and backups unencrypted — use FTPS or SFTP if the server offers them." : "";
+            return Results.Json(new { ok = failed == null, message = failed ?? $"Connected: wrote, read back and removed a test file on {where}.{warning}" });
         });
 
         server.MapGet("/backups/offsite", async (HttpContext http, OffsiteBackups offsite) =>
@@ -74,13 +76,15 @@ public static class OffsiteEndpoints
     private static object ToDto(OffsiteSettings s) => new
     {
         enabled = s.Enabled, provider = s.Provider, endpoint = s.Endpoint, region = s.Region, bucket = s.Bucket, accessKeyId = s.AccessKeyId,
-        hasSecret = s.SecretAccessKey.Length > 0, prefix = s.Prefix, keepCount = s.KeepCount, ready = s.Ready,
+        hasSecret = s.SecretAccessKey.Length > 0, prefix = s.Prefix, keepCount = s.KeepCount, ready = s.Ready, pinned = s.Pin.Length > 0 ? s.Pin : null,
     };
 
     /// <summary>The settings a request asks for (the saved secret kept when none is sent), or why they won't do.</summary>
     private static OffsiteSettings? Build(OffsiteSettings current, OffsiteRequest body, out string? problem)
     {
         problem = null;
+        string provider = (body.Provider ?? "other").Trim();
+        if (OffsiteFileServer.Providers.Contains(provider)) { return BuildFileServer(current, body, provider, out problem); }
         string endpoint = (body.Endpoint ?? "").Trim().TrimEnd('/');
         if (endpoint.Length > 0 && (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || (uri.Scheme != "https" && uri.Scheme != "http")))
         {
@@ -99,6 +103,33 @@ public static class OffsiteEndpoints
             Prefix = prefix, KeepCount = body.KeepCount,
         };
         if (next.Enabled && !next.Ready) { problem = "Fill in the bucket, key ID and secret key first."; return null; }
+        return next;
+    }
+
+    /// <summary>FTP, FTPS or SFTP: the host (and port), username, password and folder.</summary>
+    private static OffsiteSettings? BuildFileServer(OffsiteSettings current, OffsiteRequest body, string provider, out string? problem)
+    {
+        problem = null;
+        string host = (body.Endpoint ?? "").Trim();
+        foreach (string scheme in new[] { "sftp://", "ftps://", "ftp://" }) { if (host.StartsWith(scheme, StringComparison.OrdinalIgnoreCase)) { host = host[scheme.Length..]; } }
+        host = host.TrimEnd('/');
+        if (host.Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(host, @"^[A-Za-z0-9.\-]+(:\d{1,5})?$|^\[[0-9A-Fa-f:]+\](:\d{1,5})?$"))
+        {
+            problem = "The server should be a name or address, with a port if it isn't the usual one — like backup.example.com or 192.168.1.20:2121.";
+            return null;
+        }
+        string prefix = (body.Prefix ?? "windowsgsm").Trim().Trim('/');
+        if (prefix.Length > 200 || prefix.Contains("..") || prefix.Any(ch => !(char.IsLetterOrDigit(ch) || ch is '-' or '_' or '.' or '/' or ' '))) { problem = "The folder can use letters, digits, spaces, - _ . and /."; return null; }
+        if (body.KeepCount is < 0 or > 1000) { problem = "Keep between 0 (all) and 1000 backups."; return null; }
+        bool sameServer = current.Provider == provider && string.Equals(current.Endpoint, host, StringComparison.OrdinalIgnoreCase);
+        var next = new OffsiteSettings
+        {
+            Enabled = body.Enabled, Provider = provider, Endpoint = host,
+            AccessKeyId = (body.AccessKeyId ?? "").Trim(), SecretAccessKey = body.SecretAccessKey == null ? current.SecretAccessKey : body.SecretAccessKey,
+            Prefix = prefix, KeepCount = body.KeepCount,
+            Pin = sameServer ? current.Pin : "", // another server (or saved again on purpose): its identity is learned again
+        };
+        if (next.Enabled && !next.Ready) { problem = "Fill in the server, username and password first."; return null; }
         return next;
     }
 }

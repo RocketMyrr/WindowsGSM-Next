@@ -31,6 +31,7 @@ public static class NotificationKinds
         new("updateAvailable", "info", "A game update is available", "Activity"),
         new("appUpdate", "info", "A new version of WindowsGSM is available", "Machines"),
         new("autoUpdated", "good", "Auto-update installed a new version", "Activity"),
+        new("ipChanged", "info", "A server's IP was updated (this PC's address changed)", "Activity"),
         new("joinCode", "info", "Join code found (e.g. Palworld, Enshrouded)", "Activity"),
         new("automation", "info", "An automation ran", "Activity"),
     };
@@ -47,6 +48,7 @@ public static class NotificationKinds
         "AutoStarted" => "autoStarted",
         "ScheduledRestart" => "scheduledRestart",
         "AutoUpdated" => "autoUpdated",
+        "ServerIpChanged" => "ipChanged",
         "JoinCode" => "joinCode",
         _ => null,
     };

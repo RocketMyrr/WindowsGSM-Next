@@ -3,6 +3,23 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## 2.0.0-beta.4
+
+Off-site backups to your own file server, and home servers that keep starting when the PC's address changes.
+
+- **Off-site backups to your own file server:** SFTP, FTPS (explicit or implicit) and FTP, next to the S3 services.
+  Server, username, password and folder; uploads go under a temporary name until complete; "keep newest N", listing
+  and bringing a backup back work as with S3. The server's SFTP key or self-signed FTPS certificate is trusted the
+  first time and checked after that — a different one stops the upload. Plain FTP is marked as unencrypted.
+- **A server set to an address this PC no longer has starts anyway.** At home the router gives the PC its address and
+  it can change; the game then couldn't open its network socket and quit (Rust: "Couldn't initialize Steam
+  Server", Enshrouded: "address not available"). Now the server moves to this PC's current address at start, with a
+  note in its log and an *IP changes* notification. Per server, on by default: *Update the IP when this PC's address
+  changes* (Settings → General). An address the PC has, or 0.0.0.0, is never changed.
+- Health checks flag a server whose IP isn't an address of this PC, and say which one it should be.
+- New servers get the PC's real network address, not a VPN's (NordVPN and the like) or a virtual adapter's.
+- The IP field explains which address it wants: this PC's, which at home is its network address, not the public one.
+
 ## 2.0.0-beta.3
 
 Several PCs on different versions are clear about it, and two Let's Encrypt fixes found by new tests against

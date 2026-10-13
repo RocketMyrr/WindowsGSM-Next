@@ -443,6 +443,9 @@ namespace WindowsGSM.Functions
 
         public string GetIPAddress()
         {
+            // NEXT: the PC's real network connection — legacy asked which address reaches the internet, which with a
+            // VPN connected (NordVPN, WireGuard…) is the VPN's, not one players can be forwarded to.
+            if (LocalAddresses.Best() is string best) { return best; }
             using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
             {
                 socket.Connect("8.8.8.8", 65530);

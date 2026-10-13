@@ -313,11 +313,40 @@ namespace WindowsGSM.Engine.Services
 
         // ─────────────────────────────── Start / stop mechanics ───────────────────────────────
 
+        /// <summary>Per-server switch (absent = on): use this PC's current address when the saved IP isn't one of its addresses.</summary>
+        public const string AutoServerIpKey = "autoserverip";
+
+        /// <summary>
+        /// NEXT: the server's IP isn't an address of this PC any more — at home the router gave the PC a new one, or a
+        /// VPN's address was picked up — so the game couldn't open its socket and would quit. With the server's
+        /// "update the IP" switch on (the default), it moves to this PC's current address, saved and said so in its
+        /// log and as an "IP changes" alert. An address the PC has, or "every address" (0.0.0.0), is never changed.
+        /// </summary>
+        private void FixServerIp(ServerInstance s)
+        {
+            string? ip = s.Config.ServerIP?.Trim();
+            if (LocalAddresses.IsUsable(ip)) { return; }
+            if (s.Config.GetCustomSetting(AutoServerIpKey, "1") == "0")
+            {
+                _log.Write(s.Id, $"[NOTICE] The server IP {ip} isn't an address of this PC, so the game may not be able to start. Set Server IP in Settings, or turn on \"Update the IP when this PC's address changes\".");
+                return;
+            }
+            string? now = LocalAddresses.Best(ip);
+            if (now == null || now == ip) { return; }
+            ServerConfig.SetSetting(s.Id, ServerConfig.SettingName.ServerIP, now);
+            s.Config.ServerIP = now;
+            string text = $"Server IP changed from {ip} to {now}: {ip} isn't an address of this PC any more.";
+            _log.Write(s.Id, "[NOTICE] " + text);
+            _events.Publish(new Events.ServerConfigChanged(s.Id, new[] { ServerConfig.SettingName.ServerIP }));
+            _events.Publish(new Events.ServerAlert(s.Id, Events.AlertKind.ServerIpChanged, $"{s.Name}: IP updated to {now}", text));
+        }
+
         /// <summary>Launches the game process. Returns an error message, or null once it's up.</summary>
         private async Task<string?> BeginStartAsync(ServerInstance s, JobContext job)
         {
             // NEXT: game files on a drive that isn't connected: say so, rather than let the game fail oddly.
             if (ServerLocation.Problem(s.Id) is string missing) { return missing; }
+            FixServerIp(s);
             // The plugin gets the settings without the before-start script: the engine runs it (below), for every
             // game. Legacy left it to the plugin, and only Rust's ran it — it would run twice.
             var startConfig = new ServerConfig(s.Id) { BatchFile = string.Empty };

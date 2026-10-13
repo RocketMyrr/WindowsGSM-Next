@@ -71,13 +71,18 @@ export default async function settingsTab(host, { id, machine, key, server, scop
     // ── Sections ──
     const general = section("General", null, h("div", { class: "form-grid" },
         settings.customReplacesBuiltIns ? null : text("servername", "Server name", { span: true, help: "Shown in the panel and, for most games, in the in-game server browser. Some games read it from their own config instead — see Game config." }),
-        text("serverip", "IP address", { mono: true, hint: "The address players connect to.", help: ["The address shown to players and used for the join address. On a home connection that is usually this PC's LAN address (players outside your network use your public address and a forwarded port).", "WindowsGSM itself asks the game on this machine, so player counts work whatever you put here."] }),
+        text("serverip", "IP address", { mono: true, hint: "This PC's address the game listens on — at home, its network address, not your public one.", help: ["Which of this PC's addresses the game listens on. It has to be an address this PC has: at home that's its address on your network (e.g. 192.168.1.20) — your public address belongs to your router, and players reach you through it with a forwarded port.", "0.0.0.0 listens on all of this PC's addresses. On a rented server, its public address is its own, so use that.", "WindowsGSM itself asks the game on this machine, so player counts work whatever you put here."] }),
         text("serverport", "Game port", { type: "number", mono: true, help: ["The port players connect to. Two servers can't share one. Most games use UDP.", "Players outside your network need it forwarded on your router — Overview → Can players reach it?"] }),
         text("serverqueryport", "Query port", { type: "number", mono: true, hint: "Used for the server browser and player counts.", help: ["Where the game answers \"how many players, which map\" — Steam's server browser and WindowsGSM's player counts use it.", "Many games use the game port + 1. If counts don't show, the Players tab says which port actually answers."] }),
         text("servermaxplayer", "Max players", { type: "number", help: "Passed to the game when it starts. Some games read their own config file instead — check Game config too." }),
         settings.customReplacesBuiltIns ? null : text("servermap", "Map", { help: "The map or world the server starts on, e.g. TheIsland_WP, de_dust2 or Procedural Map. Leave empty for the game's default." }),
         settings.customReplacesBuiltIns ? null : secret("servergslt", "Game server login token", { hint: "Steam GSLT, if the game needs one.", help: ["Some Steam games (CS2, Garry's Mod, Team Fortress 2…) need a Game Server Login Token to show up publicly. Make one at steamcommunity.com/dev/managegameservers with the game's app id — one token per server.", "Kept secret: it's never shown again after saving."] }),
-        params()));
+        params()),
+        // Home PCs get a new address from the router now and then: the server follows it instead of failing to start.
+        toggle("Update the IP when this PC's address changes", values.autoserverip !== "0", {
+            hint: "If the IP above isn't an address of this PC when the server starts, its current one is used — with a note in the log and an \"IP changes\" notification.",
+            help: ["At home the router gives this PC its address, and it can change; a server set to the old one can't start (the game can't open its network socket).", "Only an address this PC doesn't have is replaced — one it has, or 0.0.0.0, is never changed. Turn this off on a host whose extra IP addresses appear a little after Windows starts."],
+            onChange: on => set("autoserverip", on ? "1" : "0") }));
 
     const game = settings.custom.length ? section(`${settings.game.replace(/\s*\[[^\]]*\]\s*$/, "")} settings`, "Settings this game provides.", h("div", { class: "form-grid" },
         ...settings.custom.map(c => {

@@ -184,6 +184,7 @@ public class SchedulerAndMonitorTests
         using (var probe = new System.Net.Sockets.UdpClient(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 0))) { wrong = ((System.Net.IPEndPoint)probe.Client.LocalEndPoint!).Port; }
         EngineFixture.CreateServer("212", mode: "a2s");
         ServerConfig.SetSetting("212", ServerConfig.SettingName.ServerIP, "203.0.113.9"); // a public address — must not be asked
+        ServerConfig.SetSetting("212", LifecycleService.AutoServerIpKey, "0"); // kept as it is (not moved to this PC's address at start)
         ServerConfig.SetSetting("212", ServerConfig.SettingName.ServerPort, game.Port.ToString());
         ServerConfig.SetSetting("212", ServerConfig.SettingName.ServerQueryPort, wrong.ToString());
         using var engine = await EngineFixture.StartEngineAsync();

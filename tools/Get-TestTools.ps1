@@ -3,6 +3,7 @@
 
     pebble\pebble.exe   Pebble — Let's Encrypt's own ACME test server (certificates for the HTTPS tests)
     seaweedfs\weed.exe  SeaweedFS — an S3-compatible storage server (off-site backup tests)
+    sftpgo\sftpgo.exe  SFTPGo — an SFTP / FTP / FTPS server (off-site backups to a file server)
 
   Pinned versions, checked against their SHA-256 before use. Without them those tests are skipped locally (CI
   always has them). Run once:
@@ -20,7 +21,10 @@ $tools = @(
        Sha256 = "2539F3903302D75F897522B23B1B52B3300F5F992245F13D3BDF3967CF23AF6D" },
     @{ Name = "seaweedfs"; Exe = "weed.exe"; Inside = "weed.exe"
        Url = "https://github.com/seaweedfs/seaweedfs/releases/download/4.48/windows_amd64.zip"
-       Sha256 = "FE90C04C0620AD1A1C756F86CD5E1443773F56A446688077A4BB5EC04C3CC874" }
+       Sha256 = "FE90C04C0620AD1A1C756F86CD5E1443773F56A446688077A4BB5EC04C3CC874" },
+    @{ Name = "sftpgo"; Exe = "sftpgo.exe"; Inside = "sftpgo.exe"
+       Url = "https://github.com/drakkan/sftpgo/releases/download/v2.7.6/sftpgo_v2.7.6_windows_portable.zip"
+       Sha256 = "AF3994BB690962C7575858AEE368A4C1D6FD4748B35770BB0773EB06408D504D" }
 )
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem

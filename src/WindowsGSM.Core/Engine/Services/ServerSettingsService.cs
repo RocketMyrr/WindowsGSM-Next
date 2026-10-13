@@ -36,6 +36,7 @@ namespace WindowsGSM.Engine.Services
             ServerConfig.SettingName.AutoIpUpdateAlert, ServerConfig.SettingName.RestartCrontabAlert, ServerConfig.SettingName.CrashAlert,
             ServerConfig.SettingName.SkipUserSetup, ServerConfig.SettingName.MemoryGuard, SteamContentPolicy.SteamCmdOverrideSetting,
             "perfsample", // ask the game for FPS/TPS over RCON (absent = on)
+            LifecycleService.AutoServerIpKey, // use this PC's current address when the saved IP isn't one (absent = on)
             ServerScripts.BlocksStartKey, LifecycleService.CtrlCFirstKey,
         };
 

@@ -1,6 +1,6 @@
 // Agent settings → Off-site backups: one S3-compatible bucket for this machine (Backblaze B2, Cloudflare R2,
-// Wasabi, Amazon S3, or anything else that speaks S3). Each server then chooses "Also upload each backup
-// off-site" on its Backups tab.
+// Wasabi, Amazon S3, or anything else that speaks S3) — or a file server over SFTP, FTPS or FTP. Each server then
+// chooses "Also upload each backup off-site" on its Backups tab.
 
 import { h, icon, clear } from "../dom.js";
 import { get, put, post } from "../api.js";
@@ -17,6 +17,15 @@ const PROVIDERS = [
       hint: "Leave the endpoint empty; the region is your bucket's (eu-west-2, us-east-1…). Keys: an IAM user allowed to read, write, list and delete in that bucket." },
     { value: "other", label: "Other (S3-compatible)", endpoint: "https://", region: "",
       hint: "Any service with an S3 API (MinIO, a NAS…): its S3 address, region if it needs one, and an access key." },
+    // File servers: the server's name or address (with :port if it isn't the usual one), a username and password.
+    { value: "sftp", label: "SFTP (SSH file server)", file: true, endpoint: "backup.example.com  or  192.168.1.20:2222",
+      hint: "Most NAS boxes, Linux servers and hosting plans offer SFTP. The server's key is trusted the first time and then checked on every connection." },
+    { value: "ftps", label: "FTPS (FTP with TLS)", file: true, endpoint: "ftp.example.com  or  192.168.1.20:2121",
+      hint: "FTP made private with TLS (\"explicit\", on the usual port 21). A self-signed certificate is trusted the first time and then checked on every connection." },
+    { value: "ftps-implicit", label: "FTPS, implicit (port 990)", file: true, endpoint: "ftp.example.com",
+      hint: "Older FTPS that is encrypted from the first byte, usually on port 990. Use plain FTPS unless the server says implicit." },
+    { value: "ftp", label: "FTP (unencrypted)", file: true, endpoint: "ftp.example.com  or  192.168.1.20", warn: true,
+      hint: "Plain FTP sends your password and the backups unencrypted — fine on your own network, risky over the internet. Prefer SFTP or FTPS if the server has them." },
 ];
 
 export function offsitePanel(machine) {
@@ -43,19 +52,29 @@ export function offsitePanel(machine) {
         const keep = input({ type: "number", min: 0, class: "input num", value: cfg.keepCount ?? 7 });
         const enabled = toggle("Off-site backups are on", cfg.enabled, { hint: "Servers with “Also upload each backup off-site” (Backups tab) upload every new backup." });
         const result = h("div");
+        const pinned = cfg.pinned ? h("div", { class: "tiny faint mono", text: "Server identity trusted: " + cfg.pinned }) : null;
 
+        // Labels follow the kind of storage: a bucket and keys, or a server, username and password.
+        const fields = {};
         function paintProvider() {
             const p = PROVIDERS.find(x => x.value === provider.value) || PROVIDERS[0];
             providerHint.textContent = p.hint;
+            providerHint.className = p.warn ? "callout warn small" : "hint";
             endpoint.placeholder = p.endpoint || "(empty for Amazon S3)";
             region.placeholder = p.region || "if the service needs one";
+            fields.bucket.hidden = fields.region.hidden = !!p.file;
+            const label = (f, text) => { const l = f.querySelector("label"); if (l) l.textContent = text; };
+            label(fields.endpoint, p.file ? "Server" : "Endpoint");
+            label(fields.keyId, p.file ? "Username" : "Key ID");
+            label(fields.secret, p.file ? "Password" : "Secret key");
+            label(fields.prefix, p.file ? "Folder on the server" : "Folder in the bucket");
+            secret.placeholder = cfg.hasSecret ? "Saved — type a new one to replace it" : (p.file ? "The password" : "The secret key");
         }
         provider.addEventListener("change", paintProvider);
-        paintProvider();
 
         const values = () => ({
             enabled: enabled.input.checked, provider: provider.value, endpoint: endpoint.value.trim(), region: region.value.trim(), bucket: bucket.value.trim(),
-            accessKeyId: keyId.value.trim(), secretAccessKey: secret.value.trim() ? secret.value.trim() : null, prefix: prefix.value.trim(), keepCount: Number(keep.value) || 0,
+            accessKeyId: keyId.value.trim(), secretAccessKey: secret.value ? secret.value : null, prefix: prefix.value.trim(), keepCount: Number(keep.value) || 0,
         });
 
         const test = h("button", { class: "btn", onclick: () => busy(test, async () => {
@@ -69,18 +88,21 @@ export function offsitePanel(machine) {
             toast("Off-site settings saved", { type: "good", text: res.enabled ? "Turn on “Also upload each backup off-site” on the servers to send." : "", timeout: 4000 });
         }, "Couldn't save") }, icon("save"), "Save");
 
+        fields.bucket = field("Bucket", bucket, { help: "Create a private bucket for your backups first, in the service's own website." });
+        fields.endpoint = field("Endpoint", endpoint, { help: ["S3: the service's S3 address (empty for Amazon S3).", "A file server: its name or address, with :port when it isn't the usual one (SFTP 22, FTP/FTPS 21, implicit FTPS 990)."] });
+        fields.region = field("Region", region);
+        fields.keyId = field("Key ID", keyId, { help: "S3: an access key that can read, write, list and delete in that bucket. A file server: an account that can write to the folder." });
+        fields.secret = field("Secret key", secret, { help: "Stored encrypted on this PC (Windows data protection), like the other secrets." });
+        fields.prefix = field("Folder in the bucket", prefix, { hint: "Each machine and server get their own folder inside.", help: "Backups go to <folder>/<machine id>/server-<id>/ — several WindowsGSM machines can share one place." });
+        paintProvider();
         clear(body).append(
             enabled,
             h("div", { class: "form-grid" },
-                field("Storage service", provider, { help: "Any S3-compatible storage works. Backblaze B2 and Cloudflare R2 are cheap for backups; R2 has no download fees." }),
-                field("Bucket", bucket, { help: "Create a private bucket for your backups first, in the service's own website." }),
-                field("Endpoint", endpoint, { help: "The service's S3 address. Leave empty for Amazon S3." }),
-                field("Region", region),
-                field("Key ID", keyId, { help: "An access key that can read, write, list and delete in that bucket — ideally one made just for this, for just that bucket." }),
-                field("Secret key", secret, { help: "Stored encrypted on this PC (Windows data protection), like the other secrets." }),
-                field("Folder in the bucket", prefix, { hint: "Each machine and server get their own folder inside.", help: "Backups go to <folder>/<machine id>/server-<id>/ — several WindowsGSM machines can share one bucket." }),
-                field("Keep off-site", keep, { hint: "newest backups per server (0 = all)", help: "After each upload, older off-site copies beyond this number are deleted from the bucket. The backups on this PC follow their own keep rules." })),
+                field("Storage service", provider, { help: "An S3 service (Backblaze B2 and Cloudflare R2 are cheap for backups; R2 has no download fees), or your own file server over SFTP, FTPS or FTP." }),
+                fields.bucket, fields.endpoint, fields.region, fields.keyId, fields.secret, fields.prefix,
+                field("Keep off-site", keep, { hint: "newest backups per server (0 = all)", help: "After each upload, older off-site copies beyond this number are deleted there. The backups on this PC follow their own keep rules." })),
             providerHint,
+            pinned,
             result,
             h("div", { class: "row" }, h("span", { class: "spacer" }), test, save));
     }
