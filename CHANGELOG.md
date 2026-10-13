@@ -3,6 +3,12 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## Unreleased
+
+- **Discord alerts: "Started"** — a message when someone starts or restarts the server by hand (Settings → Discord
+  alerts; auto-starts and automatic or scheduled restarts keep their own switches).
+- **Send a test** next to the webhook URL posts a test message, so a wrong URL shows up straight away.
+
 ## 2.0.0-beta.4
 
 Off-site backups to your own file server, and home servers that keep starting when the PC's address changes.

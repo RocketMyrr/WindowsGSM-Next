@@ -37,6 +37,7 @@ namespace WindowsGSM.Engine.Services
             ServerConfig.SettingName.SkipUserSetup, ServerConfig.SettingName.MemoryGuard, SteamContentPolicy.SteamCmdOverrideSetting,
             "perfsample", // ask the game for FPS/TPS over RCON (absent = on)
             LifecycleService.AutoServerIpKey, // use this PC's current address when the saved IP isn't one (absent = on)
+            NotificationService.StartAlertKey, // Discord alert when started by hand (absent = off)
             ServerScripts.BlocksStartKey, LifecycleService.CtrlCFirstKey,
         };
 

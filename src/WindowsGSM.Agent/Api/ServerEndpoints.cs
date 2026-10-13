@@ -79,6 +79,17 @@ public static class ServerEndpoints
 
         // ── Logs, players, metrics ──
 
+        // The "Send a test" button: the webhook as typed, or the saved one when none is sent.
+        server.MapPost("/discord/test", async (HttpContext http, AgentContext ctx, DiscordTestRequest body) =>
+        {
+            var s = Scopes.Server(http);
+            string url = string.IsNullOrWhiteSpace(body.Webhook) ? s.Config.DiscordWebhook ?? "" : body.Webhook;
+            if (url.Length == 0) { return ApiResults.BadRequest("Paste the webhook URL first."); }
+            string? problem = await WindowsGSM.Engine.Services.NotificationService.TestWebhookAsync(url, body.Mention ?? s.Config.DiscordMessage ?? "", s.Config.SkipUserSetup, s.Name);
+            ctx.Record(http, "discord-test", s.Id, problem == null, problem ?? "sent");
+            return problem == null ? Results.Json(new { ok = true }) : ApiResults.BadRequest(problem);
+        }).Needs(Capability.EditConfig);
+
         server.MapGet("/logs", (HttpContext http, AgentContext ctx, int? count) =>
             Results.Json(new LogDto(ctx.Engine.Log.Tail(Scopes.Server(http).Id, Math.Clamp(count ?? 200, 1, 2000)))));
 
@@ -195,5 +206,7 @@ public static class ServerEndpoints
 }
 
 public sealed record ConsoleWindowRequest(bool Visible);
+
+public sealed record DiscordTestRequest(string? Webhook, string? Mention);
 public sealed record RollbackRequest(string? Key);
 public sealed record UpdateHoldRequest(bool Held);

@@ -219,6 +219,11 @@ namespace WindowsGSM.Engine.Services
             {
                 _events.Publish(new ServerAlert(s.Id, AlertKind.AutoStarted, $"{s.Name} started", "Auto start brought the server up."));
             }
+            // NEXT: someone started (or restarted) it by hand — automatic starts and restarts have alerts of their own.
+            else if (reason is StartReason.Manual or StartReason.Restart)
+            {
+                _events.Publish(new ServerAlert(s.Id, AlertKind.Started, $"{s.Name} started", "The server was started."));
+            }
             return null;
         }
 

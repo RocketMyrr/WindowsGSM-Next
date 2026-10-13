@@ -2,7 +2,7 @@
 // agent validates everything and saves nothing if any value is wrong.
 
 import { h, icon, clear } from "../../dom.js";
-import { get, patch, srv } from "../../api.js";
+import { get, patch, post, srv } from "../../api.js";
 import { store } from "../../store.js";
 import { toast, toastError, field, input, select, toggle, busy, confirm } from "../../ui.js";
 import { setLeaveGuard } from "../../router.js";
@@ -113,12 +113,27 @@ export default async function settingsTab(host, { id, machine, key, server, scop
             onOff("updateonstart", "Update before starting", null, "Every start (and restart) updates the game first if there's something new. Starts take longer, but the server is never out of date."),
             onOff("updateaddonsonstart", "Update add-ons before starting", null, "Updates the add-ons in the Add-ons tab (e.g. Oxide) before each start, so they keep up with game updates.")));
 
+    // Posts a test message to the webhook as typed (or the saved one), so a wrong URL shows up now, not at the next crash.
+    function discordTest() {
+        const result = h("span", { class: "small", role: "status" });
+        const button = h("button", { class: "btn sm", type: "button", onclick: () => busy(button, async () => {
+            const typed = controls.get("discordwebhook")?.querySelector("input")?.value.trim() || null;
+            const mention = controls.get("discordmessage")?.querySelector("input")?.value.trim() ?? null;
+            result.textContent = "";
+            try { await post(srv(machine, id, "/discord/test"), { webhook: typed, mention }); result.className = "small green-text"; result.textContent = "Sent — check the channel."; }
+            catch (e) { result.className = "small rose-text"; result.textContent = e.message; }
+        }) }, icon("send"), "Send a test");
+        return h("div", { class: "row wrap" }, button, result);
+    }
+
     const alerts = section("Discord alerts", "This server only. For alerts about every server and machine in one place, use Notifications in the sidebar.",
         h("div", { class: "toggles" }, onOff("discordalert", "Send alerts to Discord", null, "This server's own Discord webhook, for the events ticked below. For alerts about every server in one place, use Notifications → channels instead.")),
         h("div", { class: "form-grid" },
             secret("discordwebhook", "Webhook URL", { span: true, mono: true, hint: "Discord → Server settings → Integrations → Webhooks.", help: "In Discord: Server settings → Integrations → Webhooks → New webhook, pick the channel, Copy webhook URL, and paste it here. Anyone with the URL can post to that channel, so it's kept secret." }),
             text("discordmessage", "Mention", { placeholder: "@here or <@&role id>", help: "Who gets pinged with each alert: @here, @everyone, or a role as <@&role id> (in Discord, turn on Developer Mode, then right-click the role → Copy role ID)." })),
+        discordTest(),
         h("div", { class: "toggles" },
+            onOff("startalert", "Started", null, "When someone starts or restarts the server (auto-starts and automatic or scheduled restarts have their own switches)."),
             onOff("crashalert", "Crashes"), onOff("autorestartalert", "Automatic restarts"), onOff("autostartalert", "Auto-starts"),
             onOff("autoupdatealert", "Automatic updates"), onOff("restartcrontabalert", "Scheduled restarts"), onOff("autoipupdatealert", "IP changes")));
 

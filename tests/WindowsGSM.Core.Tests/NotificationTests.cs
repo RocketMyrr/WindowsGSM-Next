@@ -78,4 +78,39 @@ public class NotificationTests
 
         Assert.Equal(2, sent.Count);
     }
+    [Fact]
+    public async Task A_start_by_hand_is_announced_only_when_its_switch_is_on()
+    {
+        EngineFixture.CreateServer("152", "long", false, Discord().Append("startalert=\"1\"").ToArray());
+        EngineFixture.CreateServer("153", extraSettings: Discord()); // no "startalert": off
+        using var engine = await EngineFixture.StartEngineAsync();
+        var sent = new ConcurrentQueue<Notification>();
+        engine.Notifications.Sender = n => { sent.Enqueue(n); return Task.CompletedTask; };
+        try
+        {
+            foreach (string id in new[] { "152", "153" })
+            {
+                var start = engine.Lifecycle.Start(id);
+                Assert.True(start.Accepted, start.Error);
+                await start.Job!.Completion.WaitAsync(TimeSpan.FromSeconds(60));
+            }
+            await EngineFixture.WaitUntil(() => sent.Count >= 1, "the start alert");
+            await Settle();
+            Assert.Equal(("152", "Started"), sent.Select(n => (n.ServerId, n.Status)).Single());
+        }
+        finally
+        {
+            foreach (string id in new[] { "152", "153" }) { var stop = engine.Lifecycle.Stop(id); if (stop.Accepted) { await stop.Job!.Completion.WaitAsync(TimeSpan.FromSeconds(60)); } }
+        }
+    }
+
+    [Theory]
+    [InlineData("https://example.com/api/webhooks/1/x")]
+    [InlineData("http://discord.com/api/webhooks/1/x")]
+    [InlineData("https://discord.com/channels/1/2")]
+    [InlineData("not a url")]
+    public async Task The_test_button_only_posts_to_Discord_webhooks(string url)
+    {
+        Assert.Contains("isn't a Discord webhook", await NotificationService.TestWebhookAsync(url, "", false, "Test"));
+    }
 }

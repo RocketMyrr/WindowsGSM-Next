@@ -56,6 +56,7 @@ namespace WindowsGSM.Engine.Services
                 AlertKind.Crashed => (cfg.CrashAlert, "Crashed", (string?)null),
                 AlertKind.AutoRestarted => (cfg.AutoRestartAlert, "Restarted | Auto Restart", null),
                 AlertKind.AutoStarted => (cfg.AutoStartAlert, "Started | Auto Start", null),
+                AlertKind.Started => (cfg.GetCustomSetting(StartAlertKey, "0") == "1", "Started", null),
                 AlertKind.ScheduledRestart => (cfg.RestartCrontabAlert, "Restarted | Restart Crontab", null),
                 AlertKind.AutoUpdated => (cfg.AutoUpdateAlert, "Updated | Auto Update", null),
                 AlertKind.ServerIpChanged => (cfg.AutoIpUpdate, null, $":globe_with_meridians: **{s.Name}**: {alert.Text}"),
@@ -89,6 +90,26 @@ namespace WindowsGSM.Engine.Services
             return n.Status != null
                 ? webhook.Send(n.ServerId, n.Game, n.Status, n.Name, n.Ip, n.Port)
                 : webhook.SendPlain(n.PlainText ?? string.Empty);
+        }
+
+        /// <summary>NEXT: per-server switch (absent = off): an alert when the server is started or restarted by hand.</summary>
+        public const string StartAlertKey = "startalert";
+
+        /// <summary>
+        /// NEXT: sends a test message to a Discord webhook (the "Send a test" button). Only Discord's own webhook
+        /// addresses are accepted. Null when Discord took it, or what's wrong.
+        /// </summary>
+        public static async Task<string?> TestWebhookAsync(string url, string mention, bool skipUserSetup, string serverName)
+        {
+            if (!Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var uri) || uri.Scheme != "https"
+                || !(uri.Host is "discord.com" or "discordapp.com" or "ptb.discord.com" or "canary.discord.com")
+                || !uri.AbsolutePath.StartsWith("/api/webhooks/", StringComparison.Ordinal))
+            {
+                return "That isn't a Discord webhook URL — it starts with https://discord.com/api/webhooks/.";
+            }
+            var webhook = new DiscordWebhook(uri.ToString(), mention ?? string.Empty, string.Empty, skipUserSetup);
+            bool sent = await webhook.SendPlain(":white_check_mark: Test from WindowsGSM — alerts for **" + serverName + "** will arrive in this channel.").ConfigureAwait(false);
+            return sent ? null : "Discord didn't accept it — check the webhook URL (it may have been deleted in Discord).";
         }
 
         public void Dispose() => _subscription.Dispose();
