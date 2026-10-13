@@ -3,6 +3,12 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## Unreleased
+
+- **Setup: "Start with new accounts"** when using an existing folder — keeps the servers, backups and settings, but
+  not the accounts or sign-ins (WindowsGSM's own, or the old app's web-dashboard ones): you create a new owner
+  account when it opens. The old account files are kept in the folder, renamed.
+
 ## 2.0.0-beta.5
 
 Add-on versions at a glance, more Discord alert options, and security hardening.

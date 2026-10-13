@@ -66,7 +66,7 @@ namespace WindowsGSM.Launcher
             }),
             T("signin", "First sign-in and lost passwords", new[]
             {
-                "The first time WindowsGSM opens, you create the owner account. Accounts from WindowsGSM 1.x's web dashboard carry over with the same passwords.",
+                "The first time WindowsGSM opens, you create the owner account. Accounts from WindowsGSM 1.x's web dashboard carry over with the same passwords — or tick \"Start with new accounts\" in setup to begin with none (the old account files are kept, renamed).",
                 "Locked out? In the WindowsGSM folder (AppData\\Local\\Programs\\WindowsGSM), run: WindowsGSM.exe --reset-password <username>",
             }),
             T("uninstall", "Uninstalling", new[]

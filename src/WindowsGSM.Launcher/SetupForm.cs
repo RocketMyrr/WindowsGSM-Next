@@ -44,6 +44,8 @@ namespace WindowsGSM.Launcher
         // Data
         private readonly RadioButton _useExisting = new RadioButton(), _startFresh = new RadioButton();
         private readonly TextBox _existingDir = new TextBox(), _freshDir = new TextBox();
+        private readonly CheckBox _newAccounts = new CheckBox(); // existing folder: set its accounts aside, make new ones
+        private Control _newAccountsRow; // shown only with "use an existing folder" (it means nothing for a new one)
         private readonly ListView _report = new ListView { View = View.Details, HeaderStyle = ColumnHeaderStyle.None, FullRowSelect = true, BorderStyle = BorderStyle.None };
         private readonly Label _reportTitle = new Label(), _space = new Label();
         private bool _checkBlocks = true;
@@ -502,6 +504,11 @@ namespace WindowsGSM.Launcher
             s.Controls.Add(Choice(_useExisting, _legacy != null ? "Use my WindowsGSM 1.x folder (keep my servers)" : "Use an existing WindowsGSM folder",
                 "Servers, their settings, backups, schedules and web-dashboard accounts carry over. Close the old WindowsGSM first."));
             s.Controls.Add(PathRow(_existingDir, "Pick your WindowsGSM folder (the one with servers, configs and backups)", 20));
+            var accounts = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false, Margin = new Padding(20, 0, 0, 0) };
+            Option(_newAccounts, "Start with new accounts", "Keeps the servers, but not the accounts or sign-ins: you create a new owner account when WindowsGSM opens. The old account files stay in the folder, renamed.", accounts);
+            s.Controls.Add(accounts);
+            _newAccountsRow = accounts;
+            accounts.Visible = _useExisting.Checked;
             s.Controls.Add(Choice(_startFresh, "Start fresh", "A new, empty folder for your game servers."));
             s.Controls.Add(PathRow(_freshDir, "Choose a folder for your game servers", 20));
 
@@ -626,6 +633,7 @@ namespace WindowsGSM.Launcher
         private void DataModeChanged()
         {
             _existingDir.Enabled = _useExisting.Checked;
+            if (_newAccountsRow != null) { _newAccountsRow.Visible = _useExisting.Checked; }
             _freshDir.Enabled = _startFresh.Checked;
             _ = CheckAsync();
         }
@@ -891,12 +899,37 @@ namespace WindowsGSM.Launcher
             }
             Say("Setting up your game servers folder…", data);
             Directory.CreateDirectory(data);
+            SetAccountsAside(data);
             install.Data = data;
             install.Save();
             ApplyOptions(install, maintaining: true);
             _installed = install;
             _doneMessage = $"Game servers in {data}";
             Progress(100);
+        }
+
+        /// <summary>
+        /// "Start with new accounts": the folder's accounts and sign-ins (WindowsGSM's own, and the old app's web
+        /// dashboard ones it would otherwise adopt) are renamed out of the way — kept, not deleted — so WindowsGSM opens
+        /// on "create the owner account". Servers, backups and settings are untouched.
+        /// </summary>
+        private void SetAccountsAside(string data)
+        {
+            bool wanted = false;
+            Invoke((Action)(() => wanted = _useExisting.Checked && _newAccounts.Checked));
+            if (!wanted) { return; }
+            if (AgentControl.IsAgentRunning(data))
+            {
+                throw new InvalidOperationException("WindowsGSM is running on that folder. Close it first (tray icon → Stop everything and quit), then run setup again.");
+            }
+            string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+            foreach (string file in new[] { @"configs\next\users.json", @"configs\next\sessions.json", @"configs\webdashboard\users.json" })
+            {
+                string path = Path.Combine(data, file);
+                if (!File.Exists(path)) { continue; }
+                File.Move(path, path + ".old-" + stamp);
+                Say(null, $"Set aside {file} (now {Path.GetFileName(path)}.old-{stamp})");
+            }
         }
 
         /// <summary>A fresh install (or a separate copy).</summary>
@@ -918,6 +951,7 @@ namespace WindowsGSM.Launcher
             {
                 Say("Setting up your game servers folder…", data);
                 Directory.CreateDirectory(data);
+                SetAccountsAside(data);
             }
             var install = there ?? Install.Create(root, _version, data);
             install.Data = data ?? install.Data; // just the app over a copy that runs servers: it keeps running them
