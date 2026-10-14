@@ -48,7 +48,7 @@ jobs:
       # Real servers some agent tests talk to: Pebble (Let's Encrypt's test server) and SeaweedFS (S3). Pinned and
       # checksum-checked by the script; kept between runs.
       - name: Test tools cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/wgsm-test-tools
           key: test-tools-${{ hashFiles('tools/Get-TestTools.ps1') }}
