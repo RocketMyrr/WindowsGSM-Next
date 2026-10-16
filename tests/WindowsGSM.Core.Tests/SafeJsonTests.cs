@@ -247,5 +247,7 @@ public class SafeJsonWriteTests : IDisposable
         SafeJson.Write(F(), new Settings { Name = "after" });
         await release;
         Assert.Equal("after", SafeJson.Read<Settings>(F())!.Name);
+        // A held file isn't a damaged one: the previous copy is still kept as the backup.
+        Assert.Contains("before", File.ReadAllText(F() + ".bak"));
     }
 }

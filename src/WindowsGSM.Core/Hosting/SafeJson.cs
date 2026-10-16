@@ -103,9 +103,10 @@ namespace WindowsGSM.Hosting
                 for (int attempt = 1; ; attempt++)
                 {
                     try { WriteOnce(file, bytes); return; }
-                    catch (Exception ex) when (attempt < 5 && (ex is IOException or UnauthorizedAccessException) && ex is not (DirectoryNotFoundException or PathTooLongException))
+                    // About 3 s in all (0.1, 0.2 … then 0.5 s apart): a scan or a backup tool's look usually takes less.
+                    catch (Exception ex) when (attempt < 9 && (ex is IOException or UnauthorizedAccessException) && ex is not (DirectoryNotFoundException or PathTooLongException))
                     {
-                        System.Threading.Thread.Sleep(100 * attempt);
+                        System.Threading.Thread.Sleep(Math.Min(100 * attempt, 500));
                     }
                 }
             }
@@ -124,6 +125,7 @@ namespace WindowsGSM.Hosting
             if (File.Exists(file))
             {
                 // Only a file that reads becomes the .bak — a damaged one would replace the good previous copy.
+                // (A file something else has open isn't damaged: reading it throws, and the save is tried again.)
                 if (IsReadableJson(file)) { File.Replace(temp, file, file + ".bak", ignoreMetadataErrors: true); }
                 else { File.Move(temp, file, overwrite: true); }
             }
@@ -154,7 +156,8 @@ namespace WindowsGSM.Hosting
 
         private static bool IsReadableJson(string file)
         {
-            try { using var doc = JsonDocument.Parse(File.ReadAllText(file), new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip }); return true; }
+            string text = File.ReadAllText(file); // in use elsewhere: throws (IOException), it isn't "damaged"
+            try { using var doc = JsonDocument.Parse(text, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip }); return true; }
             catch { return false; }
         }
 

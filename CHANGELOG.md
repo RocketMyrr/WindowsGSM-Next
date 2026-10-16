@@ -3,6 +3,11 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## Unreleased
+
+- **Fixed:** saving a settings file while another program (antivirus, a backup tool) had it open treated it as
+  damaged and skipped keeping the previous copy as the .bak. It now waits for the file (up to about 3 seconds).
+
 ## 2.0.0-beta.7
 
 Rust starts with only what you set, the game version in a server's Details, and a crash-log false alarm fixed.
