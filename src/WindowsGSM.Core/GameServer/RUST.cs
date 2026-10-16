@@ -1,5 +1,8 @@
 ﻿using System.Threading.Tasks;
+using System;
 using System.Diagnostics;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.IO;
 
 namespace WindowsGSM.GameServer
@@ -42,25 +45,21 @@ namespace WindowsGSM.GameServer
 
         public async Task CreateServerCFG()
         {
-            //Download server.cfg
-            string configPath = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID, "server.cfg");
-            if (await Functions.Github.DownloadGameServerConfig(configPath, FullName))
-            {
-                string configText = File.ReadAllText(configPath);
-                configText = configText.Replace("{{rcon_password}}", _serverData.GetRCONPassword());
-                configText = configText.Replace("{{port}}", _serverData.ServerPort);
-                configText = configText.Replace("{{query_port}}", _serverData.ServerQueryPort);
-                File.WriteAllText(configPath, configText);
-            }
+            // NEXT: no WindowsGSM server.cfg on the start line any more (legacy downloaded one and added every line).
+            // RCON is on, as before, from the server's RCON settings; everything else is Rust's default until you set
+            // it — in Rust's own server\<identity>\cfg\server.cfg, or in Extra start parameters.
+            string id = _serverData.ServerID;
+            Functions.ServerConfig.SetSetting(id, Functions.ServerConfig.SettingName.RconPort, _serverData.ServerPort);
+            Functions.ServerConfig.SetSetting(id, Functions.ServerConfig.SettingName.RconPassword, _serverData.GetRCONPassword());
+            Functions.ServerConfig.SetSetting(id, Functions.ServerConfig.SettingName.RconIp, string.Empty);
+            await Task.CompletedTask;
         }
 
         public async Task<Process> Start()
         {
-            string configPath = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID, "server.cfg");
-            if (!File.Exists(configPath))
-            {
-                Notice = $"server.cfg not found ({configPath})";
-            }
+            // An older install's WindowsGSM server.cfg: its settings move to where they belong, once.
+            string moved = MoveOldDefaults(_serverData);
+            if (moved != null) { Notice = moved; }
 
             string workingDir = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID);
             if (_serverData.BatchFile != string.Empty)
@@ -78,26 +77,7 @@ namespace WindowsGSM.GameServer
 
             string srcdsPath = Path.Combine(workingDir, "RustDedicated.exe");
 
-            string param = "-nographics -batchmode -silent-crashes";
-            param += string.IsNullOrWhiteSpace(_serverData.ServerName) ? string.Empty : $" +server.hostname \"{_serverData.ServerName}\"";
-            param += string.IsNullOrWhiteSpace(_serverData.ServerIP) ? string.Empty : $" +server.ip {_serverData.ServerIP}";
-            param += string.IsNullOrWhiteSpace(_serverData.ServerPort) ? string.Empty : $" +server.port {_serverData.ServerPort}";
-            param += string.IsNullOrWhiteSpace(_serverData.ServerQueryPort) ? string.Empty : $" +server.queryport {_serverData.ServerQueryPort}";
-            //param += string.IsNullOrWhiteSpace(_serverData.ServerMap) ? string.Empty : $" +server.level \"{_serverData.ServerMap}\"";
-            param += string.IsNullOrWhiteSpace(_serverData.ServerMaxPlayer) ? string.Empty : $" +server.maxplayers {_serverData.ServerMaxPlayer}";
-
-            // server.cfg may not exist yet (CreateServerCFG downloads it async) — don't crash the
-            // start over it. Append each non-blank line as a launch convar.
-            if (File.Exists(configPath))
-            {
-                foreach (string line in File.ReadLines(configPath))
-                {
-                    if (string.IsNullOrWhiteSpace(line)) { continue; }
-                    param += $" {line.Trim()}";
-                }
-            }
-
-            param += $" {_serverData.ServerParam}";
+            string param = Arguments(_serverData);
 
             Process p = new Process
             {
@@ -112,6 +92,95 @@ namespace WindowsGSM.GameServer
             p.Start();
 
             return p;
+        }
+
+        /// <summary>The start line: Rust's usual switches, the form's settings, RCON (when set) and Extra start parameters.</summary>
+        internal static string Arguments(Functions.ServerConfig cfg)
+        {
+            string param = "-nographics -batchmode -silent-crashes";
+            param += string.IsNullOrWhiteSpace(cfg.ServerName) ? string.Empty : $" +server.hostname \"{cfg.ServerName}\"";
+            param += string.IsNullOrWhiteSpace(cfg.ServerIP) ? string.Empty : $" +server.ip {cfg.ServerIP}";
+            param += string.IsNullOrWhiteSpace(cfg.ServerPort) ? string.Empty : $" +server.port {cfg.ServerPort}";
+            param += string.IsNullOrWhiteSpace(cfg.ServerQueryPort) ? string.Empty : $" +server.queryport {cfg.ServerQueryPort}";
+            //param += string.IsNullOrWhiteSpace(cfg.ServerMap) ? string.Empty : $" +server.level \"{cfg.ServerMap}\"";
+            param += string.IsNullOrWhiteSpace(cfg.ServerMaxPlayer) ? string.Empty : $" +server.maxplayers {cfg.ServerMaxPlayer}";
+
+            // RCON from the server's RCON settings (WindowsGSM's console uses the same), when a port is set.
+            if (int.TryParse(cfg.RconPort, out int rconPort) && rconPort > 0)
+            {
+                param += string.IsNullOrWhiteSpace(cfg.RconIp) ? string.Empty : $" +rcon.ip {cfg.RconIp}";
+                param += $" +rcon.port {rconPort} +rcon.password \"{cfg.RconPassword}\" +rcon.web 1";
+            }
+
+            // Then only what you set yourself.
+            param += string.IsNullOrWhiteSpace(cfg.ServerParam) ? string.Empty : $" {cfg.ServerParam.Trim()}";
+            return param.Trim();
+        }
+
+        /// <summary>Settings the form sets (Server name, IP address, Game port, Query port, Max players).</summary>
+        private static readonly string[] FormSettings = { "server.hostname", "server.ip", "server.port", "server.queryport", "server.maxplayers" };
+
+        /// <summary>
+        /// Older installs have WindowsGSM's own server.cfg in the server files, every line of which went on the start
+        /// line. Moves it once, keeping the server exactly as it ran: RCON into the RCON settings; the save folder
+        /// (+server.identity) and -logfile into Extra start parameters, as they only work there; everything else into
+        /// Rust's own server\&lt;identity&gt;\cfg\server.cfg (lines already there win). The file becomes server.cfg.old.
+        /// Returns a note for the log, or null when there was nothing to move.
+        /// </summary>
+        internal static string MoveOldDefaults(Functions.ServerConfig cfg)
+        {
+            string id = cfg.ServerID;
+            string old = Functions.ServerPath.GetServersServerFiles(id, "server.cfg");
+            if (!File.Exists(old)) { return null; }
+
+            var lines = File.ReadAllLines(old).Select(l => l.Trim()).Where(l => l.Length > 0)
+                .Select(l => { var m = Regex.Match(l, @"^([+-])([A-Za-z][\w.]*)\s*(.*)$"); return (Ok: m.Success, Sign: m.Groups[1].Value, Name: m.Groups[2].Value, Value: m.Groups[3].Value.Trim()); })
+                .Where(x => x.Ok && !FormSettings.Contains(x.Name, StringComparer.OrdinalIgnoreCase)).ToList();
+            string Value(string name) => lines.Where(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).Select(x => x.Value.Trim('"')).LastOrDefault();
+
+            // RCON: what the server actually ran with, if WindowsGSM's own RCON settings weren't in use.
+            if (!(int.TryParse(cfg.RconPort, out int p) && p > 0) && int.TryParse(Value("rcon.port"), out int rconPort) && rconPort > 0)
+            {
+                Functions.ServerConfig.SetSetting(id, Functions.ServerConfig.SettingName.RconPort, rconPort.ToString());
+                Functions.ServerConfig.SetSetting(id, Functions.ServerConfig.SettingName.RconPassword, Value("rcon.password") ?? string.Empty);
+                Functions.ServerConfig.SetSetting(id, Functions.ServerConfig.SettingName.RconIp, Value("rcon.ip") ?? string.Empty);
+                cfg.RconPort = rconPort.ToString();
+                cfg.RconPassword = Value("rcon.password") ?? string.Empty;
+                cfg.RconIp = Value("rcon.ip") ?? string.Empty;
+            }
+
+            // Command line only: the save folder and the log file. Kept unless Extra start parameters already has them.
+            string extras = (cfg.ServerParam ?? string.Empty).Trim();
+            foreach (var x in lines.Where(x => x.Name.Equals("server.identity", StringComparison.OrdinalIgnoreCase) || x.Sign == "-"))
+            {
+                if (Regex.IsMatch(extras, $@"(^|\s)[+-]{Regex.Escape(x.Name)}(\s|$)", RegexOptions.IgnoreCase)) { continue; }
+                extras = ($"{x.Sign}{x.Name} {x.Value}".Trim() + " " + extras).Trim();
+            }
+            if (extras != (cfg.ServerParam ?? string.Empty).Trim())
+            {
+                Functions.ServerConfig.SetSetting(id, Functions.ServerConfig.SettingName.ServerParam, extras);
+                cfg.ServerParam = extras;
+            }
+
+            // The rest: Rust's own config for this save, which Rust reads itself on start.
+            string identity = Value("server.identity");
+            if (string.IsNullOrWhiteSpace(identity)) { identity = "my_server_identity"; } // Rust's default folder
+            string rustCfg = Functions.ServerPath.GetServersServerFiles(id, Path.Combine("server", identity, "cfg", "server.cfg"));
+            var existing = File.Exists(rustCfg) ? File.ReadAllLines(rustCfg) : Array.Empty<string>();
+            var have = new System.Collections.Generic.HashSet<string>(existing.Select(l => l.Trim().Split(' ', 2)[0]).Where(n => n.Length > 0), StringComparer.OrdinalIgnoreCase);
+            var add = lines.Where(x => x.Sign == "+" && !x.Name.StartsWith("rcon.", StringComparison.OrdinalIgnoreCase)
+                    && !x.Name.Equals("server.identity", StringComparison.OrdinalIgnoreCase) && !have.Contains(x.Name))
+                .Select(x => $"{x.Name} {x.Value}".Trim()).ToList();
+            if (add.Count > 0)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(rustCfg));
+                var text = existing.Length > 0 && existing[^1].Length > 0 ? Environment.NewLine : string.Empty;
+                File.AppendAllText(rustCfg, text + string.Join(Environment.NewLine, add) + Environment.NewLine);
+            }
+
+            File.Move(old, old + ".old", overwrite: true);
+            return $"Moved WindowsGSM's server.cfg (now server.cfg.old): {(add.Count > 0 ? $"{add.Count} setting(s) to server\\{identity}\\cfg\\server.cfg, " : "")}"
+                + "the save folder and log file to Extra start parameters, RCON to the RCON settings. The start line now only has what you set.";
         }
 
         public async Task Stop(Process p)

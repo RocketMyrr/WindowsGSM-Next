@@ -35,4 +35,13 @@ public class LoggingTests
         }
         finally { if (Directory.Exists(root)) { WindowsGSM.Core.Tests.TestData.DeleteDirectory(root); } }
     }
+
+    [Fact]
+    public void Only_SteamKits_closed_socket_counts_as_harmless()
+    {
+        // Real failures are still written; the SteamKit2 case is matched on its own connection code only.
+        Assert.False(CrashLog.Harmless(new AggregateException(new ObjectDisposedException("ClientWebSocket"))));
+        Assert.False(CrashLog.Harmless(new AggregateException(new TimeoutException("background"))));
+        Assert.False(CrashLog.Harmless(new AggregateException()));
+    }
 }

@@ -71,6 +71,9 @@ namespace WindowsGSM.Installer
             return ordered;
         }
 
+        private static async Task<bool> Closed(Task disconnected, TimeSpan wait) =>
+            await Task.WhenAny(disconnected, Task.Delay(wait)).ConfigureAwait(false) == disconnected;
+
         private static async Task<KeyValue?> GetDepotsSectionAsync(uint app, TimeSpan? timeout, CancellationToken cancellation)
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
@@ -83,7 +86,12 @@ namespace WindowsGSM.Installer
 
             var loggedOn = new TaskCompletionSource<EResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             manager.Subscribe<SteamClient.ConnectedCallback>(_ => user.LogOnAnonymous());
-            manager.Subscribe<SteamClient.DisconnectedCallback>(_ => loggedOn.TrySetException(new IOException("Disconnected from Steam before logging on.")));
+            var disconnected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            manager.Subscribe<SteamClient.DisconnectedCallback>(_ =>
+            {
+                loggedOn.TrySetException(new IOException("Disconnected from Steam before logging on."));
+                disconnected.TrySetResult();
+            });
             manager.Subscribe<SteamUser.LoggedOnCallback>(cb => loggedOn.TrySetResult(cb.Result));
 
             // SteamKit2 delivers callbacks only while someone pumps them.
@@ -114,8 +122,15 @@ namespace WindowsGSM.Installer
             }
             finally
             {
+                // NEXT: let the connection close before stopping. Disconnecting straight after LogOff tore the socket
+                // down under SteamKit's own receive task, which then failed unobserved (a scary "background task
+                // failed" in the crash log) — Steam closes the link itself after a log off.
                 try { user.LogOff(); } catch { /* not logged on */ }
-                try { client.Disconnect(); } catch { /* not connected */ }
+                if (!await Closed(disconnected.Task, TimeSpan.FromSeconds(3)).ConfigureAwait(false))
+                {
+                    try { client.Disconnect(); } catch { /* not connected */ }
+                    await Closed(disconnected.Task, TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+                }
                 pumping.Cancel();
                 try { await pump.ConfigureAwait(false); } catch { /* pump ends either way */ }
             }

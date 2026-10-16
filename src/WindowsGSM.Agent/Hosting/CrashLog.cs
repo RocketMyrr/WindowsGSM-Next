@@ -18,8 +18,15 @@ public static class CrashLog
     {
         Configure(dataRoot, who);
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Write(e.ExceptionObject as Exception, fatal: e.IsTerminating);
-        TaskScheduler.UnobservedTaskException += (_, e) => { Write(e.Exception, fatal: false); e.SetObserved(); };
+        TaskScheduler.UnobservedTaskException += (_, e) => { if (!Harmless(e.Exception)) { Write(e.Exception, fatal: false); } e.SetObserved(); };
     }
+
+    /// <summary>
+    /// Failures that mean nothing: SteamKit2's socket task tripping over its own closed connection after a Steam check
+    /// is already done (only ever "object disposed", only ever inside SteamKit2's connection code).
+    /// </summary>
+    public static bool Harmless(AggregateException e) =>
+        e.Flatten().InnerExceptions is { Count: > 0 } inner && inner.All(x => x is ObjectDisposedException && (x.StackTrace?.Contains("SteamKit2.WebSocketConnection") ?? false));
 
     /// <summary>Where crash logs go, without hooking the process (tests).</summary>
     public static void Configure(string dataRoot, string who)

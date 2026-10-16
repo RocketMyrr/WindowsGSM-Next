@@ -3,11 +3,22 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
-## Unreleased
+## 2.0.0-beta.7
+
+Rust starts with only what you set, the game version in a server's Details, and a crash-log false alarm fixed.
 
 - **The server's game version is in Details:** the installed build and the newest one ("build 21345678 · newest
   21346002 · Update available"), with the branch when it isn't the public one, when it was last checked, and a
   **Check now** button. It comes from the background check that already runs every 30 minutes.
+- **Rust: the start line is only what you set.** It used to add every line of a WindowsGSM-made server.cfg (tick
+  rate, description, seed, world size, …), which you couldn't see in the form. Now it's Rust's usual switches, the
+  form's settings, RCON (from the RCON settings, when a port is set) and your Extra start parameters. On an existing
+  server's first start, that file's settings move, so nothing about the server changes: the save folder
+  (`+server.identity`) and `-logfile` to Extra start parameters, RCON to the RCON settings, and the rest into Rust's
+  own `server\<identity>\cfg\server.cfg` (editable under Configs; anything already there wins). The old file is
+  kept as server.cfg.old.
+- **Fixed:** a harmless "A background task in the agent failed … ClientWebSocket" entry in the crash log after
+  Steam version checks. The Steam connection now closes cleanly, and that leftover isn't logged as a failure.
 
 ## 2.0.0-beta.6
 
