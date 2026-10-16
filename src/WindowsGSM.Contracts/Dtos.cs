@@ -65,6 +65,9 @@ public sealed record SteamBranchDto(string Name, string? BuildId, bool PasswordR
 
 public sealed record UpdateCheckDto(string? LocalBuild, string? RemoteBuild, bool UpdateAvailable, string? Error);
 
+/// <summary>A server's game version as last checked (no new check): installed build, the newest on its branch, when.</summary>
+public sealed record ServerVersionDto(string? Installed, string? Latest, bool UpdateAvailable, DateTimeOffset? CheckedAt, string? Error, string? Branch);
+
 // ── Games & install ──
 
 public sealed record GameDto(string Name, bool IsPlugin, bool IsSteam, string? AppId, string? IconUrl, string? Description,

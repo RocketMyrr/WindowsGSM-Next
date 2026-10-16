@@ -1,7 +1,7 @@
 // Server overview tab: CPU/RAM/players chart (live for the last hour, from the machine's history for longer
 // ranges), key facts, recent activity and a quick health check.
 
-import { h, icon, clear, append, fmtMb, fmtBytes, fmtDateTime, gameLabel } from "../../dom.js";
+import { h, icon, clear, append, fmtMb, fmtBytes, fmtDateTime, gameLabel, timeAgo } from "../../dom.js";
 import { moveFilesDialog, openFolderButton } from "../../places.js";
 import { get, post, srv } from "../../api.js";
 import { store } from "../../store.js";
@@ -157,6 +157,31 @@ export default async function overviewTab(host, { id, machine, key, server, scop
             open, move);
     }
 
+    // The game version: installed and newest, from the agent's last update check.
+    let version = null, versionSeen = null;
+    async function loadVersion() {
+        try { version = await get(srv(machine, id, "/version")); paintFacts(); } catch { /* older agent: no row */ }
+    }
+    function versionText() {
+        if (!version) return null;
+        const v = version;
+        const build = b => /^\d+$/.test(b) ? `build ${b}` : b; // Steam build ids are plain numbers
+        const check = can(server(), "Update") ? h("button", { class: "btn ghost sm", title: "Ask Steam (or the game's source) now", onclick: e => busy(e.currentTarget, async () => {
+            await get(srv(machine, id, "/update-check"));
+            await loadVersion();
+        }, "Couldn't check for updates") }, icon("refresh"), "Check now") : null;
+        const status = !v.checkedAt ? h("span", { class: "faint small", text: "not checked yet" })
+            : v.updateAvailable ? h("span", { class: "tag accent", title: v.latest ? `The newest is ${build(v.latest)}.` : "" }, icon("update"), "Update available")
+            : v.latest && v.installed ? h("span", { class: "tag green", text: "Up to date" }) : null;
+        return h("span", { class: "version-facts" },
+            h("span", { class: "mono small", text: v.installed ? build(v.installed) : "unknown" }),
+            v.latest && v.latest !== v.installed ? h("span", { class: "small muted", text: `· newest ${build(v.latest)}` }) : null,
+            v.branch ? h("span", { class: "small muted", text: `· ${v.branch} branch` }) : null,
+            status,
+            v.checkedAt ? h("span", { class: "faint small", title: fmtDateTime(v.checkedAt) + (v.error ? ` — last check failed: ${v.error}` : ""), text: `checked ${timeAgo(v.checkedAt)}${v.error ? " (failed)" : ""}` }) : null,
+            check);
+    }
+
     async function loadUptime() {
         try { uptime = await get(srv(machine, id, "/uptime")); paintFacts(); } catch { /* history off or offline */ }
     }
@@ -164,9 +189,13 @@ export default async function overviewTab(host, { id, machine, key, server, scop
     function paintFacts() {
         const s = server();
         if (!s) return;
+        // A check finished in the background (the badge changed): fetch the version again.
+        if (versionSeen !== null && versionSeen !== !!s.updateAvailable) loadVersion();
+        versionSeen = !!s.updateAvailable;
         const row = (k, v) => [h("dt", { text: k }), h("dd", {}, v ?? "—")];
         clear(facts).append(
             ...row("Game", gameLabel(s.game)),
+            ...(version ? row("Version", versionText()) : []),
             ...row("Address", [s.ip, s.port].filter(Boolean).join(":") || "—"),
             ...row("Query port", s.queryPort || "—"),
             ...row("Max players", s.maxPlayers ?? "—"),
@@ -276,6 +305,7 @@ export default async function overviewTab(host, { id, machine, key, server, scop
     paintFacts();
     scope.every(5 * 60000, loadUptime);
     loadFilesAt();
+    loadVersion();
     scope.add(store.on("jobFinished", j => { if (j.serverId === id && j.kind === "move-files") loadFilesAt(); }));
     scope.every(60000, loadGamePerf, { now: false });
     paintChecks();

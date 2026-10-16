@@ -40,6 +40,24 @@ public class FleetFeatureTests
     }
 
     [Fact]
+    public async Task The_installed_and_newest_version_show_without_a_new_check()
+    {
+        var watch = _f.App.Services.GetRequiredService<UpdateWatch>();
+        var old = watch.Check;
+        int asked = 0;
+        watch.Check = id => { asked++; return Task.FromResult(new UpdateCheck("100", "200", false, true, null)); };
+        try
+        {
+            await watch.CheckNowAsync("103");
+            var v = await _f.Owner.GetJsonAsync<ServerVersionDto>(_f.ServerUrl("103", "/version"));
+            Assert.Equal(("100", "200", true), (v.Installed, v.Latest, v.UpdateAvailable));
+            Assert.NotNull(v.CheckedAt);
+            Assert.Equal(1, asked); // reading it doesn't ask Steam again
+        }
+        finally { watch.Check = old; }
+    }
+
+    [Fact]
     public void Warnings_go_out_at_their_moment_and_never_late()
     {
         var at = new DateTime(2026, 10, 1, 6, 0, 0);

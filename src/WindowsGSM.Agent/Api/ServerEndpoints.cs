@@ -30,6 +30,19 @@ public static class ServerEndpoints
             return Results.Json(new UpdateCheckDto(check.LocalBuild, check.RemoteBuild, check.Available, check.Error));
         }).Needs(Capability.Update);
 
+        // What's installed and the newest version, from the last background check (every 30 min) — instant, so the
+        // Details panel can always show it; "Check now" is /update-check.
+        server.MapGet("/version", (HttpContext http, AgentContext ctx, Hosting.UpdateWatch watch) =>
+        {
+            var s = Scopes.Server(http);
+            var last = watch.Get(s.Id);
+            string? installed = last?.LocalBuild;
+            if (installed == null) { string cached = WindowsGSM.Functions.BuildCache.Read(s.Id); installed = string.IsNullOrWhiteSpace(cached) ? null : cached.Trim(); }
+            string branch = WindowsGSM.Functions.ServerConfig.GetSetting(s.Id, WindowsGSM.Functions.ServerConfig.SettingName.SteamBranch);
+            return Results.Json(new ServerVersionDto(installed, last?.RemoteBuild, last?.Available ?? false, last?.CheckedAt, last?.Error,
+                string.IsNullOrWhiteSpace(branch) || branch == "public" ? null : branch.Trim()));
+        }).Needs(Capability.View);
+
         // Roll back a game update: the builds DepotDownloader has installed (its own manifests — not backups).
         server.MapGet("/builds", (HttpContext http, AgentContext ctx) =>
         {

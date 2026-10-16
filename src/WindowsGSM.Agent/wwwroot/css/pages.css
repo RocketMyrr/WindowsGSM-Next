@@ -381,6 +381,6 @@ a.sched-line:hover { color: var(--text); background: var(--hover); }
 .place-box { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 14px; }
 .place-box > summary { cursor: pointer; display: flex; align-items: center; gap: 8px; list-style: none; font-weight: 600; }
 .place-box[open] > summary { margin-bottom: 12px; }
-.files-at { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.files-at, .version-facts { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
 .files-at .mono { overflow-wrap: anywhere; }
 .explorer-slot:empty { display: none; }

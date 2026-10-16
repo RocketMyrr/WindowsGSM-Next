@@ -3,6 +3,12 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## Unreleased
+
+- **The server's game version is in Details:** the installed build and the newest one ("build 21345678 · newest
+  21346002 · Update available"), with the branch when it isn't the public one, when it was last checked, and a
+  **Check now** button. It comes from the background check that already runs every 30 minutes.
+
 ## 2.0.0-beta.6
 
 Stability fixes, a cleaner add-on setup (custom Oxide/Carbon builds, removing one, editing custom add-ons), and
