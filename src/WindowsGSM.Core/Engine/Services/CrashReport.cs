@@ -18,8 +18,32 @@ namespace WindowsGSM.Engine.Services
     internal static class CrashReport
     {
         /// <summary>Returns the report's path relative to the data folder (or a failure note) and the exit code.</summary>
-        public static (string reference, string exitCode) Write(ServerInstance server, Process? process)
+        /// <summary>What a Windows exit code means, for the ones that point at a cause.</summary>
+        public static string? Meaning(int code) => unchecked((uint)code) switch
         {
+            0xC0000135 => "A DLL the server needs wasn't found (STATUS_DLL_NOT_FOUND) — usually a missing Visual C++, DirectX or .NET runtime.",
+            0xC000007B => "A DLL is the wrong kind for this program (32-bit vs 64-bit, or damaged) — reinstall the runtime, or verify the server's files.",
+            0xC0000142 => "A DLL failed to start (STATUS_DLL_INIT_FAILED) — often a damaged runtime, or the PC is out of desktop heap.",
+            0xC0000139 => "A DLL is missing a function the server needs — the installed runtime is too old.",
+            0xC0000005 => "The server crashed (access violation).",
+            0xC0000409 => "The server stopped itself after detecting a fault (stack buffer overrun / fail-fast).",
+            0xC00000FD => "The server ran out of stack (stack overflow).",
+            0xE0434352 => "An unhandled .NET exception ended the server.",
+            0x80008083 or 0x80008096 => "The .NET runtime this server needs isn't installed.",
+            0xC000013A => "The server was stopped with Ctrl+C or its window was closed.",
+            _ => null,
+        };
+
+        public static (string reference, string exitCode) Write(ServerInstance server, Process? process) =>
+            Write(server, process, out _);
+
+        /// <summary>
+        /// NEXT: as above, plus <paramref name="hint"/> — what the exit code means when it says something useful, and any
+        /// Windows runtime the program needs that isn't installed (legacy just printed "Exit Code: -1073741515").
+        /// </summary>
+        public static (string reference, string exitCode) Write(ServerInstance server, Process? process, out string? hint)
+        {
+            hint = null;
             string exitCode = string.Empty;
             try
             {
@@ -37,7 +61,12 @@ namespace WindowsGSM.Engine.Services
                 if (process != null)
                 {
                     try { log.AppendLine($"PID: {process.Id}"); } catch { /* gone */ }
-                    try { exitCode = process.ExitCode.ToString(); log.AppendLine($"Exit Code: {exitCode}"); }
+                    try
+                    {
+                        exitCode = process.ExitCode.ToString();
+                        log.AppendLine($"Exit Code: {exitCode}");
+                        if (Meaning(process.ExitCode) is string meaning) { log.AppendLine($"Meaning: {meaning}"); hint = meaning; }
+                    }
                     catch (Exception e) { log.AppendLine($"Exit Code: unavailable ({e.Message})"); }
                     try
                     {
@@ -46,6 +75,19 @@ namespace WindowsGSM.Engine.Services
                         log.AppendLine($"Working Directory: {process.StartInfo.WorkingDirectory}");
                     }
                     catch (Exception e) { log.AppendLine($"Process start info unavailable: {e.Message}"); }
+
+                    // Anything the program needs that Windows doesn't have.
+                    try
+                    {
+                        var missing = Functions.Runtimes.For(process.StartInfo.FileName).Where(n => !n.Installed).ToList();
+                        if (missing.Count > 0)
+                        {
+                            log.AppendLine("Missing runtimes:");
+                            foreach (var n in missing) { log.AppendLine("  " + n.Detail); }
+                            hint = $"{string.Join(" ", missing.Select(n => n.Detail))} Install it from the server's Overview → Health check.";
+                        }
+                    }
+                    catch { /* re-adopted process: no start info */ }
                 }
 
                 log.AppendLine();

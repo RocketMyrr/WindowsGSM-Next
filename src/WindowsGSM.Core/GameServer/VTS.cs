@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.IO;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -68,6 +69,17 @@ namespace WindowsGSM.GameServer
                 EnableRaisingEvents = true
             };
 
+            // NEXT: Vintage Story needs a .NET runtime (1.22: .NET 10) that a fresh Windows doesn't have, and WindowsGSM
+            // brings its own .NET only for itself. When it's missing, a copy goes into WindowsGSM's folder for this.
+            var notes = new List<string>();
+            try { await Functions.Runtimes.PrepareDotnetAsync(p.StartInfo, exePath, notes.Add); }
+            catch (Exception ex)
+            {
+                Error = $"Couldn't get the .NET runtime Vintage Story needs: {ex.Message}";
+                return null;
+            }
+            if (notes.Count > 0) { Notice = string.Join(" ", notes); }
+
             if (AllowsEmbedConsole)
             {
                 p.StartInfo.CreateNoWindow = true;
@@ -105,9 +117,9 @@ namespace WindowsGSM.GameServer
         public async Task<Process> Install()
         {
             string version = await GetRemoteBuild();
-            if (version == null) { return null; }
+            if (string.IsNullOrWhiteSpace(version)) { Error ??= "Couldn't find out the newest Vintage Story version."; return null; }
             string zipName = $"vs_server_win-x64_{version}.zip";
-            string address = $"https://cdn.vintagestory.at/gamefiles/stable/{zipName}";
+            string address = _downloadUrl ?? $"https://cdn.vintagestory.at/gamefiles/stable/{zipName}";
             string zipPath = ServerPath.GetServersServerFiles(_serverData.ServerID, zipName);
 
             // Download vs_server_win-x64_{version}.zip from https://cdn.vintagestory.at/gamefiles/stable/
@@ -235,17 +247,26 @@ namespace WindowsGSM.GameServer
                 return string.Empty;
             }
 
-            return FileVersionInfo.GetVersionInfo(exePath).ProductVersion; // return "1.12.14"
+            // "1.22.7", or "1.22.7+3f2a…" from newer builds: only the version, or it never matches the feed.
+            return (FileVersionInfo.GetVersionInfo(exePath).ProductVersion ?? string.Empty).Split('+')[0].Trim();
         }
+
+        private string _downloadUrl;
 
         public async Task<string> GetRemoteBuild()
         {
-            // Get latest build in https://aur.archlinux.org/cgit/aur.git/log/?h=vintagestory with regex
+            // NEXT: Vintage Story's own version feed (legacy read the newest version off an Arch Linux package page).
             try
             {
-                string html = await WindowsGSM.Functions.Http.DownloadStringAsync("https://aur.archlinux.org/cgit/aur.git/log/?h=vintagestory");
-                Regex regex = new Regex(@"(\d{1,}\.\d{1,}\.\d{1,})<\/a>"); // Match "1.12.14</a>"
-                return regex.Match(html).Groups[1].Value; // Get first group -> "1.12.14"
+                var feed = Newtonsoft.Json.Linq.JObject.Parse(await WindowsGSM.Functions.Http.DownloadStringAsync("https://api.vintagestory.at/stable.json"));
+                var newest = feed.Properties()
+                    .Select(x => (Name: x.Name, Version: Version.TryParse(x.Name, out var v) ? v : null, Url: (string)x.Value["windowsserver"]?["urls"]?["cdn"]))
+                    .Where(x => x.Version != null && x.Url != null)
+                    .OrderByDescending(x => x.Version)
+                    .FirstOrDefault();
+                if (newest.Name == null) { Error = "Vintage Story's version feed listed no Windows server."; return string.Empty; }
+                _downloadUrl = newest.Url;
+                return newest.Name;
             }
             catch
             {

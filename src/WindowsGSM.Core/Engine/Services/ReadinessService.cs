@@ -15,7 +15,8 @@ namespace WindowsGSM.Engine.Services
     public enum CheckStatus { Pass, Info, Warning, Fail }
 
     /// <summary>One readiness check. <see cref="Scope"/> is App, Network, Server or Backup.</summary>
-    public sealed record ReadinessCheck(string Scope, string Name, CheckStatus Status, string Message);
+    /// <param name="Action">Something the user can do about it: for a missing runtime, the key to install it.</param>
+    public sealed record ReadinessCheck(string Scope, string Name, CheckStatus Status, string Message, string? Action = null);
 
     /// <summary>
     /// "Is this machine / server ready to run?" — port of the legacy readiness checks, adjusted for Next:
@@ -88,6 +89,8 @@ namespace WindowsGSM.Engine.Services
                 Firewall(s),
             };
 
+            checks.AddRange(RuntimeChecks(s));
+
             var backup = BackupSettings.Load(id);
             try { checks.Add(Writable("Backup", "Backup location writable", backup.ResolveLocation())); }
             catch (Exception ex) { checks.Add(new ReadinessCheck("Backup", "Backup location writable", CheckStatus.Fail, ex.Message)); }
@@ -140,10 +143,10 @@ namespace WindowsGSM.Engine.Services
         {
             try
             {
-                string path = JavaHelper.FindJavaExecutableAbsolutePath();
-                return string.IsNullOrWhiteSpace(path)
-                    ? new ReadinessCheck("App", "Java runtime", CheckStatus.Info, "Java wasn't found. Only Minecraft: Java Edition needs it, and it's offered during that install.")
-                    : new ReadinessCheck("App", "Java runtime", CheckStatus.Pass, $"Found {path}");
+                var found = JavaRuntimes.Installed().Select(r => r.Major).Distinct().OrderByDescending(m => m).ToList();
+                return found.Count == 0
+                    ? new ReadinessCheck("App", "Java runtime", CheckStatus.Info, "Java wasn't found. Only Minecraft: Java Edition needs it; a server gets the Java its version needs on its first start.")
+                    : new ReadinessCheck("App", "Java runtime", CheckStatus.Pass, $"Java {string.Join(", ", found)} found. A Minecraft server uses the one its version needs (and gets it when missing).");
             }
             catch (Exception ex) { return new ReadinessCheck("App", "Java runtime", CheckStatus.Warning, "Java detection failed: " + ex.Message); }
         }
@@ -179,6 +182,24 @@ namespace WindowsGSM.Engine.Services
                     : new ReadinessCheck("Network", "Public IP", CheckStatus.Pass, $"This machine is reachable as {ip} from the internet (if ports are forwarded).");
             }
             catch (Exception ex) { return new ReadinessCheck("Network", "Public IP", CheckStatus.Warning, "The public IP lookup failed: " + ex.Message); }
+        }
+
+        /// <summary>The server program's full path (null when the game doesn't name one).</summary>
+        private string? ProgramPath(ServerInstance s)
+        {
+            dynamic? game = _plugins.Create(s.Game, s.Config);
+            if (game == null) { return null; }
+            string startPath = (string)(Dyn.Get((object)game, "StartPath")?.ToString() ?? string.Empty);
+            return string.IsNullOrWhiteSpace(startPath) ? null : ServerPath.GetServersServerFiles(s.Id, startPath);
+        }
+
+        /// <summary>The Windows runtimes the server program needs (Visual C++, DirectX, .NET), from the program itself.</summary>
+        private IEnumerable<ReadinessCheck> RuntimeChecks(ServerInstance s)
+        {
+            IReadOnlyList<Runtimes.Need> needs;
+            try { needs = ProgramPath(s) is string exe ? Runtimes.For(exe) : Array.Empty<Runtimes.Need>(); }
+            catch (Exception ex) { return new[] { new ReadinessCheck("Server", "Runtimes", CheckStatus.Warning, "Couldn't read what the server program needs: " + ex.Message) }; }
+            return needs.Select(n => new ReadinessCheck("Server", n.Name, n.Installed ? CheckStatus.Pass : CheckStatus.Fail, n.Detail, n.Installed ? null : "runtime:" + n.Key));
         }
 
         private ReadinessCheck Executable(ServerInstance s)

@@ -241,15 +241,6 @@ namespace WindowsGSM.GameServer.Data {
         }
         
         /// <summary>
-        ///   Sucht eine lokalisierte Zeichenfolge, die Images/Games/heat.png ähnelt.
-        /// </summary>
-        public static string Heat_Dedicated_Server {
-            get {
-                return ResourceManager.GetString("Heat Dedicated Server", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Sucht eine lokalisierte Zeichenfolge, die Images/Games/inss.png ähnelt.
         /// </summary>
         public static string Insurgency__Sandstorm_Dedicated_Server {
@@ -331,15 +322,6 @@ namespace WindowsGSM.GameServer.Data {
         }
         
         /// <summary>
-        ///   Sucht eine lokalisierte Zeichenfolge, die Images/Games/olow.png ähnelt.
-        /// </summary>
-        public static string Outlaws_of_the_Old_West_Dedicated_Server {
-            get {
-                return ResourceManager.GetString("Outlaws of the Old West Dedicated Server", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Sucht eine lokalisierte Zeichenfolge, die Images/Games/ps.png ähnelt.
         /// </summary>
         public static string Post_Scriptum_Dedicated_Server {
@@ -349,29 +331,11 @@ namespace WindowsGSM.GameServer.Data {
         }
         
         /// <summary>
-        ///   Sucht eine lokalisierte Zeichenfolge, die Images/Games/rok.png ähnelt.
-        /// </summary>
-        public static string Reign_Of_Kings_Dedicated_Server {
-            get {
-                return ResourceManager.GetString("Reign Of Kings Dedicated Server", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Sucht eine lokalisierte Zeichenfolge, die Images/Games/rcc.png ähnelt.
         /// </summary>
         public static string Ricochet_Dedicated_Server {
             get {
                 return ResourceManager.GetString("Ricochet Dedicated Server", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Sucht eine lokalisierte Zeichenfolge, die Images/Games/ror2.png ähnelt.
-        /// </summary>
-        public static string Risk_of_Rain_2_Dedicated_Server {
-            get {
-                return ResourceManager.GetString("Risk of Rain 2 Dedicated Server", resourceCulture);
             }
         }
         

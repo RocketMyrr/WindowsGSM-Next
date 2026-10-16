@@ -358,7 +358,7 @@ function paintDrawer() {
     body.scrollTop = scroll;
 }
 
-const JOB_ICONS = { rollback: "restore", install: "plus", import: "download", update: "update", validate: "validate", backup: "backup", restore: "restore", addon: "puzzle", start: "play", stop: "stop", restart: "restart", "auto-restart": "restart", kill: "kill", delete: "trash" };
+const JOB_ICONS = { runtime: "download", rollback: "restore", install: "plus", import: "download", update: "update", validate: "validate", backup: "backup", restore: "restore", addon: "puzzle", start: "play", stop: "stop", restart: "restart", "auto-restart": "restart", kill: "kill", delete: "trash" };
 
 function jobRow(job) {
     const status = job.status.toLowerCase();

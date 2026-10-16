@@ -339,7 +339,8 @@ namespace WindowsGSM.Installer
             var args = BuildArgs(serverId, installDir, appId, validate, loginAnonymous, custom: null);
             if (args == null)
             {
-                Error = "Steam account is not set up";
+                // NEXT: say what to do (DayZ and others can't be downloaded anonymously).
+                Error = "This game's server can only be downloaded with a Steam account that owns the game. Sign in under Agent settings → Steam account, then try again.";
                 return null;
             }
 
@@ -362,7 +363,7 @@ namespace WindowsGSM.Installer
             var args = BuildArgs(serverId, installDir, appId, validate, loginAnonymous, custom);
             if (args == null)
             {
-                return (null, "Steam account is not set up");
+                return (null, "This game's server can only be downloaded with a Steam account that owns the game. Sign in under Agent settings → Steam account, then try again.");
             }
 
             // IMPORTANT: When embedConsole is FALSE, caller must manually read StandardOutput/StandardError using events
@@ -398,7 +399,7 @@ namespace WindowsGSM.Installer
             if (!loginAnonymous)
             {
                 var (u, p) = GetSteamUsernamePassword();
-                if (string.IsNullOrWhiteSpace(u) || string.IsNullOrWhiteSpace(p)) { return (null, "Steam account is not set up"); }
+                if (string.IsNullOrWhiteSpace(u) || string.IsNullOrWhiteSpace(p)) { return (null, "This game's server can only be downloaded with a Steam account that owns the game. Sign in under Agent settings → Steam account, then try again."); }
                 sb.Append($"-username \"{EscapeArg(u)}\" -password \"{EscapeArg(p)}\" -remember-password ");
             }
 

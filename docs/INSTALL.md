@@ -181,8 +181,8 @@ The panel's own port (8971) gets its rule when you turn on *Reachable from other
   restart needed (Oxide/Carbon reload plugin files themselves). Plugins added by hand are left alone unless you
   choose *Keep up to date*; a plugin edited since it was installed is never overwritten. Optionally *Update them
   before every start*. Tracked in `serverfiles\wgsm-umod.json`.
-- **Stopping games whose plugin just ends the process** (ARK: Survival Evolved, BlackWake, DayZ, Outlaws of the Old
-  West, Onset, Stormworks, The Forest — Settings flags these, and community plugins that do the same): set a save
+- **Stopping games whose plugin just ends the process** (ARK: Survival Evolved, BlackWake, DayZ, Onset,
+  Stormworks, The Forest — Settings flags these, and community plugins that do the same): set a save
   command, or turn on *Send Ctrl+C before the game's own stop* (Settings → Stopping safely). When a plugin "presses"
   Ctrl+C on a server that has no window of its own (captured, or found again after an agent restart), the Ctrl+C
   now reaches that server's console instead of going nowhere.

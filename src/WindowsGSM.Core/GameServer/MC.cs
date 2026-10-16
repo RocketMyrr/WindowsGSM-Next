@@ -52,13 +52,6 @@ namespace WindowsGSM.GameServer
 
         public async Task<Process> Start()
         {
-            string javaPath = JavaHelper.FindJavaExecutableAbsolutePath();
-            if (javaPath.Length == 0)
-            {
-                Error = "Java is not installed";
-                return null;
-            }
-
             string workingDir = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID);
 
             string serverJarPath = Path.Combine(workingDir, "server.jar");
@@ -68,11 +61,23 @@ namespace WindowsGSM.GameServer
                 return null;
             }
 
+            // NEXT: the Java this jar needs (downloaded for WindowsGSM's own use when it isn't installed).
+            var notes = new System.Collections.Generic.List<string>();
+            string javaPath;
+            try { javaPath = await Functions.JavaRuntimes.ForJarAsync(serverJarPath, notes.Add); }
+            catch (System.Exception ex)
+            {
+                Error = $"Couldn't get the Java this server needs: {ex.Message}";
+                return null;
+            }
+
             string configPath = Path.Combine(workingDir, "server.properties");
             if (!File.Exists(configPath))
             {
-                Notice = $"server.properties not found ({configPath}). Generated a new one.";
+                notes.Add($"server.properties not found ({configPath}). Generated a new one.");
             }
+            if (Installer.MinecraftSoftware.AcceptEula(workingDir)) { notes.Add("eula.txt was missing; wrote it again (the EULA was accepted at install)."); }
+            if (notes.Count > 0) { Notice = string.Join(" ", notes); }
 
             WindowsFirewall firewall = new WindowsFirewall("java.exe", javaPath);
             if (!await firewall.IsRuleExist())
@@ -151,23 +156,7 @@ namespace WindowsGSM.GameServer
                 return null;
             }
 
-            //Install JAVA if not installed
-            if (!JavaHelper.IsJREInstalled())
-            {
-                //Java
-                if (!await Functions.UserPrompt.ConfirmAsync(Functions.UserPrompt.Keys.InstallJava, "Confirmation", "Java is not installed\n\nWould you like to install?"))
-                {
-                    Error = "Java is not installed";
-                    return null;
-                }
-
-                JavaHelper.JREDownloadTaskResult taskResult = await JavaHelper.DownloadJREToServer(_serverData.ServerID, "25");
-                if (!taskResult.installed)
-                {
-                    Error = taskResult.error;
-                    return null;
-                }
-            }
+            // NEXT: no Java installer here any more — the first start gets the Java the downloaded jar needs.
 
             try
             {
@@ -221,16 +210,7 @@ namespace WindowsGSM.GameServer
 
         public async Task<Process> Update()
         {
-            //Install JAVA if not installed
-            if (!JavaHelper.IsJREInstalled())
-            {
-                JavaHelper.JREDownloadTaskResult taskResult = await JavaHelper.DownloadJREToServer(_serverData.ServerID, "25");
-                if (!taskResult.installed)
-                {
-                    Error = taskResult.error;
-                    return null;
-                }
-            }
+            // NEXT: a newer server.jar may need a newer Java; the next start gets it.
 
             // NEXT: a server set up with the Minecraft tab (Paper, Purpur, Fabric, or a pinned Vanilla version) updates
             // that software, instead of being replaced with the newest Vanilla.

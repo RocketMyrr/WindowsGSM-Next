@@ -3,8 +3,37 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
-## Unreleased
+## 2.0.0-beta.8
 
+The right Java and Windows runtimes for every server, fixed installs for PocketMine-MP and FiveM, safer Minecraft Bedrock updates, and four dead games removed.
+
+- **Missing Windows runtimes are found and can be installed.** WindowsGSM reads what each server program needs
+  (Visual C++ 2010–2022, DirectX's extra DLLs, .NET) from the program itself. A server's Health check lists anything
+  missing with an **Install** button (admins): it runs the installer the game came with (Steam's _CommonRedist, or
+  Unreal's) or Microsoft's own, and only when it's signed by Microsoft. A start stops with a clear message instead of
+  hanging on Windows' "The code execution cannot proceed…" box, and a crash report says what exit codes like
+  -1073741515 mean. On your own PC these are usually there already; a fresh Windows or Windows Server often lacks them.
+- **Vintage Story gets the .NET it needs** (1.22: .NET 10) in WindowsGSM's own folder when Windows doesn't have it,
+  and reads its version from Vintage Story's official feed.
+- **Fixed: PocketMine-MP couldn't be installed** — its downloads moved from Jenkins to GitHub, and the old links now
+  give a web page. It now installs the PHP build PocketMine asks for, from GitHub.
+- **Fixed: FiveM (GTA V) couldn't be installed or updated** — the page WindowsGSM read is empty now, and build
+  numbers outgrew its pattern. Uses FiveM's own version feed; failures are reported instead of looking like success.
+- **Fixed: Minecraft Bedrock updates** copied only the program and four folders, so files Mojang added (the `config`
+  and `data` folders, …) never arrived; and they deleted packs you'd added. Everything new is copied now; your settings, worlds and
+  own packs stay.
+- **Removed games that no longer work or are long abandoned:** Risk of Rain 2 (Steam's server download has been
+  empty since 2020), Reign of Kings (last update 2019), Outlaws of the Old West (2020) and Heat (2021). An existing
+  server of one of them shows as an unknown game; its files and backups are untouched.
+- **Games that need a Steam login** (DayZ) say so and where to sign in, instead of "Steam account is not set up".
+- **Fixed: Minecraft started with the wrong Java.** WindowsGSM took the "newest" Java by comparing version text
+  (so 9 beat 25), only looked in one folder (or only inside JAVA_HOME), and installed Oracle's JDK 22 only when there
+  was no Java at all — so Minecraft 26.x, which needs Java 25, was started with Java 8 and exited at once. Now the
+  server.jar says which Java it needs; the oldest installed Java that's new enough is used (from JAVA_HOME, PATH and
+  the usual vendors' folders); and when there's none, Eclipse Temurin of that version is downloaded into WindowsGSM's
+  own folder (checksum-verified — nothing is installed on the PC).
+- **Minecraft: a missing eula.txt is written again on start** (the EULA was accepted at install), instead of the
+  server stopping straight away.
 - **Fixed:** saving a settings file while another program (antivirus, a backup tool) had it open treated it as
   damaged and skipped keeping the previous copy as the .bak. It now waits for the file (up to about 3 seconds).
 

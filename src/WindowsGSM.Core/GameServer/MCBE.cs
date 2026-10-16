@@ -212,43 +212,44 @@ namespace WindowsGSM.GameServer
 
                 string serverFilesPath = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID);
 
-                //Delete old folder and files
-                //List of sub folders that may or maynot exist in the various zip files
-                List<string> serverSubFolder = new List<string>() { "behavior_packs", "definitions", "resource_packs", "structures" };
-
+                // NEXT: everything in the new version replaces the old — legacy copied only bedrock_server.exe and four folders,
+                // so files Mojang added later (config\, data\, packetlimitconfig.json…) never arrived. Kept: your settings
+                // (server.properties, allowlist.json, permissions.json), worlds, and packs you added: in behavior_packs,
+                // resource_packs and definitions only the folders the new version has are replaced (legacy deleted them whole).
+                var keep = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "server.properties", "allowlist.json", "whitelist.json", "permissions.json" };
+                var merged = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "behavior_packs", "resource_packs", "definitions" };
                 await Task.Run(() =>
                 {
-                    foreach (var folder in serverSubFolder)
+                    foreach (string file in Directory.EnumerateFiles(tempPath))
                     {
-                        if (Directory.Exists(Path.Combine(serverFilesPath, folder)))
+                        string name = Path.GetFileName(file);
+                        if (name.Equals(fileName, System.StringComparison.OrdinalIgnoreCase)) { continue; } // the zip
+                        string target = Path.Combine(serverFilesPath, name);
+                        if (keep.Contains(name) && File.Exists(target)) { continue; }
+                        File.Copy(file, target, true);
+                    }
+                    foreach (string dir in Directory.EnumerateDirectories(tempPath))
+                    {
+                        string name = Path.GetFileName(dir);
+                        if (name.Equals("worlds", System.StringComparison.OrdinalIgnoreCase)) { continue; }
+                        string target = Path.Combine(serverFilesPath, name);
+                        if (merged.Contains(name))
                         {
-                            Directory.Delete(Path.Combine(serverFilesPath, folder), true);
+                            Directory.CreateDirectory(target);
+                            foreach (string sub in Directory.EnumerateDirectories(dir))
+                            {
+                                string dest = Path.Combine(target, Path.GetFileName(sub));
+                                if (Directory.Exists(dest)) { Directory.Delete(dest, true); }
+                                Directory.Move(sub, dest);
+                            }
+                            foreach (string f in Directory.EnumerateFiles(dir)) { File.Copy(f, Path.Combine(target, Path.GetFileName(f)), true); }
+                        }
+                        else
+                        {
+                            if (Directory.Exists(target)) { Directory.Delete(target, true); }
+                            Directory.Move(dir, target);
                         }
                     }
-
-                    File.Delete(Path.Combine(serverFilesPath, "bedrock_server.exe"));
-                    if (File.Exists(Path.Combine(serverFilesPath, "bedrock_server.pdb")))
-                        File.Delete(Path.Combine(serverFilesPath, "bedrock_server.pdb"));
-                    if (File.Exists(Path.Combine(serverFilesPath, "release-notes.txt")))
-                        File.Delete(Path.Combine(serverFilesPath, "release-notes.txt"));
-                });
-
-                //Move folder and files
-                await Task.Run(() =>
-                {
-                    foreach (var folder in serverSubFolder)
-                    {
-                        if (Directory.Exists(Path.Combine(serverFilesPath, "__temp", folder)))
-                        {
-                            Directory.Move(Path.Combine(serverFilesPath, "__temp", folder), Path.Combine(serverFilesPath, folder));
-                        }
-                    }
-
-                    File.Move(Path.Combine(serverFilesPath, "__temp", "bedrock_server.exe"), Path.Combine(serverFilesPath, "bedrock_server.exe"));
-                    if (File.Exists(Path.Combine(serverFilesPath, "__temp", "bedrock_server.pdb")))
-                        File.Move(Path.Combine(serverFilesPath, "__temp", "bedrock_server.pdb"), Path.Combine(serverFilesPath, "bedrock_server.pdb"));
-                    if (File.Exists(Path.Combine(serverFilesPath, "__temp", "release-notes.txt")))
-                        File.Move(Path.Combine(serverFilesPath, "__temp", "release-notes.txt"), Path.Combine(serverFilesPath, "release-notes.txt"));
                 });
 
                 //Delete __temp folder

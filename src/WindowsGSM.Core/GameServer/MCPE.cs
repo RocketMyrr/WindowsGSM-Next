@@ -131,75 +131,70 @@ namespace WindowsGSM.GameServer
             });
         }
 
+        // NEXT: PocketMine moved from Jenkins (now a redirect to a GitHub page, which legacy saved as the PHP zip and the
+        // .phar) to GitHub releases. Its build_info.json names the PHP build it wants, so that's what's installed.
+        private const string BuildInfoUrl = "https://github.com/pmmp/PocketMine-MP/releases/latest/download/build_info.json";
+        private const string BuildFile = "pocketmine-build.txt";   // the installed build, for update checks
+        private const string PhpFile = @"bin\php\wgsm-php-version.txt"; // the PHP version installed with it
+
+        private static async Task<Newtonsoft.Json.Linq.JObject> BuildInfoAsync() =>
+            Newtonsoft.Json.Linq.JObject.Parse(await WindowsGSM.Functions.Http.DownloadStringAsync(BuildInfoUrl));
+
         public async Task<Process> Install()
         {
-            string serverFilesPath = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID);
-
-            //Download PHP-7.4-Windows-x64.zip
-            string fileName = "PHP-8.0-Windows-x64.zip";
-            string installUrl = "https://jenkins.pmmp.io/job/PHP-8.0-Aggregate/lastStableBuild/artifact/PHP-8.0-Windows-x64.zip";
-            string PHPzipPath = Path.Combine(serverFilesPath, fileName);
-            try
-            {
-                await WindowsGSM.Functions.Http.DownloadFileAsync(installUrl, PHPzipPath);
-
-                //Extract PHP-7.3-Windows-x64.zip and delete the zip
-                await Task.Run(() => ZipFile.ExtractToDirectory(PHPzipPath, serverFilesPath));
-                await Task.Run(() => File.Delete(PHPzipPath));
-            }
-            catch
-            {
-                Error = $"Fail to download {fileName}";
-                return null;
-            }
-
-            //Download PocketMine-MP.phar
-            fileName = "PocketMine-MP.phar";
-            installUrl = "https://jenkins.pmmp.io/job/PocketMine-MP/lastStableBuild/artifact/PocketMine-MP.phar";
-            try
-            {
-                await WindowsGSM.Functions.Http.DownloadFileAsync(installUrl, Path.Combine(serverFilesPath, fileName));
-            }
-            catch
-            {
-                Error = $"Fail to download {fileName}";
-                return null;
-            }
-
+            try { await InstallOrUpdateAsync(forcePhp: true); }
+            catch (System.Exception ex) { Error = $"Couldn't install PocketMine-MP: {ex.Message}"; }
             return null;
         }
 
         public async Task<Process> Update()
         {
-            //Delete PocketMine-MP.phar
-            string fileName = "PocketMine-MP.phar";
-            string PMMPPath = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID, fileName);
-            try
-            {
-                if (File.Exists(PMMPPath))
-                {
-                    File.Delete(PMMPPath);
-                }
-            }
-            catch
-            {
-                Error = $"Fail to delete {fileName}";
-                return null;
-            }
-
-            //Download PocketMine-MP.phar
-            string installUrl = "https://jenkins.pmmp.io/job/PocketMine-MP/lastStableBuild/artifact/PocketMine-MP.phar";
-            try
-            {
-                await WindowsGSM.Functions.Http.DownloadFileAsync(installUrl, PMMPPath);
-            }
-            catch
-            {
-                Error = $"Fail to download {fileName}";
-                return null;
-            }
-
+            try { await InstallOrUpdateAsync(forcePhp: false); }
+            catch (System.Exception ex) { Error = $"Couldn't update PocketMine-MP: {ex.Message}"; }
             return null;
+        }
+
+        /// <summary>The newest PocketMine-MP.phar, and the PHP build it asks for when that isn't the one installed.</summary>
+        private async Task InstallOrUpdateAsync(bool forcePhp)
+        {
+            string files = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID);
+            Directory.CreateDirectory(files);
+            var info = await BuildInfoAsync();
+            string phar = (string)info["download_url"];
+            string php = (string)info["php_version"];          // "8.2"
+            string phpPage = (string)info["php_download_url"];  // …/PHP-Binaries/releases/tag/pm5-php-8.2-latest
+            if (string.IsNullOrWhiteSpace(phar) || string.IsNullOrWhiteSpace(php) || string.IsNullOrWhiteSpace(phpPage)) { throw new InvalidDataException("PocketMine's build_info.json is missing download links."); }
+
+            string phpVersionFile = Path.Combine(files, PhpFile);
+            bool phpCurrent = File.Exists(Path.Combine(files, @"bin\php\php.exe")) && File.Exists(phpVersionFile) && File.ReadAllText(phpVersionFile).Trim() == php;
+            if (forcePhp || !phpCurrent)
+            {
+                string tag = phpPage.Substring(phpPage.LastIndexOf('/') + 1);
+                string zipName = $"PHP-{php}-Windows-x64-PM5.zip";
+                string zip = Path.Combine(files, zipName);
+                await WindowsGSM.Functions.Http.DownloadFileAsync($"https://github.com/pmmp/PHP-Binaries/releases/download/{tag}/{zipName}", zip);
+                try
+                {
+                    using (var test = ZipFile.OpenRead(zip)) { if (test.GetEntry("bin/php/php.exe") == null) { throw new InvalidDataException($"{zipName} has no bin/php/php.exe."); } }
+                    string phpDir = Path.Combine(files, "bin", "php");
+                    if (Directory.Exists(phpDir)) { Directory.Delete(phpDir, true); } // a different PHP version's DLLs mustn't linger
+                    WindowsGSM.Engine.Services.AddonService.ExtractSafely(zip, files);
+                    File.WriteAllText(phpVersionFile, php);
+                }
+                finally { try { File.Delete(zip); } catch { } }
+            }
+
+            string pharPath = Path.Combine(files, "PocketMine-MP.phar");
+            string part = pharPath + ".part";
+            await WindowsGSM.Functions.Http.DownloadFileAsync(phar, part);
+            using (var f = File.OpenRead(part)) // a .phar starts with PHP code, never an HTML page
+            {
+                var head = new byte[64];
+                int n = f.Read(head, 0, head.Length);
+                if (System.Text.Encoding.ASCII.GetString(head, 0, n).TrimStart().StartsWith("<!DOCTYPE", System.StringComparison.OrdinalIgnoreCase)) { throw new InvalidDataException("GitHub returned a web page instead of PocketMine-MP.phar."); }
+            }
+            File.Move(part, pharPath, overwrite: true);
+            File.WriteAllText(Path.Combine(files, BuildFile), ((int?)info["build"])?.ToString() ?? "");
         }
 
         public bool IsInstallValid()
@@ -220,26 +215,21 @@ namespace WindowsGSM.GameServer
 
         public string GetLocalBuild()
         {
+            // NEXT: the build saved at install/update; older installs: the BUILD_NUMBER inside the .phar.
+            string saved = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID, BuildFile);
+            if (File.Exists(saved) && File.ReadAllText(saved).Trim() is string build && build.Length > 0) { return build; }
+
             string PMMPFile = "PocketMine-MP.phar";
             string PMMPPath = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID, PMMPFile);
-
             if (!File.Exists(PMMPPath))
             {
                 Error = $"{PMMPFile} is missing.";
                 return string.Empty;
             }
 
-            using (StreamReader sr = File.OpenText(PMMPPath))
+            foreach (string line in File.ReadLines(PMMPPath))
             {
-                string s = string.Empty;
-                while ((s = sr.ReadLine()) != null)
-                {
-                    if (s.Contains("const BUILD_NUMBER"))
-                    {
-                        Regex regex = new Regex("\\d+");
-                        return regex.Match(s).Value;
-                    }
-                }
+                if (line.Contains("const BUILD_NUMBER")) { return Regex.Match(line, @"\d+").Value; }
             }
 
             Error = $"Fail to get local build";
@@ -248,25 +238,12 @@ namespace WindowsGSM.GameServer
 
         public async Task<string> GetRemoteBuild()
         {
-            try
-            {
-                string remoteUrl = "https://jenkins.pmmp.io/job/PocketMine-MP/lastStableBuild/artifact/build_info.json";
-                string html = await WindowsGSM.Functions.Http.DownloadStringAsync(remoteUrl);
-                Regex regex = new Regex("\"build_number\":\\D{0,}(.*?),");
-                var matches = regex.Matches(html);
-
-                if (matches.Count == 1 && matches[0].Groups.Count == 2)
-                {
-                    return matches[0].Groups[1].Value;
-                }
-            }
+            try { return ((int?)(await BuildInfoAsync())["build"])?.ToString() ?? string.Empty; }
             catch
             {
-                //ignore
+                Error = $"Fail to get remote build";
+                return string.Empty;
             }
-
-            Error = $"Fail to get remote build";
-            return string.Empty;
         }
     }
 }

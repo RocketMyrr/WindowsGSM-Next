@@ -177,9 +177,6 @@
   <data name="Half-Life: Opposing Force Dedicated Server" xml:space="preserve">
     <value>Images/Games/hlof.png</value>
   </data>
-  <data name="Heat Dedicated Server" xml:space="preserve">
-    <value>Images/Games/heat.png</value>
-  </data>
   <data name="Insurgency Dedicated Server" xml:space="preserve">
     <value>Images/Games/ins.png</value>
   </data>
@@ -207,20 +204,11 @@
   <data name="Onset Dedicated Server" xml:space="preserve">
     <value>Images/Games/onset.png</value>
   </data>
-  <data name="Outlaws of the Old West Dedicated Server" xml:space="preserve">
-    <value>Images/Games/olow.png</value>
-  </data>
   <data name="Post Scriptum Dedicated Server" xml:space="preserve">
     <value>Images/Games/ps.png</value>
   </data>
-  <data name="Reign Of Kings Dedicated Server" xml:space="preserve">
-    <value>Images/Games/rok.png</value>
-  </data>
   <data name="Ricochet Dedicated Server" xml:space="preserve">
     <value>Images/Games/rcc.png</value>
-  </data>
-  <data name="Risk of Rain 2 Dedicated Server" xml:space="preserve">
-    <value>Images/Games/ror2.png</value>
   </data>
   <data name="Rust Dedicated Server" xml:space="preserve">
     <value>Images/Games/rust.png</value>

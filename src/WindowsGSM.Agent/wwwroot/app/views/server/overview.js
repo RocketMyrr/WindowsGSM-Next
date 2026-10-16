@@ -5,7 +5,7 @@ import { h, icon, clear, append, fmtMb, fmtBytes, fmtDateTime, gameLabel, timeAg
 import { moveFilesDialog, openFolderButton } from "../../places.js";
 import { get, post, srv } from "../../api.js";
 import { store } from "../../store.js";
-import { metricsChart, isRunning, segmented, modal, loading, busy, toast } from "../../ui.js";
+import { metricsChart, isRunning, segmented, modal, loading, busy, toast, confirm } from "../../ui.js";
 import { can, isAdmin } from "../../perms.js";
 import { serverPath } from "../../router.js";
 
@@ -286,13 +286,29 @@ export default async function overviewTab(host, { id, machine, key, server, scop
             fix));
     }
 
+    // A runtime the server needs and Windows lacks (Visual C++, DirectX, .NET): admins can install it from here.
+    function runtimeButton(c) {
+        const key = c.action?.startsWith("runtime:") ? c.action.slice(8) : null;
+        if (!key || !isAdmin()) return null;
+        const forWindows = !key.startsWith("dotnet-");
+        return h("button", { class: "btn sm primary", onclick: async e => {
+            if (forWindows && !(await confirm({ title: `Install ${c.name}?`, message: "Installs it for all of Windows on this PC, from the installer that came with the game or from Microsoft (only when it's signed by Microsoft). Takes a minute or two.", confirmLabel: "Install" }))) return;
+            await busy(e.currentTarget, async () => {
+                const res = await post(srv(machine, id, `/runtimes/${encodeURIComponent(key)}/install`));
+                store.trackJob(res.job, machine);
+                toast(`Installing ${c.name}`, { type: "info", timeout: 3000 });
+            }, `Couldn't install ${c.name}`);
+        } }, icon("download"), "Install");
+    }
+
     async function paintChecks() {
         if (!checks.isConnected) return;
         try {
             const list = await get(srv(machine, id, "/readiness"));
             clear(checks).append(...list.map(c => h("div", { class: ["check", c.status.toLowerCase()] },
                 icon(c.status === "Pass" ? "checkCircle" : c.status === "Fail" ? "xCircle" : c.status === "Warning" ? "warn" : "info"),
-                h("div", { class: "grow" }, h("b", { text: c.name }), h("div", { class: "tiny muted", text: c.message })))));
+                h("div", { class: "grow" }, h("b", { text: c.name }), h("div", { class: "tiny muted", text: c.message })),
+                runtimeButton(c))));
         } catch (e) { clear(checks).append(h("div", { class: "small faint", text: e.message })); }
     }
 

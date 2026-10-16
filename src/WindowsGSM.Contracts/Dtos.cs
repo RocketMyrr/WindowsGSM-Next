@@ -186,7 +186,7 @@ public sealed record SubscribeMessage(string Type, IReadOnlyList<string>? Topics
 // ── Readiness ──
 
 /// <param name="Status">Pass, Info, Warning or Fail.</param>
-public sealed record ReadinessCheckDto(string Scope, string Name, string Status, string Message);
+public sealed record ReadinessCheckDto(string Scope, string Name, string Status, string Message, string? Action = null);
 
 // ── Game config files ──
 

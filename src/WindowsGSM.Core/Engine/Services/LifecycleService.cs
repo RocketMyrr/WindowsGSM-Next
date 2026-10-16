@@ -371,6 +371,22 @@ namespace WindowsGSM.Engine.Services
             foreach (string warning in ports.Warnings) { _log.Write(s.Id, "[NOTICE] " + warning); }
             if (ports.Error != null) { return ports.Error; }
 
+            // NEXT: a Visual C++ or DirectX runtime the program needs and Windows lacks. Started anyway, Windows shows
+            // "The code execution cannot proceed…" on the server PC's screen and the program waits there, so the
+            // start would hang. (.NET isn't checked here: a .NET game gets its runtime itself, or exits with a code
+            // the crash report explains.)
+            try
+            {
+                string startPath = Dyn.Get((object)game, "StartPath")?.ToString() ?? string.Empty;
+                if (startPath.Length > 0)
+                {
+                    var lacking = Runtimes.For(ServerPath.GetServersServerFiles(s.Id, startPath))
+                        .Where(n => !n.Installed && !n.Key.StartsWith("dotnet-", StringComparison.Ordinal)).ToList();
+                    if (lacking.Count > 0) { return $"{string.Join(" ", lacking.Select(n => n.Detail))} Install it from the server's Overview → Health check, then start again."; }
+                }
+            }
+            catch (Exception ex) { _log.Write(s.Id, $"[NOTICE] Couldn't check the runtimes the server needs: {ex.Message}"); }
+
             // NEXT: Windows Firewall. Legacy added a rule on every start, which only works as administrator (it
             // always ran elevated) and failed silently otherwise. Now: added when the agent is elevated; if not,
             // the log and the server's overview say so, with a button that asks Windows once (GameFirewall).
@@ -635,7 +651,7 @@ namespace WindowsGSM.Engine.Services
         {
             if (!s.ClearProcessIf(p)) { return; } // someone else already dealt with it
 
-            var (report, exitCode) = CrashReport.Write(s, p);
+            var (report, exitCode) = CrashReport.Write(s, p, out string? hint);
             ClearPidCache(s.Id);
             s.StartedAt = null;
             s.ReloadConfig();
@@ -644,6 +660,7 @@ namespace WindowsGSM.Engine.Services
             s.SetState(autoRestart ? ServerState.Restarting : ServerState.Stopped);
             _log.Write(s.Id, string.IsNullOrWhiteSpace(exitCode) ? "Server: Crashed" : $"Server: Crashed (Exit Code: {exitCode})");
             _log.Write(s.Id, $"[ERROR] Crash details: {report}");
+            if (hint != null) { _log.Write(s.Id, "[ERROR] " + hint); }
             _events.Publish(new ServerAlert(s.Id, AlertKind.Crashed,
                 autoRestart ? $"{s.Name} crashed — auto-restarting" : $"{s.Name} crashed",
                 autoRestart ? "The watchdog is bringing the server back up." : "The server stopped unexpectedly."));

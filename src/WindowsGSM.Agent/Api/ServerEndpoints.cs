@@ -204,7 +204,25 @@ public static class ServerEndpoints
 
         server.MapGet("/readiness", (HttpContext http, AgentContext ctx) =>
             Results.Json(ctx.Engine.Readiness.CheckServer(Scopes.Server(http).Id)
-                .Select(c => new ReadinessCheckDto(c.Scope, c.Name, c.Status.ToString(), c.Message)))).Needs(Capability.EditConfig);
+                .Select(c => new ReadinessCheckDto(c.Scope, c.Name, c.Status.ToString(), c.Message, c.Action)))).Needs(Capability.EditConfig);
+
+        // Install a runtime the server needs (Visual C++, DirectX: for all of Windows, so admins only; .NET: into
+        // WindowsGSM's own folder). Runs as a job; the health check shows the result.
+        server.MapPost("/runtimes/{key}/install", (HttpContext http, AgentContext ctx, string key) =>
+        {
+            var s = Scopes.Server(http);
+            if (!Scopes.User(http).IsAdmin) { return ApiResults.Forbidden("Only admins can install software on this PC."); }
+            if (!System.Text.RegularExpressions.Regex.IsMatch(key, @"^(vc20(10|12|13|15)|directx)-(x64|x86)$|^dotnet-\d{1,2}$")) { return ApiResults.BadRequest("Unknown runtime."); }
+            var job = ctx.Engine.Jobs.Start("runtime", s.Id, $"Install {key} for {s.Name}", async job =>
+            {
+                job.Report(stage: "Installing");
+                string? error = await WindowsGSM.Functions.Runtimes.InstallAsync(s.Id, key, line => { job.Log(line); ctx.Engine.Log.Write(s.Id, "Runtime: " + line); });
+                ctx.Engine.Log.Write(s.Id, error == null ? $"Runtime: {key} installed" : $"[ERROR] Runtime: {key}: {error}");
+                return error;
+            });
+            ctx.Record(http, "runtime-install", s.Id, true, key);
+            return Results.Json(new JobAccepted(job.Id, ctx.ToDto(job.Snapshot())), statusCode: 202);
+        }).Needs(Capability.EditConfig);
 
         return server;
     }

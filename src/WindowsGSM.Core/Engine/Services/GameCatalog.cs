@@ -134,7 +134,7 @@ namespace WindowsGSM.Engine.Services
         /// <summary>Built-in games whose plugin's Stop just ends the process (from a survey of every built-in plugin).</summary>
         private static readonly HashSet<string> KillingBuiltIns = new(StringComparer.Ordinal)
         {
-            GameServer.ARKSE.FullName, GameServer.BW.FullName, GameServer.DAYZ.FullName, GameServer.OLOW.FullName,
+            GameServer.ARKSE.FullName, GameServer.BW.FullName, GameServer.DAYZ.FullName,
             GameServer.ONSET.FullName, GameServer.SW.FullName, GameServer.TF.FullName,
         };
 
