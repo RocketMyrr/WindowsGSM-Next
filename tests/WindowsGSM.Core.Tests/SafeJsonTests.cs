@@ -213,3 +213,39 @@ public class DataFormatTests : IDisposable
         finally { DataFormat.Current = was; }
     }
 }
+
+/// <summary>Saving while something else saves or holds the file.</summary>
+public class SafeJsonWriteTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "wgsm-safejson-" + Guid.NewGuid().ToString("N")[..8]);
+    private string F() => Path.Combine(_dir, "settings.json");
+
+    public SafeJsonWriteTests() => Directory.CreateDirectory(_dir);
+    public void Dispose() => TestData.DeleteDirectory(_dir);
+
+    public sealed class Settings { public string Name { get; set; } = ""; }
+
+    [Fact]
+    public void Saves_of_the_same_file_at_once_all_succeed()
+    {
+        // They used to share one .tmp file, so all but one could fail — and best-effort callers lost the change.
+        var errors = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+        Parallel.For(0, 64, new ParallelOptions { MaxDegreeOfParallelism = 8 }, i =>
+        {
+            try { SafeJson.Write(F(), new Settings { Name = "n" + i }); } catch (Exception ex) { errors.Add(ex); }
+        });
+        Assert.Empty(errors);
+        Assert.StartsWith("n", SafeJson.Read<Settings>(F())!.Name);
+    }
+
+    [Fact]
+    public async Task A_save_waits_out_a_file_held_for_a_moment()
+    {
+        SafeJson.Write(F(), new Settings { Name = "before" });
+        var held = new FileStream(F(), FileMode.Open, FileAccess.Read, FileShare.None); // e.g. antivirus scanning it
+        var release = Task.Run(async () => { await Task.Delay(300); held.Dispose(); });
+        SafeJson.Write(F(), new Settings { Name = "after" });
+        await release;
+        Assert.Equal("after", SafeJson.Read<Settings>(F())!.Name);
+    }
+}

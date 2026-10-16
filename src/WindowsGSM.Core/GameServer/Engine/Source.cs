@@ -122,7 +122,7 @@ namespace WindowsGSM.GameServer.Engine
             });
         }
 
-        public async void CreateServerCFG()
+        public async Task CreateServerCFG()
         {
             //Download server.cfg
             string configPath = Functions.ServerPath.GetServersServerFiles(serverData.ServerID, Game, "cfg/server.cfg");

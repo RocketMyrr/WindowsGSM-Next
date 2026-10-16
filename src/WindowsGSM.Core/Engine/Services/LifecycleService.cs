@@ -162,6 +162,10 @@ namespace WindowsGSM.Engine.Services
                 string cachedName;
                 try { cachedName = ServerCache.GetProcessName(s.Id); } catch { continue; }
                 if (string.IsNullOrWhiteSpace(cachedName) || !string.Equals(p.ProcessName, cachedName, StringComparison.OrdinalIgnoreCase)) { continue; }
+                // NEXT: and it must be the same process, not a newer one that got the PID after a reboot — for java
+                // (Minecraft) that could be any Java program, which Stop would then kill. The server's own process
+                // was already running when its PID was saved; a later one with the same PID started after that.
+                if (!SameProcess(p, ServerCache.GetPIDSavedAt(s.Id))) { continue; }
 
                 // NEXT: legacy re-adopted the process but never enabled Exited events on it (they're off for
                 // processes obtained by PID), so after a WindowsGSM restart crash detection and auto-restart
@@ -765,6 +769,14 @@ namespace WindowsGSM.Engine.Services
         public const string CtrlCFirstKey = "stopctrlcfirst";
 
         private static bool StopWithCtrlCFirst(ServerConfig cfg) => cfg.GetCustomSetting(CtrlCFirstKey, string.Empty) == "1";
+
+        /// <summary>Whether <paramref name="p"/> was already running when its PID was saved at <paramref name="savedAt"/>.</summary>
+        internal static bool SameProcess(Process p, DateTime? savedAt)
+        {
+            if (savedAt == null) { return false; }
+            try { return p.StartTime <= savedAt.Value.AddSeconds(5); } // a little slack for clock rounding
+            catch { return false; } // can't tell (no access): don't adopt a process that may not be ours
+        }
 
         private static bool SafeHasExited(Process p)
         {

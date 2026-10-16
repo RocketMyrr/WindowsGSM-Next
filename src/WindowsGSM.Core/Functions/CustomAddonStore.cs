@@ -18,6 +18,9 @@ namespace WindowsGSM.Functions
     /// <summary>Per-server list of saved custom add-ons (servers/{id}/configs/customaddons.json).</summary>
     public static class CustomAddonStore
     {
+        // NEXT: changes are load → change → save; two at once (the API and update-on-start) lost one of them.
+        private static readonly object Gate = new object();
+
         private static string ConfigFile(string serverId) => ServerPath.GetServersConfigs(serverId, "customaddons.json");
 
         public static List<CustomAddon> Load(string serverId)
@@ -38,30 +41,55 @@ namespace WindowsGSM.Functions
         /// <summary>Adds or updates a saved add-on (deduped by URL+subfolder). Returns it.</summary>
         public static CustomAddon Upsert(string serverId, string name, string url, string subfolder)
         {
-            var list = Load(serverId);
-            var existing = list.FirstOrDefault(a =>
-                string.Equals(a.Url, url, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(a.Subfolder ?? "", subfolder ?? "", StringComparison.OrdinalIgnoreCase));
-            if (existing != null)
+            lock (Gate)
             {
-                existing.Name = name;
+                var list = Load(serverId);
+                var existing = list.FirstOrDefault(a =>
+                    string.Equals(a.Url, url, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(a.Subfolder ?? "", subfolder ?? "", StringComparison.OrdinalIgnoreCase));
+                if (existing != null)
+                {
+                    existing.Name = name;
+                    Save(serverId, list);
+                    return existing;
+                }
+                var addon = new CustomAddon { Id = Guid.NewGuid().ToString("N"), Name = name, Url = url, Subfolder = subfolder };
+                list.Add(addon);
                 Save(serverId, list);
-                return existing;
+                return addon;
             }
-            var addon = new CustomAddon { Id = Guid.NewGuid().ToString("N"), Name = name, Url = url, Subfolder = subfolder };
-            list.Add(addon);
-            Save(serverId, list);
-            return addon;
         }
 
         public static CustomAddon Get(string serverId, string addonId) =>
             Load(serverId).FirstOrDefault(a => a.Id == addonId);
 
+        /// <summary>Changes a saved add-on. False when it's gone, or another one already has that URL+subfolder.</summary>
+        public static bool Update(string serverId, string addonId, string name, string url, string subfolder)
+        {
+            lock (Gate)
+            {
+                var list = Load(serverId);
+                var addon = list.FirstOrDefault(a => a.Id == addonId);
+                if (addon == null) { return false; }
+                if (list.Any(a => a.Id != addonId &&
+                    string.Equals(a.Url, url, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(a.Subfolder ?? "", subfolder ?? "", StringComparison.OrdinalIgnoreCase))) { return false; }
+                addon.Name = name;
+                addon.Url = url;
+                addon.Subfolder = subfolder;
+                Save(serverId, list);
+                return true;
+            }
+        }
+
         public static bool Remove(string serverId, string addonId)
         {
-            var list = Load(serverId);
-            if (list.RemoveAll(a => a.Id == addonId) > 0) { Save(serverId, list); return true; }
-            return false;
+            lock (Gate)
+            {
+                var list = Load(serverId);
+                if (list.RemoveAll(a => a.Id == addonId) > 0) { Save(serverId, list); return true; }
+                return false;
+            }
         }
     }
 }

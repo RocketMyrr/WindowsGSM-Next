@@ -226,7 +226,7 @@ public static class ServerDataEndpoints
             await WindowsGSM.Engine.Services.AddonVersions.RefreshAsync(ctx.Engine.Addons.List(id).Where(a => a.Present).Select(a => a.Key), TimeSpan.FromSeconds(4));
             return Results.Json(new
             {
-                builtIn = ctx.Engine.Addons.List(id).Select(a => new AddonDto(a.Key, a.Label, a.Present, a.Managed, a.InstalledVersion, a.LatestVersion, a.Staging, a.UpdateAvailable)),
+                builtIn = ctx.Engine.Addons.List(id).Select(a => new AddonDto(a.Key, a.Label, a.Present, a.Managed, a.InstalledVersion, a.LatestVersion, a.Staging, a.UpdateAvailable, a.ConflictsWith, a.Removable, a.ProvidedBy)),
                 custom = ctx.Engine.Addons.ListCustom(id).Select(c => new CustomAddonDto(c.Id, c.Name, c.Url, c.Subfolder)),
             });
         }).Needs(Capability.Addons);
@@ -236,6 +236,14 @@ public static class ServerDataEndpoints
             var s = Scopes.Server(http);
             var request = ctx.Engine.Addons.Install(s.Id, key);
             ctx.Record(http, "addon-install", s.Id, request.Accepted, request.Accepted ? key : request.Error);
+            return ApiResults.FromRequest(request, ctx);
+        }).Needs(Capability.Addons);
+
+        server.MapPost("/addons/{key}/remove", (HttpContext http, AgentContext ctx, string key) =>
+        {
+            var s = Scopes.Server(http);
+            var request = ctx.Engine.Addons.Remove(s.Id, key);
+            ctx.Record(http, "addon-remove", s.Id, request.Accepted, request.Accepted ? key : request.Error);
             return ApiResults.FromRequest(request, ctx);
         }).Needs(Capability.Addons);
 
@@ -261,6 +269,14 @@ public static class ServerDataEndpoints
             var request = ctx.Engine.Addons.ReinstallCustom(s.Id, addonId);
             ctx.Record(http, "addon-custom", s.Id, request.Accepted, request.Accepted ? addonId : request.Error);
             return ApiResults.FromRequest(request, ctx);
+        }).Needs(Capability.Addons);
+
+        server.MapPut("/addons/custom/{addonId}", (HttpContext http, AgentContext ctx, string addonId, CustomAddonRequest body) =>
+        {
+            var s = Scopes.Server(http);
+            string? problem = ctx.Engine.Addons.EditCustom(s.Id, addonId, body.Name?.Trim() ?? string.Empty, body.Url?.Trim() ?? string.Empty, body.Subfolder?.Trim() ?? string.Empty);
+            ctx.Record(http, "addon-custom-edit", s.Id, problem == null, problem == null ? $"{body.Name} <- {body.Url}" : problem);
+            return problem == null ? Results.NoContent() : ApiResults.BadRequest(problem);
         }).Needs(Capability.Addons);
 
         server.MapDelete("/addons/custom/{addonId}", (HttpContext http, AgentContext ctx, string addonId) =>

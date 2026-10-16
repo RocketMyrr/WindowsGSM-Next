@@ -27,7 +27,7 @@ namespace WindowsGSM.GameServer
 
         public EGS(ServerConfig serverData) : base(serverData) => base.serverData = serverData;
 
-        public async void CreateServerCFG()
+        public async Task CreateServerCFG()
         {
             string configPath = Functions.ServerPath.GetServersServerFiles(serverData.ServerID, "dedicated.yaml");
             if (await Functions.Github.DownloadGameServerConfig(configPath, serverData.ServerGame))

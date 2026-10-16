@@ -84,7 +84,7 @@ public sealed class HubLinks
             return;
         }
 
-        using var socket = await http.WebSockets.AcceptWebSocketAsync(new WebSocketAcceptContext { KeepAliveInterval = TimeSpan.FromSeconds(20) });
+        using var socket = await http.WebSockets.AcceptWebSocketAsync(new WebSocketAcceptContext { KeepAliveInterval = TimeSpan.FromSeconds(20), KeepAliveTimeout = TimeSpan.FromSeconds(20) });
         var link = new Link { MachineId = _registry.Get(machine)!.Id, Channel = new LinkChannel(socket) };
         if (_links.TryGetValue(link.MachineId, out var previous)) { await previous.Channel.CloseAsync(LinkChannel.Codes.Replaced, "Replaced by a newer connection."); }
         _links[link.MachineId] = link;

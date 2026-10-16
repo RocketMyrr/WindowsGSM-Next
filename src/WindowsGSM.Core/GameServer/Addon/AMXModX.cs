@@ -1,6 +1,4 @@
-﻿using System.IO;
-using System.IO.Compression;
-using System.Net;
+using System.IO;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -13,42 +11,27 @@ namespace WindowsGSM.GameServer.Addon
             string path = Functions.ServerPath.GetServersServerFiles(serverId, modFolder);
 
             // Install AMX MOD X
-            if (!await Install_AMXMODX(path))
+            if (!await SourceMod.DropAsync(path, "https://www.amxmodx.org/amxxdrop/1.10", "amxmodx-latest-base-windows"))
             {
                 return false;
             }
 
-            // Create MetaMod Directory
+            // Install MetaMod-P
             string MMDllPath = Path.Combine(path, "addons", "metamod", "dlls");
             Directory.CreateDirectory(MMDllPath);
-
-            // Install MetaMod-P
             if (!await Install_MetaMod_P(MMDllPath))
             {
                 return false;
             }
 
-            // Edit liblist.gam
-            string liblistPath = Path.Combine(path, "liblist.gam");
-            File.WriteAllText(liblistPath, Regex.Replace(File.ReadAllText(liblistPath), "gamedll.\".*?\"", @"gamedll ""addons\metamod\dlls\metamod.dll"""));
-
-            // Create plugins.ini
-            File.WriteAllText(Path.Combine(path, "addons", "metamod", "plugins.ini"), "win32 addons/amxmodx/dlls/amxmodx_mm.dll");
-
-            return true;
-        }
-
-        private static async Task<bool> Install_AMXMODX(string path)
-        {
-            string version = "1.10";
-
             try
             {
-                string fileName = await WindowsGSM.Functions.Http.DownloadStringAsync($"https://www.amxmodx.org/amxxdrop/{version}/amxmodx-latest-base-windows");
-                string filePath = Path.Combine(path, fileName.Trim());
-                await WindowsGSM.Functions.Http.DownloadFileAsync($"https://www.amxmodx.org/amxxdrop/{version}/{fileName}", filePath);
-                await Task.Run(() => { try { ZipFile.ExtractToDirectory(filePath, path); } catch { } });
-                await Task.Run(() => { try { File.Delete(filePath); } catch { } });
+                // Edit liblist.gam
+                string liblistPath = Path.Combine(path, "liblist.gam");
+                File.WriteAllText(liblistPath, Regex.Replace(File.ReadAllText(liblistPath), "gamedll.\".*?\"", @"gamedll ""addons\metamod\dlls\metamod.dll"""));
+
+                // Create plugins.ini
+                File.WriteAllText(Path.Combine(path, "addons", "metamod", "plugins.ini"), "win32 addons/amxmodx/dlls/amxmodx_mm.dll");
             }
             catch
             {
@@ -61,21 +44,23 @@ namespace WindowsGSM.GameServer.Addon
         private static async Task<bool> Install_MetaMod_P(string MMFolder)
         {
             string version = "1.21p37";
-
+            string fileName = $"metamod-p-{version}-windows.zip";
+            string filePath = Path.Combine(MMFolder, fileName);
             try
             {
-                string fileName = $"metamod-p-{version}-windows.zip";
-                string filePath = Path.Combine(MMFolder, fileName);
-                await WindowsGSM.Functions.Http.DownloadFileAsync($"https://downloads.sourceforge.net/project/metamod-p/Metamod-P%20Binaries/{version}/{fileName}", filePath);
-                await Task.Run(() => { try { ZipFile.ExtractToDirectory(filePath, MMFolder); } catch { } });
-                await Task.Run(() => { try { File.Delete(filePath); } catch { } });
+                await Functions.Http.DownloadFileAsync($"https://downloads.sourceforge.net/project/metamod-p/Metamod-P%20Binaries/{version}/{fileName}", filePath);
+                // NEXT: overwrites (so a reinstall really updates) and never writes outside the folder.
+                await Task.Run(() => WindowsGSM.Engine.Services.AddonService.ExtractSafely(filePath, MMFolder));
+                return true;
             }
             catch
             {
                 return false;
             }
-
-            return true;
+            finally
+            {
+                try { File.Delete(filePath); } catch { }
+            }
         }
     }
 }

@@ -145,7 +145,7 @@ public sealed class EventStream : IDisposable
             return;
         }
 
-        using var socket = await http.WebSockets.AcceptWebSocketAsync(new WebSocketAcceptContext { KeepAliveInterval = TimeSpan.FromSeconds(20) });
+        using var socket = await http.WebSockets.AcceptWebSocketAsync(new WebSocketAcceptContext { KeepAliveInterval = TimeSpan.FromSeconds(20), KeepAliveTimeout = TimeSpan.FromSeconds(20) });
         var client = new Client { User = user, SessionId = AgentContext.SessionId(http) };
         lock (_gate) { _clients.Add(client); }
 

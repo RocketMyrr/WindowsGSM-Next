@@ -25,6 +25,13 @@ namespace WindowsGSM.Functions
             File.WriteAllText(GetPIDPath(serverId), pid.ToString());
         }
 
+        /// <summary>When the PID was saved (just after the server started), or null when there's none.</summary>
+        public static DateTime? GetPIDSavedAt(string serverId)
+        {
+            string cacheFile = GetPIDPath(serverId);
+            return File.Exists(cacheFile) ? File.GetLastWriteTime(cacheFile) : null;
+        }
+
         private static string GetPIDPath(string serverId)
         {
             string cachePath = ServerPath.GetServersCache(serverId);

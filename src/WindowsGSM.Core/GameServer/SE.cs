@@ -38,7 +38,7 @@ namespace WindowsGSM.GameServer
             _serverData = serverData;
         }
 
-        public async void CreateServerCFG()
+        public async Task CreateServerCFG()
         {
             //Download SpaceEngineersDedicated-WindowsGSM.bat
             string batPath = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID, @"DedicatedServer64\SpaceEngineersDedicated-WindowsGSM.bat");

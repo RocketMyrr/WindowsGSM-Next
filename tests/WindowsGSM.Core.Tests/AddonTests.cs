@@ -181,4 +181,116 @@ public class AddonTests
         Assert.True(engine.Addons.List(id)[0].Managed);
         Assert.False(engine.Addons.SetManaged(id, "not-an-addon", true));
     }
+
+    /// <summary>An empty Rust server (Oxide and Carbon apply to it).</summary>
+    private static string RustServer(string id)
+    {
+        _ = TestData.DataRoot;
+        string configs = ServerPath.GetServersConfigs(id);
+        Directory.CreateDirectory(configs);
+        string files = ServerPath.GetServersServerFiles(id);
+        if (Directory.Exists(files)) { Directory.Delete(files, true); }
+        Directory.CreateDirectory(files);
+        File.WriteAllLines(Path.Combine(configs, "WindowsGSM.cfg"), new[] { "servergame=\"Rust Dedicated Server\"", "servername=\"Rusty\"" });
+        ClearAddonState(id);
+        return id;
+    }
+
+    private static void Put(string id, string relative, string text = "x")
+    {
+        string path = Files(id, relative);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, text);
+    }
+
+    [Fact]
+    public async Task Oxide_and_Carbon_cannot_both_go_on_one_server_and_Carbon_can_be_removed()
+    {
+        string id = RustServer("156");
+        Put(id, @"carbon\managed\Carbon.dll");
+        Put(id, "winhttp.dll");
+        Put(id, "doorstop_config.ini");
+        Put(id, @"carbon\plugins\Kits.cs", "mine");
+        using var engine = await EngineFixture.StartEngineAsync();
+
+        var oxide = engine.Addons.List(id).Single(a => a.Key == "oxide");
+        Assert.Equal("Carbon", oxide.ConflictsWith);
+        var refused = engine.Addons.Install(id, "oxide");
+        Assert.False(refused.Accepted);
+        Assert.Contains("Remove Carbon first", refused.Error);
+        Assert.True(engine.Addons.List(id).Single(a => a.Key == "carbon").Removable);
+
+        InstalledAddonStore.Mark(id, "carbon");
+        Assert.Equal(JobStatus.Succeeded, (await Run(engine.Addons.Remove(id, "carbon"))).Status);
+        Assert.False(File.Exists(Files(id, "winhttp.dll")));
+        Assert.False(File.Exists(Files(id, @"carbon\managed\Carbon.dll")));
+        Assert.Equal("mine", File.ReadAllText(Files(id, @"carbon\plugins\Kits.cs"))); // plugins stay
+        Assert.False(InstalledAddonStore.Has(id, "carbon"));
+        Assert.Null(engine.Addons.List(id).Single(a => a.Key == "oxide").ConflictsWith);
+        Assert.False(engine.Addons.Remove(id, "carbon").Accepted); // already gone
+    }
+
+    [Fact]
+    public async Task A_custom_Oxide_build_takes_over_from_the_built_in_one()
+    {
+        string id = RustServer("157");
+        Put(id, @"RustDedicated_Data\Managed\Oxide.Core.dll");
+        InstalledAddonStore.Mark(id, "oxide");
+        using var server = new ZipServer { Zip = MakeZip((@"RustDedicated_Data/Managed/Oxide.Core.dll", "staging")) };
+        // The link names the Oxide staging artifact; the query string keeps it on the local test server.
+        string url = server.Url + "?u=https://downloads.oxidemod.com/artifacts/Oxide.Rust/staging/Oxide.Rust.zip";
+        CustomAddonStore.Upsert(id, "staging", url, "");
+        using var engine = await EngineFixture.StartEngineAsync();
+
+        var oxide = engine.Addons.List(id).Single(a => a.Key == "oxide");
+        Assert.Equal("staging", oxide.ProvidedBy);
+        Assert.False(oxide.UpdateAvailable);
+
+        // Update add-ons skips the release (no download from GitHub) and installs the staging build.
+        var s = engine.Servers.Get(id)!;
+        var job = engine.Jobs.Start("addon", id, "test", async ctx => { await engine.Addons.UpdateAllCoreAsync(s, ctx, ""); return null; });
+        await job.Completion.WaitAsync(TimeSpan.FromSeconds(60));
+        Assert.Equal("staging", File.ReadAllText(Files(id, @"RustDedicated_Data\Managed\Oxide.Core.dll")));
+        Assert.Contains(engine.Log.Tail(id, 50), line => line.Contains("skipped, the custom add-on 'staging' installs it"));
+    }
+
+    [Fact]
+    public async Task Custom_add_ons_can_be_edited()
+    {
+        EngineFixture.CreateServer("158");
+        ClearAddonState("158");
+        CustomAddonStore.Upsert("158", "Pack", "https://example.com/a.zip", "");
+        CustomAddonStore.Upsert("158", "Other", "https://example.com/b.zip", "");
+        using var engine = await EngineFixture.StartEngineAsync();
+        string addonId = engine.Addons.ListCustom("158").Single(c => c.Name == "Pack").Id;
+
+        Assert.Null(engine.Addons.EditCustom("158", addonId, "Pack 2", "https://example.com/a2.zip", "oxide"));
+        var edited = engine.Addons.ListCustom("158").Single(c => c.Id == addonId);
+        Assert.Equal(("Pack 2", "https://example.com/a2.zip", "oxide"), (edited.Name, edited.Url, edited.Subfolder));
+
+        Assert.Contains("http", engine.Addons.EditCustom("158", addonId, "x", "ftp://example.com/a.zip", ""));
+        Assert.Contains("already uses", engine.Addons.EditCustom("158", addonId, "x", "https://example.com/b.zip", ""));
+        Assert.NotNull(engine.Addons.EditCustom("158", "nope", "x", "https://example.com/c.zip", ""));
+    }
+
+    [Fact]
+    public void Extracting_over_an_existing_install_replaces_its_files()
+    {
+        // SourceMod, AMX Mod X and DayZSAL used to extract with "fail if the file exists", so a reinstall changed nothing.
+        string dir = Path.Combine(Path.GetTempPath(), "wgsm-extract-" + Guid.NewGuid().ToString("N"));
+        string zip = dir + ".zip";
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(dir, "addons"));
+            File.WriteAllText(Path.Combine(dir, "addons", "sm.dll"), "old");
+            File.WriteAllBytes(zip, MakeZip(("addons/sm.dll", "new")));
+            Assert.Equal(0, AddonService.ExtractSafely(zip, dir));
+            Assert.Equal("new", File.ReadAllText(Path.Combine(dir, "addons", "sm.dll")));
+        }
+        finally
+        {
+            TestData.DeleteFile(zip);
+            if (Directory.Exists(dir)) { Directory.Delete(dir, true); }
+        }
+    }
 }

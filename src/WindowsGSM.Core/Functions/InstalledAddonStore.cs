@@ -14,6 +14,9 @@ namespace WindowsGSM.Functions
     /// </summary>
     public static class InstalledAddonStore
     {
+        // NEXT: changes are load → change → save; two at once (the API and update-on-start) lost one of them.
+        private static readonly object Gate = new object();
+
         private static string ConfigFile(string serverId) => ServerPath.GetServersConfigs(serverId, "installedaddons.json");
 
         public static HashSet<string> Load(string serverId)
@@ -34,17 +37,23 @@ namespace WindowsGSM.Functions
         /// <summary>Record that a built-in add-on was installed via WindowsGSM.</summary>
         public static void Mark(string serverId, string key)
         {
-            if (string.IsNullOrWhiteSpace(key)) { return; }
-            var set = Load(serverId);
-            if (set.Add(key)) { Save(serverId, set); }
+            lock (Gate)
+            {
+                if (string.IsNullOrWhiteSpace(key)) { return; }
+                var set = Load(serverId);
+                if (set.Add(key)) { Save(serverId, set); }
+            }
         }
 
         /// <summary>Stop treating a built-in add-on as WindowsGSM-managed (e.g. replaced by a custom add-on).</summary>
         public static void Unmark(string serverId, string key)
         {
-            if (string.IsNullOrWhiteSpace(key)) { return; }
-            var set = Load(serverId);
-            if (set.Remove(key)) { Save(serverId, set); }
+            lock (Gate)
+            {
+                if (string.IsNullOrWhiteSpace(key)) { return; }
+                var set = Load(serverId);
+                if (set.Remove(key)) { Save(serverId, set); }
+            }
         }
 
         public static bool Has(string serverId, string key) => Load(serverId).Contains(key);

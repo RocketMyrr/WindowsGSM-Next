@@ -53,7 +53,7 @@ namespace WindowsGSM.GameServer
         public SDTD(ServerConfig serverData) : base(serverData) => base.serverData = serverData;
 
 
-        public async void CreateServerCFG()
+        public async Task CreateServerCFG()
         {
             await DoCreateConfig();
         }

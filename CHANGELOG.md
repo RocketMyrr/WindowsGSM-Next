@@ -3,11 +3,39 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
-## Unreleased
+## 2.0.0-beta.6
 
+Stability fixes, a cleaner add-on setup (custom Oxide/Carbon builds, removing one, editing custom add-ons), and
+"Start with new accounts" in setup.
+
+- **Fixed: installing a game could crash the agent.** For about 30 games, writing the server's config files after
+  the install ran unwatched: any error in it (a failed config download, a file in use) ended the agent. The install
+  now waits for it, so the config exists before the server shows as installed, and a failure is a note in the
+  server's log instead.
+- **Fixed: after a reboot, WindowsGSM could take over the wrong program.** Reconnecting to running servers matched
+  only the process ID and name, and Windows reuses IDs. For Minecraft (java) that could be any Java program, which
+  Stop would then kill. It now also checks that the process was already running when WindowsGSM saved its ID.
+- **Fixed: settings changes could be silently lost** when two saves of the same file happened at once, or
+  antivirus held the file for a moment. Saves now wait their turn and retry briefly.
+- **Machines that drop off the network show as offline within about 40 seconds** (hub links and the live
+  dashboard connection now notice a dead link instead of waiting on Windows networking).
 - **Setup: "Start with new accounts"** when using an existing folder — keeps the servers, backups and settings, but
   not the accounts or sign-ins (WindowsGSM's own, or the old app's web-dashboard ones): you create a new owner
   account when it opens. The old account files are kept in the folder, renamed.
+- **Custom Oxide/Carbon builds take over:** a custom add-on whose link is an Oxide or Carbon build (e.g. Oxide
+  staging) now shows on the built-in row as *From custom add-on "staging"*. Update add-ons installs only that build,
+  not the release first and then your build on top.
+- **Oxide and Carbon can't both be installed:** installing one is blocked while the other is on the server, and
+  either can now be **removed** (plugins, configs and data are kept; removing Oxide runs Verify files to put back the
+  Rust files it replaced).
+- **Custom add-ons can be edited** (name, link, folder) instead of deleted and re-added.
+- **Fixed:** reinstalling or updating SourceMod, AMX Mod X or DayZSAL silently changed nothing. They now overwrite
+  their files properly and are protected against zip files that write outside the server folder.
+- **Fixed:** AMX Mod X always showed "Not installed".
+- **SourceMod and MetaMod:Source now install 1.12** (the current stable release; was 1.10).
+- **Fixed:** a Windrose Plus install could hang forever. It now also gives up after 10 minutes.
+- **DayZSAL:** downloads over https. DZSA no longer publishes the server download, so it's only listed on servers that
+  already have it.
 
 ## 2.0.0-beta.5
 

@@ -36,7 +36,7 @@ namespace WindowsGSM.GameServer
             _serverData = serverData;
         }
 
-        public async void CreateServerCFG()
+        public async Task CreateServerCFG()
         {
             //No server config
         }

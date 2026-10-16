@@ -30,7 +30,7 @@ namespace WindowsGSM.GameServer
             _serverData = serverData;
         }
 
-        public async void CreateServerCFG()
+        public async Task CreateServerCFG()
         {
             //Download Engine.ini
             string configPath = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID, @"ConanSandbox\Saved\Config\WindowsServer\Engine.ini");

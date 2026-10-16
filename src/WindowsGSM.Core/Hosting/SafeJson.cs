@@ -91,7 +91,27 @@ namespace WindowsGSM.Hosting
         /// <summary>The same for text produced some other way (Newtonsoft…).</summary>
         public static void WriteText(string file, string text) => WriteText(file, new System.Text.UTF8Encoding(false).GetBytes(text));
 
+        /// <summary>One lock per file: two saves of the same file at once shared its .tmp, and one of them failed.</summary>
+        private static readonly ConcurrentDictionary<string, object> _writeLocks = new(StringComparer.OrdinalIgnoreCase);
+
         private static void WriteText(string file, byte[] bytes)
+        {
+            lock (_writeLocks.GetOrAdd(Path.GetFullPath(file), _ => new object()))
+            {
+                // NEXT: antivirus, indexing or a backup tool can hold the file for a moment; that's worth a short wait
+                // rather than a lost save (many callers save best-effort and never see the error).
+                for (int attempt = 1; ; attempt++)
+                {
+                    try { WriteOnce(file, bytes); return; }
+                    catch (Exception ex) when (attempt < 5 && (ex is IOException or UnauthorizedAccessException) && ex is not (DirectoryNotFoundException or PathTooLongException))
+                    {
+                        System.Threading.Thread.Sleep(100 * attempt);
+                    }
+                }
+            }
+        }
+
+        private static void WriteOnce(string file, byte[] bytes)
         {
             string? dir = Path.GetDirectoryName(file);
             if (!string.IsNullOrEmpty(dir)) { Directory.CreateDirectory(dir); }

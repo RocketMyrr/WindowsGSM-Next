@@ -233,4 +233,15 @@ public class LifecycleTests
         }
         finally { EngineFixture.KillQuietly(p); }
     }
+
+    [Fact]
+    public void A_process_that_got_the_saved_PID_later_is_not_adopted()
+    {
+        // After a reboot the PID can belong to some other program with the same name (java); only the process
+        // that was already running when the PID was saved is the server's.
+        using var me = System.Diagnostics.Process.GetCurrentProcess();
+        Assert.True(LifecycleService.SameProcess(me, DateTime.Now));
+        Assert.False(LifecycleService.SameProcess(me, me.StartTime.AddMinutes(-1)));
+        Assert.False(LifecycleService.SameProcess(me, null));
+    }
 }

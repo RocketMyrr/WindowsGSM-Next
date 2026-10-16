@@ -23,8 +23,9 @@ namespace WindowsGSM.Functions
                 return null;
             }
 
-            string MMPath = Functions.ServerPath.GetServersServerFiles(server.ID, gameServer.Game, "addons\\metamod.dll");
-            return Directory.Exists(MMPath);
+            // NEXT: legacy looked for a folder called addons\metamod.dll, so it always read "not installed".
+            string MMPath = Functions.ServerPath.GetServersServerFiles(server.ID, gameServer.Game, "addons\\metamod\\dlls\\metamod.dll");
+            return File.Exists(MMPath);
         }
 
         public static async Task<bool> AMXModXAndMetaModP(Functions.ServerTable server)
@@ -74,26 +75,29 @@ namespace WindowsGSM.Functions
                 return null;
             }
 
+            // NEXT: DZSA no longer publishes the server download (the old link 404s), so it's only listed where it's
+            // already installed — and reinstalling it then fails with a clear message instead of doing nothing.
             string exePath = Functions.ServerPath.GetServersServerFiles(server.ID, "DZSALModServer.exe");
-            return File.Exists(exePath);
+            return File.Exists(exePath) ? true : null;
         }
 
         public static async Task<bool> DayZSALModServer(Functions.ServerTable server)
         {
+            string zipPath = Functions.ServerPath.GetServersServerFiles(server.ID, "dzsalmodserver.zip");
             try
             {
-                string zipPath = Functions.ServerPath.GetServersServerFiles(server.ID, "dzsalmodserver.zip");
-                {
-                    await WindowsGSM.Functions.Http.DownloadFileAsync("http://dayzsalauncher.com/releases/dzsalmodserver.zip", zipPath);
-                    await Task.Run(() => { try { ZipFile.ExtractToDirectory(zipPath, Functions.ServerPath.GetServersServerFiles(server.ID)); } catch { } });
-                    await Task.Run(() => { try { File.Delete(zipPath); } catch { } });
-                }
-
+                // https: it's a program the server then runs, so not over plain http.
+                await WindowsGSM.Functions.Http.DownloadFileAsync("https://dayzsalauncher.com/releases/dzsalmodserver.zip", zipPath);
+                await Task.Run(() => Engine.Services.AddonService.ExtractSafely(zipPath, Functions.ServerPath.GetServersServerFiles(server.ID)));
                 return true;
             }
             catch
             {
                 return false;
+            }
+            finally
+            {
+                try { File.Delete(zipPath); } catch { }
             }
         }
 
@@ -254,6 +258,8 @@ namespace WindowsGSM.Functions
             }
         }
 
+        private static readonly TimeSpan ScriptTimeout = TimeSpan.FromMinutes(10);
+
         private static async Task<bool> RunPowerShellScript(string workingDirectory, string scriptPath)
         {
             using (var process = new Process())
@@ -267,7 +273,17 @@ namespace WindowsGSM.Functions
                 process.StartInfo.RedirectStandardError = true;
 
                 process.Start();
-                await Task.Run(() => process.WaitForExit());
+                // NEXT: read both streams — unread, a chatty script fills the pipe and never exits. And don't wait forever.
+                var output = process.StandardOutput.ReadToEndAsync();
+                var errors = process.StandardError.ReadToEndAsync();
+                using var timeout = new System.Threading.CancellationTokenSource(ScriptTimeout);
+                try { await process.WaitForExitAsync(timeout.Token); }
+                catch (OperationCanceledException)
+                {
+                    try { process.Kill(entireProcessTree: true); } catch { }
+                    return false;
+                }
+                await Task.WhenAll(output, errors);
                 return process.ExitCode == 0;
             }
         }

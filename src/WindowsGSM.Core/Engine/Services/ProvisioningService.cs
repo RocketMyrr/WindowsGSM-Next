@@ -154,12 +154,10 @@ namespace WindowsGSM.Engine.Services
                 config.CreateWindowsGSMConfig();
                 if (ServerLocation.IsElsewhere(id)) { ServerConfig.SetSetting(id, ServerLocation.SettingKey, ServerLocation.RealPath(id)); } // now the config exists
 
-                try
-                {
-                    dynamic? configured = _plugins.Create(request.Game, new ServerConfig(id));
-                    configured?.CreateServerCFG();
-                }
-                catch { /* optional per plugin */ }
+                // NEXT: awaited, so the config files exist before the server shows as installed — and a failure is
+                // logged here. Legacy fired it off (async void): an error in it ended the whole process.
+                job.Report(stage: "Writing the server's config");
+                await CreateServerConfigAsync((object?)_plugins.Create(request.Game, new ServerConfig(id)), message => _log.Write(id, message)).ConfigureAwait(false);
 
                 var instance = _servers.Add(id);
                 _log.Write(id, "Install: Success");
@@ -644,6 +642,25 @@ namespace WindowsGSM.Engine.Services
             _log.Write(id, "Install: Failed");
             _log.Write(id, "[ERROR] " + reason);
             return reason;
+        }
+
+        /// <summary>
+        /// Runs the game's CreateServerCFG (downloads and fills in its config files) and waits for it. Built-in games
+        /// return a Task; a plugin's may be a plain method. A failure is logged — the server still installs.
+        /// </summary>
+        internal static async Task CreateServerConfigAsync(object? plugin, Action<string> log)
+        {
+            var method = plugin?.GetType().GetMethod("CreateServerCFG", Type.EmptyTypes);
+            if (method == null) { return; }
+            try
+            {
+                if (method.Invoke(plugin, null) is Task pending) { await pending.ConfigureAwait(false); }
+            }
+            catch (Exception ex)
+            {
+                var cause = ex is System.Reflection.TargetInvocationException { InnerException: { } inner } ? inner : ex;
+                log($"[NOTICE] Install: the game's config files couldn't be written ({cause.Message}). Check them before starting the server.");
+            }
         }
 
         private static void Cleanup(string id)

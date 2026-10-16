@@ -322,6 +322,7 @@ public sealed class MemberLink : IAsyncDisposable
         var ws = new ClientWebSocket();
         ws.Options.SetRequestHeader("Authorization", authorization);
         ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
+        ws.Options.KeepAliveTimeout = TimeSpan.FromSeconds(20); // NEXT: no answer to a ping in 20 s = the link is dead (power or network gone), so reconnect
         ws.Options.RemoteCertificateValidationCallback = (_, cert, _, errors) =>
             errors == SslPolicyErrors.None
             || (pinnedThumbprint != null && cert != null && string.Equals(new X509Certificate2(cert).Thumbprint, pinnedThumbprint, StringComparison.OrdinalIgnoreCase));

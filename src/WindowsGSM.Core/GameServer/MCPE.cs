@@ -31,7 +31,7 @@ namespace WindowsGSM.GameServer
             _serverData = serverData;
         }
 
-        public async void CreateServerCFG()
+        public async Task CreateServerCFG()
         {
             //Download server.properties
             string configPath = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID, "server.properties");

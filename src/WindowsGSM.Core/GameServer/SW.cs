@@ -30,7 +30,7 @@ namespace WindowsGSM.GameServer
             _serverData = serverData;
         }
 
-        public async void CreateServerCFG()
+        public async Task CreateServerCFG()
         {
             string configPath = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID, @"AppData\Roaming\Stormworks", "server_config.xml");
             if (await Functions.Github.DownloadGameServerConfig(configPath, _serverData.ServerGame))

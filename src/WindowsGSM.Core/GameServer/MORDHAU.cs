@@ -45,7 +45,7 @@ namespace WindowsGSM.GameServer
             _serverData = serverData;
         }
 
-        public async void CreateServerCFG()
+        public async Task CreateServerCFG()
         {    
             string configPath = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID, @"Mordhau\Saved\Config\WindowsServer\Game.ini");
             Directory.CreateDirectory(Path.GetDirectoryName(configPath));

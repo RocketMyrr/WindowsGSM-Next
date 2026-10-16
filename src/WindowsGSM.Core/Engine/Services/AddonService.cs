@@ -17,10 +17,15 @@ namespace WindowsGSM.Engine.Services
     /// <param name="InstalledVersion">The version on disk, when the add-on's version can be read (Oxide, Carbon).</param>
     /// <param name="LatestVersion">The newest release on GitHub, once asked (see <see cref="AddonVersions"/>).</param>
     /// <param name="Staging">The installed one is a staging/development build, not the release Update installs.</param>
+    /// <param name="ConflictsWith">An add-on on this server it can't run alongside (Oxide and Carbon), so it can't be installed.</param>
+    /// <param name="Removable">WindowsGSM can take it off this server again.</param>
+    /// <param name="ProvidedBy">A custom add-on on this server installs it instead (e.g. an Oxide staging build), so
+    /// "update add-ons" runs that one and leaves the built-in release alone.</param>
     public sealed record AddonState(string Key, string Label, bool Present, bool Managed,
-        string? InstalledVersion = null, string? LatestVersion = null, bool Staging = false)
+        string? InstalledVersion = null, string? LatestVersion = null, bool Staging = false,
+        string? ConflictsWith = null, bool Removable = false, string? ProvidedBy = null)
     {
-        public bool UpdateAvailable => Present && AddonVersions.Newer(LatestVersion, InstalledVersion);
+        public bool UpdateAvailable => Present && ProvidedBy == null && AddonVersions.Newer(LatestVersion, InstalledVersion);
     }
 
     /// <summary>
@@ -45,6 +50,19 @@ namespace WindowsGSM.Engine.Services
             new("windroseplus", "Windrose Plus",         InstallAddons.IsWindrosePlusExists,         InstallAddons.WindrosePlus),
         };
 
+        /// <summary>Mod frameworks that can't run together on one server: both change how Rust loads plugins.</summary>
+        private static readonly Dictionary<string, string> Conflicts = new() { ["oxide"] = "carbon", ["carbon"] = "oxide" };
+
+        /// <summary>Download links that are a build of a built-in add-on (Oxide's staging/develop artifacts, Carbon's other channels).</summary>
+        private static readonly (string Key, string[] Marks)[] Builds =
+        {
+            ("oxide", new[] { "oxidemod", "Oxide.Rust" }),
+            ("carbon", new[] { "CarbonCommunity/Carbon", "carbonmod" }),
+        };
+
+        /// <summary>Verify files (set by the engine): restores the game's own files after Oxide, which patches them, is removed.</summary>
+        public Func<ServerInstance, JobContext, Task<string?>>? Verify { get; set; }
+
         private readonly ServerRegistry _servers;
         private readonly OperationGate _gate;
         private readonly JobManager _jobs;
@@ -63,16 +81,16 @@ namespace WindowsGSM.Engine.Services
         {
             var s = _servers.Get(id);
             if (s == null) { return Array.Empty<AddonState>(); }
-            var row = Row(s);
+            var present = Present(s);
             var managed = InstalledAddonStore.Load(id);
+            var custom = CustomAddonStore.Load(id);
             var result = new List<AddonState>();
-            foreach (var d in BuiltIn)
+            foreach (var d in BuiltIn.Where(d => present.ContainsKey(d.Key))) // the rest aren't for this game
             {
-                bool? exists;
-                try { exists = d.Exists(row); } catch { continue; }
-                if (exists == null) { continue; } // not for this game
-                var (installed, staging) = exists == true ? AddonVersions.Installed(d.Key, id) : (null, false);
-                result.Add(new AddonState(d.Key, d.Label, exists == true, managed.Contains(d.Key), installed, AddonVersions.LatestKnown(d.Key), staging));
+                bool exists = present[d.Key];
+                var (installed, staging) = exists ? AddonVersions.Installed(d.Key, id) : (null, false);
+                result.Add(new AddonState(d.Key, d.Label, exists, managed.Contains(d.Key), installed, AddonVersions.LatestKnown(d.Key), staging,
+                    ConflictWith(d.Key, present), exists && Conflicts.ContainsKey(d.Key), ProvidedBy(d.Key, custom)?.Name));
             }
             return result;
         }
@@ -95,6 +113,10 @@ namespace WindowsGSM.Engine.Services
             if (s == null) { return OperationRequest.Rejected($"Server {id} doesn't exist."); }
             if (d == null) { return OperationRequest.Rejected($"Unknown add-on \"{key}\"."); }
             if (d.Exists(Row(s)) == null) { return OperationRequest.Rejected($"{d.Label} isn't available for {s.Game}."); }
+            if (ConflictWith(key, Present(s)) is string other)
+            {
+                return OperationRequest.Rejected($"{other} is installed on {s.Name}, and {d.Label} can't run alongside it. Remove {other} first.");
+            }
             return Run(s, $"Install {d.Label} on {s.Name}", async ctx =>
             {
                 ctx.Report(stage: $"Installing {d.Label}");
@@ -132,6 +154,67 @@ namespace WindowsGSM.Engine.Services
 
         public bool RemoveCustom(string id, string addonId) => CustomAddonStore.Remove(id, addonId);
 
+        /// <summary>Changes a saved custom add-on's name, link or folder (used from its next install). Null when saved, else the problem.</summary>
+        public string? EditCustom(string id, string addonId, string name, string url, string subfolder)
+        {
+            if (_servers.Get(id) == null || CustomAddonStore.Get(id, addonId) == null) { return "That add-on doesn't exist."; }
+            if (ValidateCustom(url, subfolder, id) is string invalid) { return invalid; }
+            return CustomAddonStore.Update(id, addonId, string.IsNullOrWhiteSpace(name) ? "Custom add-on" : name, url, subfolder)
+                ? null : "Another custom add-on already uses that link and folder.";
+        }
+
+        /// <summary>
+        /// Takes Oxide or Carbon off a stopped server, so the other can go on. Carbon: its loader and program files
+        /// go; its plugins, configs and data stay. Oxide: its files go, then Verify files puts back the game files
+        /// Oxide had replaced; the oxide folder (plugins, configs, data) stays.
+        /// </summary>
+        public OperationRequest Remove(string id, string key)
+        {
+            var s = _servers.Get(id);
+            var d = BuiltIn.FirstOrDefault(x => x.Key == key);
+            if (s == null) { return OperationRequest.Rejected($"Server {id} doesn't exist."); }
+            if (d == null || !Conflicts.ContainsKey(key)) { return OperationRequest.Rejected($"{d?.Label ?? key} can't be removed by WindowsGSM."); }
+            if (d.Exists(Row(s)) != true) { return OperationRequest.Rejected($"{d.Label} isn't installed on {s.Name}."); }
+            if (s.State != ServerState.Stopped) { return OperationRequest.Rejected($"Stop {s.Name} before removing {d.Label}."); }
+            return Run(s, $"Remove {d.Label} from {s.Name}", async ctx =>
+            {
+                ctx.Report(stage: $"Removing {d.Label}");
+                _log.Write(s.Id, $"Action: Remove Add-on {d.Label}");
+                string root = ServerPath.GetServersServerFiles(s.Id);
+                try
+                {
+                    if (key == "carbon")
+                    {
+                        foreach (string f in new[] { "winhttp.dll", "doorstop_config.ini", ".doorstop_version" }) { File.Delete(Path.Combine(root, f)); }
+                        foreach (string dir in new[] { "managed", "native", "tools" })
+                        {
+                            string path = Path.Combine(root, "carbon", dir);
+                            if (Directory.Exists(path)) { Directory.Delete(path, true); }
+                        }
+                    }
+                    else
+                    {
+                        foreach (string f in Directory.EnumerateFiles(Path.Combine(root, "RustDedicated_Data", "Managed"), "Oxide.*.dll")) { File.Delete(f); }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _log.Write(s.Id, $"[ERROR] Removing {d.Label} failed: {ex.Message}");
+                    return $"Couldn't remove {d.Label}: {ex.Message}";
+                }
+
+                InstalledAddonStore.Unmark(s.Id, key);
+                _log.Write(s.Id, $"Add-on: {d.Label} removed");
+                if (key != "oxide") { return null; }
+
+                // Oxide replaced some of Rust's own files (Assembly-CSharp and others); Steam puts the originals back.
+                if (Verify == null || UpdateService.IsHeld(s)) { return "Oxide was removed. Run Verify files before starting, to put back Rust's own files."; }
+                ctx.Report(stage: "Verifying files");
+                string? error = await Verify(s, ctx).ConfigureAwait(false);
+                return error == null ? null : $"Oxide was removed, but Verify files failed ({error}). Run it again before starting.";
+            });
+        }
+
         // ─────────────────────────────── Update add-ons ───────────────────────────────
 
         /// <summary>Refreshes every managed built-in and every saved custom add-on. Caller holds the gate.</summary>
@@ -145,8 +228,14 @@ namespace WindowsGSM.Engine.Services
                 bool any = false;
                 var managed = InstalledAddonStore.Load(s.Id);
                 var row = Row(s);
+                var custom = CustomAddonStore.Load(s.Id);
                 foreach (var d in BuiltIn.Where(d => managed.Contains(d.Key)))
                 {
+                    if (ProvidedBy(d.Key, custom) is CustomAddon by)
+                    {
+                        _log.Write(s.Id, $"Action: Update Addons: {d.Label}: skipped, the custom add-on '{by.Name}' installs it");
+                        continue;
+                    }
                     bool? exists;
                     try { exists = d.Exists(row); }
                     catch (Exception ex) { _log.Write(s.Id, $"Action: Update Addons: {d.Label}: existence check failed ({ex.Message})"); continue; }
@@ -162,7 +251,7 @@ namespace WindowsGSM.Engine.Services
                     catch (Exception ex) { _log.Write(s.Id, $"Action: Update Addons: {d.Label}: update threw exception: {ex.Message}"); }
                 }
 
-                foreach (var c in CustomAddonStore.Load(s.Id))
+                foreach (var c in custom)
                 {
                     job.Report(stage: $"Updating {c.Name}");
                     string? error = await InstallCustomCoreAsync(s, c.Name, c.Url, c.Subfolder, job).ConfigureAwait(false);
@@ -256,6 +345,29 @@ namespace WindowsGSM.Engine.Services
                 entry.ExtractToFile(dest, overwrite: true);
             }
             return skipped;
+        }
+
+        /// <summary>The installed add-on <paramref name="key"/> can't run with, by label; null when there's none.</summary>
+        private static string? ConflictWith(string key, IReadOnlyDictionary<string, bool> present) =>
+            Conflicts.TryGetValue(key, out var other) && present.TryGetValue(other, out bool there) && there ? Label(other) : null;
+
+        /// <summary>The saved custom add-on whose link is a build of built-in <paramref name="key"/>, if any.</summary>
+        internal static CustomAddon? ProvidedBy(string key, IEnumerable<CustomAddon> custom)
+        {
+            var marks = Builds.FirstOrDefault(b => b.Key == key).Marks;
+            return marks == null ? null : custom.FirstOrDefault(c => c.Url != null && marks.Any(m => c.Url.Contains(m, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        /// <summary>Built-ins for this server's game → whether they're on disk (games they don't apply to are left out).</summary>
+        private static Dictionary<string, bool> Present(ServerInstance s)
+        {
+            var row = Row(s);
+            var result = new Dictionary<string, bool>();
+            foreach (var d in BuiltIn)
+            {
+                try { if (d.Exists(row) is bool exists) { result[d.Key] = exists; } } catch { /* leave it out */ }
+            }
+            return result;
         }
 
         private static ServerTable Row(ServerInstance s) => new ServerTable { ID = s.Id, Game = s.Game, Name = s.Name };

@@ -34,6 +34,7 @@ namespace WindowsGSM.Engine
             Updates = new UpdateService(Servers, Operations, Jobs, Plugins, Log);
             Backups = new BackupService(Servers, Operations, Jobs, Log);
             Addons = new AddonService(Servers, Operations, Jobs, Log);
+            Addons.Verify = (s, job) => Updates.UpdateCoreAsync(s, validate: true, job, notes: " | after removing Oxide");
             Provisioning = new ProvisioningService(Servers, Operations, Jobs, Plugins, Log);
             Console = new ConsoleService(Servers, Log);
             Monitor = new MonitorService(Servers, Plugins, Lifecycle, Log, Events);

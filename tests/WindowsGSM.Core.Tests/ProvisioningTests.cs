@@ -123,4 +123,40 @@ public class ProvisioningTests
         Assert.Null(engine.Servers.Get(id));
         Assert.False(Directory.Exists(ServerPath.GetServers(id)));
     }
+
+    private sealed class SlowConfigGame
+    {
+        public bool Written;
+        public async Task CreateServerCFG() { await Task.Delay(200); Written = true; }
+    }
+
+    private sealed class BrokenConfigGame
+    {
+        public async Task CreateServerCFG() { await Task.Delay(10); throw new IOException("server.cfg is in use"); }
+    }
+
+    private sealed class PlainPluginGame
+    {
+        public bool Written;
+        public void CreateServerCFG() => Written = true; // a plugin may have a plain method
+    }
+
+    [Fact]
+    public async Task The_install_waits_for_the_games_config_and_survives_it_failing()
+    {
+        var logged = new List<string>();
+        var slow = new SlowConfigGame();
+        await ProvisioningService.CreateServerConfigAsync(slow, logged.Add);
+        Assert.True(slow.Written); // finished before the server shows as installed
+
+        // Used to be async void: this error ended the whole agent. Now it's a notice in the server's log.
+        await ProvisioningService.CreateServerConfigAsync(new BrokenConfigGame(), logged.Add);
+        Assert.Contains(logged, l => l.Contains("server.cfg is in use"));
+
+        var plain = new PlainPluginGame();
+        await ProvisioningService.CreateServerConfigAsync(plain, logged.Add);
+        Assert.True(plain.Written);
+        await ProvisioningService.CreateServerConfigAsync(null, logged.Add);
+        await ProvisioningService.CreateServerConfigAsync(new object(), logged.Add); // no such method: nothing to do
+    }
 }
