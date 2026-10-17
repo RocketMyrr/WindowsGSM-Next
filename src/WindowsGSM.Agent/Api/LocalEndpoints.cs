@@ -68,12 +68,21 @@ public static class LocalEndpoints
         }
 
         // The desktop app signing back in as whoever last signed in through it on this computer (see DesktopSignIn).
+        static bool IsLoopback(string? ip) => System.Net.IPAddress.TryParse(ip, out var a) && System.Net.IPAddress.IsLoopback(a);
+
         api.MapPost("/local/desktop-session", async (HttpContext http, AgentContext ctx) =>
         {
             if (!Allowed(http)) { return ApiResults.Forbidden("Only the WindowsGSM app on this computer can do that."); }
             string? name = DesktopSignIn.Remembered();
             var user = ctx.Users.Get(name);
             if (user is not { Enabled: true }) { return ApiResults.NotFound("Sign in once in the app; it remembers you after that."); }
+            // The app's earlier session on this computer is replaced, not left behind in "Where you're signed in".
+            // (Older app versions sent no user-agent here, hence the empty one.)
+            foreach (var old in ctx.Sessions.ForUser(user.Username).Where(s => s.AppKey == null && IsLoopback(s.Ip)
+                         && (string.IsNullOrEmpty(s.UserAgent) || s.UserAgent.Contains(DesktopSignIn.UserAgentMark, StringComparison.Ordinal))))
+            {
+                ctx.Sessions.RemoveForUser(user.Username, old.Id);
+            }
             await AuthEndpoints.SignInAsync(http, ctx, user);
             ctx.Audit.Write(user.Username, AgentContext.Ip(http), "login", null, true, "desktop app on this computer (signed back in)");
             return Results.Json(new { username = user.Username });

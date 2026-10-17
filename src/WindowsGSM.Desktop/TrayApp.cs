@@ -389,6 +389,7 @@ internal sealed class TrayApp : ApplicationContext
         using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(url, "api/v2/local/desktop-session"));
         request.Headers.Add("X-WGSM-CSRF", "1");
         request.Headers.Add("X-WGSM-Local-Key", File.ReadAllText(keyFile).Trim());
+        request.Headers.UserAgent.ParseAdd("WindowsGSM-Desktop/2"); // so its session shows as the app, not "Unknown device"
         using var res = await http.SendAsync(request);
         if (!res.IsSuccessStatusCode) { return false; }
         var cookie = jar.GetCookies(url).Cast<System.Net.Cookie>().FirstOrDefault(c => c.Name == "wgsm_session");

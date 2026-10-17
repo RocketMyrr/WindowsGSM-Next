@@ -3,6 +3,12 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## Unreleased
+
+- **Fixed:** the desktop app on the server showed as "Unknown device" under Where you're signed in, and each time it
+  signed itself back in (after an update, say) it left its old session listed. It now shows as the WindowsGSM app
+  and replaces its earlier session.
+
 ## 2.0.0-beta.9
 
 API tokens, Minecraft whitelist and operators, Counter-Strike 2, quicker Rust stops, and the console back after an agent restart.

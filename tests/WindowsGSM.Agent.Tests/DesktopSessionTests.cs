@@ -48,9 +48,16 @@ public class DesktopSessionTests
         var me = await again.GetJsonAsync<MeDto>("/api/v2/auth/me");
         Assert.Equal(AgentFixture.OwnerName, me.Username);
 
+        // The app signing back in (after an update restart) replaces its earlier session rather than adding one.
+        var later = Desktop();
+        later.Http.DefaultRequestHeaders.Add(LocalEndpoints.KeyHeader, Key);
+        Assert.Equal(HttpStatusCode.OK, (await later.PostAsync("/api/v2/local/desktop-session")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await again.GetAsync("/api/v2/auth/me")).StatusCode);
+        Assert.Equal(AgentFixture.OwnerName, (await later.GetJsonAsync<MeDto>("/api/v2/auth/me")).Username);
+
         // Signing out in the desktop app means it.
-        Assert.Equal(HttpStatusCode.NoContent, (await again.PostAsync("/api/v2/auth/logout")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await again.PostAsync("/api/v2/local/desktop-session")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await later.PostAsync("/api/v2/auth/logout")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await later.PostAsync("/api/v2/local/desktop-session")).StatusCode);
     }
 
     [Fact]
