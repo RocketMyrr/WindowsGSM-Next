@@ -185,6 +185,17 @@ namespace WindowsGSM.GameServer
 
         public async Task Stop(Process p)
         {
+            // NEXT: over RCON when it's set up — a server started with -noconsole has no console to type "quit" into, so
+            // legacy waited out the stop timeout and then ended the process. The console window is the fallback.
+            if (WindowsGSM.Engine.Services.ConsoleService.RconConfigured(_serverData, out string ip, out int port))
+            {
+                try
+                {
+                    var quit = WindowsGSM.Engine.Services.ConsoleService.RustOneShotAsync(ip, port, _serverData.RconPassword ?? string.Empty, "quit");
+                    if (await Task.WhenAny(quit, Task.Delay(System.TimeSpan.FromSeconds(8))) == quit && !quit.IsFaulted) { return; }
+                }
+                catch { /* RCON not answering: the console window below */ }
+            }
             await Task.Run(() =>
             {
                 Functions.ServerConsole.SendMessageToMainWindow(p.MainWindowHandle, "quit");

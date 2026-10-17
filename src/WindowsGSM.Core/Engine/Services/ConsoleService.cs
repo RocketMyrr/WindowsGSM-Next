@@ -115,7 +115,7 @@ namespace WindowsGSM.Engine.Services
         }
 
         /// <summary>Connect, send, collect the asynchronous replies briefly, disconnect (Rust WebRCON).</summary>
-        private static async Task<string> RustOneShotAsync(string ip, int port, string password, string command)
+        internal static async Task<string> RustOneShotAsync(string ip, int port, string password, string command)
         {
             var client = new RustRconClient();
             var sb = new StringBuilder();

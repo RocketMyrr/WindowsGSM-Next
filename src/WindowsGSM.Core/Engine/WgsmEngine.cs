@@ -37,6 +37,7 @@ namespace WindowsGSM.Engine
             Addons.Verify = (s, job) => Updates.UpdateCoreAsync(s, validate: true, job, notes: " | after removing Oxide");
             Provisioning = new ProvisioningService(Servers, Operations, Jobs, Plugins, Log);
             Console = new ConsoleService(Servers, Log);
+            Access = new AccessLists(Servers, Console, Log);
             Monitor = new MonitorService(Servers, Plugins, Lifecycle, Log, Events);
             Scheduler = new SchedulerService(Servers, Operations, Jobs, Lifecycle, Updates, Backups, Console, Plugins, Log, Events);
             Notifications = new NotificationService(Servers, Events);
@@ -72,6 +73,8 @@ namespace WindowsGSM.Engine
         public AddonService Addons { get; }
         public ProvisioningService Provisioning { get; }
         public ConsoleService Console { get; }
+        /// <summary>Minecraft's whitelist / operators / allowlist.</summary>
+        public AccessLists Access { get; }
         public MonitorService Monitor { get; }
         public SchedulerService Scheduler { get; }
         public NotificationService Notifications { get; }

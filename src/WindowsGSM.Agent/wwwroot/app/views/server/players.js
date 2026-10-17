@@ -3,7 +3,7 @@
 import { h, icon, clear, fmtDuration, timeAgo, fmtDateTime } from "../../dom.js";
 import { get, post, srv } from "../../api.js";
 import { store } from "../../store.js";
-import { empty, isRunning, promptText, toast, toastError, showMenu, segmented } from "../../ui.js";
+import { empty, isRunning, promptText, toast, toastError, showMenu, segmented, input, busy, confirm } from "../../ui.js";
 import { can } from "../../perms.js";
 
 export default async function playersTab(host, { id, machine, key, server, scope }) {
@@ -117,5 +117,44 @@ export default async function playersTab(host, { id, machine, key, server, scope
     scope.add(store.on("players:" + key, () => { clearTimeout(historyTimer); historyTimer = setTimeout(loadHistory, 1500); }));
     scope.add(() => clearTimeout(historyTimer));
     async function load() { try { paint(await get(srv(machine, id, "/players"))); } catch { /* keep */ } }
+
+    // ── Whitelist / operators (Minecraft Java) and allowlist (Bedrock) ──
+    const access = h("div", { class: "stack loose" });
+    host.append(access);
+    async function loadAccess() {
+        let lists;
+        try { lists = await get(srv(machine, id, "/players/access")); } catch { clear(access); return; } // a game without them
+        const edit = can(server(), "EditConfig");
+        clear(access).append(...lists.map(l => {
+            const name = input({ placeholder: "Player name", maxlength: 16, "aria-label": `Add a player to the ${l.label.toLowerCase()}` });
+            const add = h("button", { class: "btn sm primary", onclick: () => change(l, name.value, true, add) }, icon("plus"), "Add");
+            name.addEventListener("keydown", e => { if (e.key === "Enter") add.click(); });
+            return h("section", { class: "panel" },
+                h("div", { class: "panel-head wrap" }, h("h2", { text: l.label }),
+                    h("span", { class: "count-badge", text: l.names.length }),
+                    l.enforced === false ? h("span", { class: "tag amber", title: "Turn it on under Configs → server.properties." }, "Off") : l.enforced ? h("span", { class: "tag green" }, "On") : null,
+                    h("span", { class: "sub", text: l.hint })),
+                h("div", { class: "panel-body flush" },
+                    l.names.length ? h("div", {}, ...l.names.map(n => h("div", { class: "list-item" },
+                        h("span", { class: "avatar sm", text: n.slice(0, 1) }), h("b", { class: "grow truncate", text: n }),
+                        edit ? h("button", { class: "btn ghost sm icon-only", "aria-label": `Remove ${n}`, title: "Remove", onclick: e => change(l, n, false, e.currentTarget) }, icon("trash")) : null)))
+                        : empty("players", `No one on the ${l.label.toLowerCase()}`, l.hint)),
+                edit ? h("div", { class: "panel-foot row" }, name, add,
+                    h("span", { class: "tiny faint", text: isRunning(server()) ? "Sent to the running server as a command." : "Saved to the file; the server reads it when it starts." })) : null);
+        }));
+    }
+    async function change(list, name, adding, button) {
+        name = (name || "").trim();
+        if (!name) return;
+        if (!adding && !(await confirm({ title: `Remove ${name}?`, message: `From the ${list.label.toLowerCase()}.`, confirmLabel: "Remove", danger: true }))) return;
+        await busy(button, async () => {
+            await post(srv(machine, id, `/players/access/${encodeURIComponent(list.key)}`), { name, add: adding });
+            toast(adding ? `Added ${name}` : `Removed ${name}`, { type: "good", timeout: 2500 });
+            // A running server writes the file a moment after the command.
+            setTimeout(loadAccess, isRunning(server()) ? 1500 : 0);
+        }, adding ? `Couldn't add ${name}` : `Couldn't remove ${name}`);
+    }
+    scope.every(60000, loadAccess, { now: false });
+    loadAccess();
     await load();
 }

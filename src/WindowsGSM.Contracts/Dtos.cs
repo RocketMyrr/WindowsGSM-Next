@@ -63,6 +63,9 @@ public sealed record SettingsUpdateRequest(IReadOnlyDictionary<string, string?> 
 
 public sealed record SteamBranchDto(string Name, string? BuildId, bool PasswordRequired, DateTimeOffset? UpdatedAt, string? Description);
 
+/// <summary>Add (or remove) a player on one of a server's lists (whitelist, ops, allowlist).</summary>
+public sealed record AccessChangeRequest(string? Name, bool Add);
+
 public sealed record UpdateCheckDto(string? LocalBuild, string? RemoteBuild, bool UpdateAvailable, string? Error);
 
 /// <summary>A server's game version as last checked (no new check): installed build, the newest on its branch, when.</summary>
@@ -160,6 +163,12 @@ public sealed record PasswordChangeRequest(string CurrentPassword, string NewPas
 public sealed record CodeRequest(string Code);
 
 public sealed record TwoFactorSetupDto(string Secret, string Uri);
+
+/// <summary>An API token as listed (never the token itself: that's shown once, when it's made).</summary>
+public sealed record ApiTokenDto(string Id, string Name, string Hint, DateTimeOffset CreatedAt, DateTimeOffset? ExpiresAt, DateTimeOffset? LastUsedAt, string? LastUsedIp);
+
+/// <summary>Make an API token. <paramref name="Days"/>: until it expires; null = never.</summary>
+public sealed record ApiTokenRequest(string? Name, int? Days);
 
 public sealed record SessionDto(string Id, bool Current, DateTimeOffset CreatedAt, DateTimeOffset LastSeenAt, string? Ip, string? Device);
 

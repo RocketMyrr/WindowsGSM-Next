@@ -10,6 +10,7 @@ namespace WindowsGSM.GameServer.Data
             switch (serverGame)
             {
                 case CSGO.FullName: return new CSGO(serverData);
+                case CS2.FullName: return new CS2(serverData);
                 case GMOD.FullName: return new GMOD(serverData);
                 case TF2.FullName: return new TF2(serverData);
                 case MCPE.FullName: return new MCPE(serverData);

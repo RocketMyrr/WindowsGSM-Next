@@ -56,6 +56,7 @@ public static class AdminEndpoints
             if (!me.CanManage(target.Role)) { return ApiResults.Forbidden("Only owners can remove admins and owners."); }
             if (string.Equals(me.Username, username, StringComparison.OrdinalIgnoreCase)) { return ApiResults.BadRequest("You can't delete your own account."); }
             string? problem = ctx.Users.Delete(username);
+            if (problem == null) { ctx.Tokens.RemoveAllForUser(username); } // a later user with the same name gets none
             if (problem == null) { ctx.Sessions.RemoveAllForUser(username); }
             ctx.Record(http, "user-delete", null, problem == null, problem ?? username);
             return problem == null ? Results.NoContent() : ApiResults.BadRequest(problem);

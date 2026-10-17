@@ -25,6 +25,7 @@ public sealed class AgentContext
         Audit = audit;
         Metrics = metrics;
         Tags = new Hosting.ServerTags(configDir);
+        Tokens = new Security.ApiTokens(configDir);
         // A deleted server's tags go with it (a new server can reuse the number).
         engine.Events.Subscribe<WindowsGSM.Engine.Events.ServerListChanged>(e => { if (e.Removed) { Tags.Forget(e.ServerId); } });
     }
@@ -37,6 +38,8 @@ public sealed class AgentContext
     public AuditLog Audit { get; }
     public MachineMetrics Metrics { get; }
     public Hosting.ServerTags Tags { get; }
+    /// <summary>Personal API tokens ("Authorization: Bearer wgsm_…").</summary>
+    public Security.ApiTokens Tokens { get; }
     /// <summary>Whether a server has a game update waiting (set by the update watcher).</summary>
     public Func<string, bool> UpdateAvailable { get; set; } = _ => false;
     public DateTimeOffset StartedAt { get; } = DateTimeOffset.UtcNow;
@@ -53,8 +56,9 @@ public sealed class AgentContext
     public AgentUser? CurrentUser(HttpContext http)
     {
         if (http.Items.TryGetValue(UserItem, out var cached)) { return cached as AgentUser; }
-        AgentUser? user = Delegated(http);
-        string? name = http.User.Identity?.IsAuthenticated == true ? http.User.Identity.Name : null;
+        AgentUser? user = Delegated(http) ?? ByToken(http);
+        // A request with a token is that token or nothing: never the browser's cookie (it skipped the CSRF check).
+        string? name = http.User.Identity?.IsAuthenticated == true && !HasBearer(http) ? http.User.Identity.Name : null;
         if (user == null && name != null)
         {
             var u = Users.Get(name);
@@ -66,6 +70,24 @@ public sealed class AgentContext
 
     public static string? SessionId(HttpContext http) => http.User.FindFirstValue(SessionClaim);
 
+    private const string TokenItem = "wgsm.token";
+
+    /// <summary>The API token's name when this request signed in with one ("Authorization: Bearer wgsm_…").</summary>
+    public static string? TokenName(HttpContext http) => http.Items.TryGetValue(TokenItem, out var t) ? t as string : null;
+
+    /// <summary>A request carrying an API token (no cookie involved, so it needs no CSRF header).</summary>
+    public static bool HasBearer(HttpContext http) =>
+        http.Request.Headers.Authorization.ToString().StartsWith("Bearer " + Security.ApiTokens.Prefix, StringComparison.Ordinal);
+
+    private AgentUser? ByToken(HttpContext http)
+    {
+        if (!HasBearer(http)) { return null; }
+        var token = Tokens.Validate(http.Request.Headers.Authorization.ToString()["Bearer ".Length..].Trim(), Ip(http));
+        if (token == null || Users.Get(token.User) is not { Enabled: true } user) { return null; }
+        http.Items[TokenItem] = token.Name;
+        return user;
+    }
+
     public static string? Ip(HttpContext http) =>
         http.Items.TryGetValue(ClientIpItem, out var forwarded) && forwarded is string ip ? ip : http.Connection.RemoteIpAddress?.ToString();
 
@@ -73,6 +95,7 @@ public sealed class AgentContext
     {
         var user = CurrentUser(http);
         string? who = user?.Via != null ? $"{user.Username} (via {user.Via})" : user?.Username ?? http.User.Identity?.Name;
+        if (TokenName(http) is string token) { who = $"{who} (API token \"{token}\")"; }
         Audit.Write(who, Ip(http), action, server, ok, detail);
     }
 

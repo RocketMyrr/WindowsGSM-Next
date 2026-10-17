@@ -183,6 +183,8 @@ namespace WindowsGSM.Engine.Services
                 s.Reattached = true;
                 s.SetState(ServerState.Running);
                 _log.Write(s.Id, $"Server: Reattached (PID {pid})");
+                // Its console output went to the previous agent; when the game also writes it to a log file, follow that.
+                if (s.ConsoleWindow == IntPtr.Zero && ConsoleLogTail.LogFileFor(s) is string logFile) { ConsoleLogTail.Follow(s, p, logFile); }
             }
         }
 
@@ -370,6 +372,12 @@ namespace WindowsGSM.Engine.Services
             var ports = PortCheck.Check(s, _servers);
             foreach (string warning in ports.Warnings) { _log.Write(s.Id, "[NOTICE] " + warning); }
             if (ports.Error != null) { return ports.Error; }
+
+            // NEXT: the game's own config binding an address this PC doesn't have (WindowsGSM doesn't change that file).
+            if (ReadinessService.BoundInGameConfig(s.Id) is string bound && !LocalAddresses.IsUsable(bound))
+            {
+                _log.Write(s.Id, $"[NOTICE] server.properties has server-ip={bound}, which isn't an address of this PC — the game won't be able to open its port. Change it under Configs to {LocalAddresses.Best(bound) ?? "this PC's address"}, or leave it empty.");
+            }
 
             // NEXT: a Visual C++ or DirectX runtime the program needs and Windows lacks. Started anyway, Windows shows
             // "The code execution cannot proceed…" on the server PC's screen and the program waits there, so the

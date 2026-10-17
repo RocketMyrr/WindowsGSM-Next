@@ -34,12 +34,13 @@ one under Agent settings → HTTPS. For no warning at all, use Let's Encrypt wit
 
 ## Servers
 
-**After the agent restarts or updates, the Console tab is quiet for servers whose console it captures.**
-The servers keep running, and RCON works throughout. Their console output appears again after each server's next
-restart.
+**After the agent restarts or updates, the Console tab is quiet for some servers.**
+The servers keep running, and RCON works throughout. Games that also write their console to a log file — Rust and
+other Unity games started with `-logfile`, and Minecraft: Java — show that file instead until their next restart;
+other games' console output appears again after each server's next restart.
 
-**Rust started with `-noconsole` is slow to stop.**
-A normal Stop types "quit" into the server's console, which `-noconsole` turns off, so WindowsGSM waits out the
-stop timeout (30 seconds unless changed in Settings) and then ends it. Remove `-noconsole` from the start
-parameters. To keep the window off the desktop, turn off *Show the console window on this machine* in the
-server's Settings instead: the window is hidden but the console keeps working.
+**Rust started with `-noconsole` and without RCON is slow to stop.**
+Stop sends "quit" over RCON when the server has an RCON port in its settings (servers set up by WindowsGSM do).
+Without RCON it types "quit" into the console, which `-noconsole` turns off, so WindowsGSM waits out the stop
+timeout and then ends it. Set an RCON port, or remove `-noconsole` and turn off *Show the console window on this
+machine* in Settings instead.

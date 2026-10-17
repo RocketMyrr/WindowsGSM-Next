@@ -4,7 +4,7 @@ import { h, icon, clear, timeAgo, fmtDateTime, copyText } from "../dom.js";
 import { get, post } from "../api.js";
 import { store } from "../store.js";
 import { setCrumbs } from "../shell.js";
-import { field, input, toast, toastError, busy, confirm, modal, empty } from "../ui.js";
+import { field, input, toast, toastError, busy, confirm, modal, empty, select } from "../ui.js";
 import { qrSvg } from "../qr.js";
 import { applyTheme, currentTheme, applyAccent, currentAccent, ACCENTS } from "../theme.js";
 import { getPref, setPref } from "../prefs.js";
@@ -19,6 +19,7 @@ export default async function account(host, { scope }) {
     const twoFactor = h("div", { class: "stack" });
     const sessions = h("div");
     const passkeys = h("div", { class: "stack" });
+    const tokens = h("div");
 
     host.append(
         h("div", { class: "page-head" }, h("span", { class: "avatar lg", text: me.username.slice(0, 1) }),
@@ -36,6 +37,11 @@ export default async function account(host, { scope }) {
                         loadSessions();
                     }) }, icon("logout"), "Sign out everywhere else")),
                 h("div", { class: "panel-body flush" }, sessions)),
+            h("section", { class: "panel span-2" },
+                h("div", { class: "panel-head wrap" }, icon("key"), h("h2", { text: "API tokens" }),
+                    h("span", { class: "sub", text: "For scripts and tools (Home Assistant, a Stream Deck…): send Authorization: Bearer <token>. A token can do what you can, except manage accounts." }),
+                    h("span", { class: "spacer" }), h("button", { class: "btn sm primary", onclick: () => newToken() }, icon("plus"), "New token")),
+                h("div", { class: "panel-body flush" }, tokens)),
             h("section", { class: "panel" }, h("div", { class: "panel-head" }, icon("sun"), h("h2", { text: "Appearance" }), h("span", { class: "sub", text: "This browser only." })),
                 h("div", { class: "panel-body" }, appearance()))));
 
@@ -187,5 +193,60 @@ export default async function account(host, { scope }) {
     }
 
     paintTwoFactor();
+    async function loadTokens() {
+        let list;
+        try { list = await get("/auth/tokens"); } catch (e) { clear(tokens).append(empty("warn", "Couldn't load your tokens", e.message)); return; }
+        clear(tokens);
+        if (!list.length) { tokens.append(empty("key", "No API tokens", "Make one for each script or tool, so you can delete just that one later.")); return; }
+        for (const t of list) {
+            const expired = t.expiresAt && Date.parse(t.expiresAt) < Date.now();
+            tokens.append(h("div", { class: "list-item" },
+                icon("key"),
+                h("div", { class: "grow" },
+                    h("div", { class: "row" }, h("b", { text: t.name }), h("span", { class: "mono tiny faint", text: t.hint }), expired ? h("span", { class: "tag rose", text: "Expired" }) : null),
+                    h("div", { class: "tiny muted", text: `Made ${timeAgo(t.createdAt)} · ${t.lastUsedAt ? `last used ${timeAgo(t.lastUsedAt)}${t.lastUsedIp ? " from " + t.lastUsedIp : ""}` : "never used"} · ${t.expiresAt ? (expired ? "expired " : "expires ") + fmtDateTime(t.expiresAt) : "never expires"}` })),
+                h("button", { class: "btn ghost sm", onclick: async e => {
+                    if (!(await confirm({ title: `Delete "${t.name}"?`, message: "Anything using this token stops working at once.", confirmLabel: "Delete", danger: true }))) return;
+                    await busy(e.currentTarget, async () => { await del(`/auth/tokens/${encodeURIComponent(t.id)}`); loadTokens(); }, "Couldn't delete it");
+                } }, icon("trash"), "Delete")));
+        }
+    }
+
+    function newToken() {
+        const name = input({ placeholder: "Home Assistant", maxlength: 60 });
+        const days = select([{ value: "30", label: "30 days" }, { value: "90", label: "90 days" }, { value: "365", label: "1 year" }, { value: "", label: "Never" }], "365");
+        modal({
+            title: "New API token", iconName: "key",
+            body: h("div", { class: "stack" }, field("Name", name, { hint: "What will use it." }), field("Expires", days)),
+            footer: close => {
+                const go = h("button", { class: "btn primary", onclick: () => busy(go, async () => {
+                    const r = await post("/auth/tokens", { name: name.value.trim(), days: days.value ? Number(days.value) : null });
+                    close(true);
+                    loadTokens();
+                    showToken(r.token, r.item.name);
+                }, "Couldn't make the token") }, icon("plus"), "Make token");
+                return [h("button", { class: "btn", onclick: () => close(false) }, "Cancel"), go];
+            },
+        });
+    }
+
+    // Shown once: only its hash is kept.
+    function showToken(token, name) {
+        const box = input({ value: token, readonly: true, class: "input mono", "aria-label": "The new token" });
+        modal({
+            title: `Token "${name}"`, iconName: "key",
+            body: h("div", { class: "stack" },
+                h("div", { class: "callout warn" }, icon("warn"), h("span", { text: "Copy it now — it won't be shown again. Anyone with it can do what you can on this machine." })),
+                box,
+                h("div", { class: "tiny muted", text: `Example: curl -H "Authorization: Bearer ${token.slice(0, 9)}…" ${location.origin}/api/v2/machines/local/servers` })),
+            footer: close => [
+                h("button", { class: "btn", onclick: async () => { toast((await copyText(token)) ? "Copied" : "Couldn't copy — select it and copy", { type: "info", timeout: 2000 }); } }, icon("copy"), "Copy"),
+                h("button", { class: "btn primary", onclick: () => close(true) }, "Done"),
+            ],
+        });
+        setTimeout(() => { box.focus(); box.select(); }, 50);
+    }
+
+    loadTokens();
     await loadSessions();
 }

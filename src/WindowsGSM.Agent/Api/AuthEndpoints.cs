@@ -195,12 +195,38 @@ public static class AuthEndpoints
             return ok ? Results.NoContent() : ApiResults.BadRequest("That code isn't right. Check the time on your phone and try the next code.");
         });
 
+        MapTokens(auth);
+
         auth.MapPost("/2fa/disable", (HttpContext http, AgentContext ctx, CodeRequest body) =>
         {
             var user = ctx.CurrentUser(http)!;
             bool ok = ctx.Users.SetTwoFactor(user.Username, false, body.Code);
             ctx.Record(http, "2fa-disable", null, ok);
             return ok ? Results.NoContent() : ApiResults.BadRequest("That code isn't right.");
+        });
+    }
+
+    // ── API tokens (for scripts and tools; managed only from a signed-in session) ──
+
+    public static void MapTokens(RouteGroupBuilder auth)
+    {
+        auth.MapGet("/tokens", (HttpContext http, AgentContext ctx) =>
+            Results.Json(ctx.Tokens.ForUser(ctx.CurrentUser(http)!.Username).Select(t => new ApiTokenDto(t.Id, t.Name, t.Hint, t.CreatedAt, t.ExpiresAt, t.LastUsedAt, t.LastUsedIp))));
+
+        auth.MapPost("/tokens", (HttpContext http, AgentContext ctx, ApiTokenRequest body) =>
+        {
+            var user = ctx.CurrentUser(http)!;
+            var (token, record, error) = ctx.Tokens.Create(user.Username, body.Name ?? "", body.Days);
+            ctx.Record(http, "api-token-create", null, error == null, error ?? $"\"{record!.Name}\"{(record.ExpiresAt is { } e ? $", expires {e:yyyy-MM-dd}" : ", never expires")}");
+            return error != null ? ApiResults.BadRequest(error)
+                : Results.Json(new { token, item = new ApiTokenDto(record!.Id, record.Name, record.Hint, record.CreatedAt, record.ExpiresAt, null, null) });
+        });
+
+        auth.MapDelete("/tokens/{tokenId}", (HttpContext http, AgentContext ctx, string tokenId) =>
+        {
+            bool ok = ctx.Tokens.Revoke(ctx.CurrentUser(http)!.Username, tokenId);
+            ctx.Record(http, "api-token-delete", null, ok, tokenId);
+            return ok ? Results.NoContent() : ApiResults.NotFound("No such token.");
         });
     }
 

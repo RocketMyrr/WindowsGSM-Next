@@ -90,6 +90,7 @@ namespace WindowsGSM.Engine.Services
             };
 
             checks.AddRange(RuntimeChecks(s));
+            if (GameConfigAddress(s) is ReadinessCheck bind) { checks.Add(bind); }
 
             var backup = BackupSettings.Load(id);
             try { checks.Add(Writable("Backup", "Backup location writable", backup.ResolveLocation())); }
@@ -253,6 +254,39 @@ namespace WindowsGSM.Engine.Services
             return auto
                 ? new ReadinessCheck("Server", "Server IP", CheckStatus.Warning, $"{ip} isn't an address of this PC (its address changed, or it's the router's public one).{where} It's updated automatically at the next start.")
                 : new ReadinessCheck("Server", "Server IP", CheckStatus.Fail, $"{ip} isn't an address of this PC, so the game can't start on it.{where} Set Server IP in Settings, or turn on \"Update the IP when this PC's address changes\".");
+        }
+
+        /// <summary>
+        /// NEXT: the address the game's own config binds (Minecraft's server.properties server-ip), which WindowsGSM
+        /// doesn't change: when it isn't an address of this PC the game can't open its port ("Cannot assign requested
+        /// address"). Only read, never written. Null when the game has no such setting.
+        /// </summary>
+        private static ReadinessCheck? GameConfigAddress(ServerInstance s)
+        {
+            string? bound = BoundInGameConfig(s.Id);
+            if (bound == null) { return null; } // the game's config doesn't set one
+            if (LocalAddresses.IsUsable(bound)) { return new ReadinessCheck("Server", "Game config address", CheckStatus.Pass, bound.Length == 0 ? "server.properties: server-ip is empty, so the game listens on every address of this PC." : $"server.properties: server-ip={bound} is an address of this PC."); }
+            string? now = LocalAddresses.Best(bound);
+            return new ReadinessCheck("Server", "Game config address", CheckStatus.Fail,
+                $"server.properties has server-ip={bound}, which isn't an address of this PC, so the game can't open its port. " +
+                $"Change it under Configs to {(now != null ? now + ", or " : "")}leave it empty (every address of this PC).");
+        }
+
+        /// <summary>server-ip from the server's server.properties ("" when empty), or null when there's no such setting.</summary>
+        public static string? BoundInGameConfig(string serverId)
+        {
+            try
+            {
+                string file = ServerPath.GetServersServerFiles(serverId, "server.properties");
+                if (!File.Exists(file)) { return null; }
+                foreach (string line in File.ReadLines(file))
+                {
+                    string t = line.Trim();
+                    if (t.StartsWith("server-ip=", StringComparison.Ordinal)) { return t.Substring("server-ip=".Length).Trim(); }
+                }
+            }
+            catch { /* unreadable: nothing to say */ }
+            return null;
         }
 
         private ReadinessCheck PortCollisions(ServerInstance s)

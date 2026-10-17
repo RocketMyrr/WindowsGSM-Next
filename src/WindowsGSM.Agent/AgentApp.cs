@@ -368,6 +368,18 @@ public static class AgentApp
     {
         string m = ctx.Request.Method;
         bool unsafeMethod = HttpMethods.IsPost(m) || HttpMethods.IsPut(m) || HttpMethods.IsPatch(m) || HttpMethods.IsDelete(m);
+        // API tokens: no cookie, so no CSRF to guard against — but they can't manage accounts or tokens.
+        if (Api.AgentContext.HasBearer(ctx))
+        {
+            var path = ctx.Request.Path;
+            if ((path.StartsWithSegments("/api/v2/auth") && !path.Equals("/api/v2/auth/me", StringComparison.OrdinalIgnoreCase)) || path.StartsWithSegments("/api/v2/users"))
+            {
+                await ApiResults.Error(403, "forbidden", "API tokens can't manage accounts, passwords, two-factor, sessions or tokens — sign in to the panel for that.").ExecuteAsync(ctx);
+                return;
+            }
+            await next(ctx);
+            return;
+        }
         if (unsafeMethod && ctx.Request.Path.StartsWithSegments("/api") && !ctx.Request.Headers.ContainsKey(CsrfHeader))
         {
             await ApiResults.Error(403, "csrf", $"Missing the {CsrfHeader} header.").ExecuteAsync(ctx);

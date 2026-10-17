@@ -135,6 +135,18 @@ public static class ServerEndpoints
         // How the player query is doing — "why don't I see players?" in plain words.
         server.MapGet("/players/query", (HttpContext http, AgentContext ctx) => Results.Json(ctx.Engine.Monitor.QueryState(Scopes.Server(http).Id)));
 
+        // Minecraft's whitelist / operators (Java) and allowlist (Bedrock). 404 for games without them.
+        server.MapGet("/players/access", (HttpContext http, AgentContext ctx) =>
+            ctx.Engine.Access.Get(Scopes.Server(http).Id) is { } lists ? Results.Json(lists) : ApiResults.NotFound("This game has no player lists WindowsGSM edits.")).Needs(Capability.View);
+
+        server.MapPost("/players/access/{list}", async (HttpContext http, AgentContext ctx, string list, AccessChangeRequest body) =>
+        {
+            var s = Scopes.Server(http);
+            string? error = await ctx.Engine.Access.ChangeAsync(s.Id, list, body.Name ?? "", body.Add, Scopes.User(http).Username);
+            ctx.Record(http, body.Add ? "access-add" : "access-remove", s.Id, error == null, $"{list}: {body.Name}{(error != null ? " — " + error : "")}");
+            return error == null ? Results.NoContent() : ApiResults.BadRequest(error);
+        }).Needs(Capability.EditConfig);
+
         server.MapGet("/players", (HttpContext http, AgentContext ctx) =>
             Results.Json(ctx.Engine.Monitor.Players(Scopes.Server(http).Id)
                 .Select(p => new PlayerDto(p.Id, p.Name, p.Score, p.TimeConnected?.TotalSeconds))));

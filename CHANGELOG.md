@@ -3,6 +3,26 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## 2.0.0-beta.9
+
+API tokens, Minecraft whitelist and operators, Counter-Strike 2, quicker Rust stops, and the console back after an agent restart.
+
+- **API tokens** (Your account → API tokens): for scripts and tools such as Home Assistant or a Stream Deck, sent as
+  `Authorization: Bearer wgsm_…`. A token can do what you can — same role and server permissions — except manage
+  accounts, passwords, two-factor, sessions or tokens. Shown once, stored only as a hash; optional expiry, and each
+  shows when and from where it was last used.
+- **Minecraft whitelist and operators** on the Players tab (Java: whitelist and ops; Bedrock: allowlist). A running
+  server is told with its own commands; a stopped one has its files edited (player IDs looked up from Mojang, or
+  worked out for offline-mode servers).
+- **Counter-Strike 2** as a game (Steam app 730, about 60 GB, downloads anonymously). CS:GO stays.
+- **Rust stops in seconds with `-noconsole`**: Stop sends "quit" over RCON when it's set up, instead of waiting out
+  the stop timeout and ending the process.
+- **The Console tab after the agent restarts** shows the game's log file (Rust's `-logfile`, Minecraft's
+  `logs\latest.log`) for servers that kept running, instead of staying empty until their next restart.
+- **Health check: the game config's address.** When Minecraft's server.properties binds an address that isn't this
+  PC's (after the PC's address changed), the Health check and the start log say so — the file isn't changed.
+- **Lighter scheduler:** schedule files are checked for outside changes every 10 seconds instead of every second.
+
 ## 2.0.0-beta.8
 
 The right Java and Windows runtimes for every server, fixed installs for PocketMine-MP and FiveM, safer Minecraft Bedrock updates, and four dead games removed.

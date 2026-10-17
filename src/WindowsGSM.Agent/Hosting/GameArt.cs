@@ -27,6 +27,7 @@ public sealed class GameArt
         ["Conan Exiles Dedicated Server"] = 440900,
         ["Counter-Strike: 1.6 Dedicated Server"] = 10,
         ["Counter-Strike: Condition Zero Dedicated Server"] = 80,
+        ["Counter-Strike 2 Dedicated Server"] = 730,
         ["Counter-Strike: Global Offensive Dedicated Server"] = 730,
         ["Counter-Strike: Source Dedicated Server"] = 240,
         ["Day of Defeat Dedicated Server"] = 30,

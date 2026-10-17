@@ -141,6 +141,9 @@
   <data name="Counter-Strike: Condition Zero Dedicated Server" xml:space="preserve">
     <value>Images/Games/cscz.png</value>
   </data>
+  <data name="Counter-Strike 2 Dedicated Server" xml:space="preserve">
+    <value>Images/Games/cs2.png</value>
+  </data>
   <data name="Counter-Strike: Global Offensive Dedicated Server" xml:space="preserve">
     <value>Images/Games/csgo.png</value>
   </data>

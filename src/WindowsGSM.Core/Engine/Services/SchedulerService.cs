@@ -333,10 +333,21 @@ namespace WindowsGSM.Engine.Services
 
         // ─────────────────────────────── Loading ───────────────────────────────
 
+        /// <summary>When each server's schedule files were last looked at (see <see cref="Recheck"/>).</summary>
+        private readonly ConcurrentDictionary<string, DateTime> _lookedAt = new();
+
+        /// <summary>
+        /// NEXT: how often the schedule files are checked for changes made outside WindowsGSM. The loop runs every second,
+        /// and looking at every server's files each time was most of its work; changes made in the panel apply at once.
+        /// </summary>
+        public TimeSpan Recheck { get; set; } = TimeSpan.FromSeconds(10);
+
         private List<ScheduleEntry> Load(string id)
         {
             var s = _servers.Get(id);
             if (s == null) { return new List<ScheduleEntry>(); }
+            if (_cache.TryGetValue(id, out var recent) && _lookedAt.TryGetValue(id, out var at) && DateTime.UtcNow - at < Recheck) { return recent.entries; }
+            _lookedAt[id] = DateTime.UtcNow;
             string crontabDir = ServerPath.GetServersConfigs(id, "Crontab");
             string managed = ServerPath.GetServersConfigs(id, ManagedFile);
 
