@@ -110,6 +110,26 @@ The panel's own port (8971) gets its rule when you turn on *Reachable from other
   program uses the port — stop it or change the port in the server's Settings.
 - **Backups:** set *Also copy each backup to* (another drive or a network share) for a second copy, and use
   the ✓ button next to a backup to test it — every file is read back and checked, nothing is restored.
+- **A server stops at once, or won't start, saying a runtime is missing:** open its Overview → Health check. A
+  missing Visual C++, DirectX or .NET runtime is listed there with **Install** (admins): it uses the installer that
+  came with the game, or Microsoft's (only when Windows confirms it's signed by Microsoft). A crash report also
+  says what exit codes like `-1073741515` mean.
+- **Minecraft won't start ("compiled by a more recent version of the Java Runtime"):** update WindowsGSM — it
+  picks the Java the server needs, and downloads it for its own use when none fits.
+
+## Scripts and tools: API tokens
+
+*Your account → API tokens → New token* makes a token for one script or tool (name it after what uses it, so you
+can delete just that one). It's shown once. Send it as a header:
+
+```
+curl -H "Authorization: Bearer wgsm_…" http://localhost:8971/api/v2/machines/local/servers
+curl -X POST -H "Authorization: Bearer wgsm_…" http://localhost:8971/api/v2/machines/local/servers/1/restart
+```
+
+A token can do what you can, on the servers you can — and no more — but it can't manage accounts, passwords,
+two-factor sign-in, sessions or tokens. It stops working when you delete it, when it expires, when you're disabled,
+or when an admin resets your password.
 
 ## More tools
 

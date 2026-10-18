@@ -64,4 +64,18 @@ public class ApiTokenTests
         Assert.Equal(HttpStatusCode.Unauthorized, (await browser.GetAsync("/api/v2/auth/me")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await browser.GetAsync("/api/v2/machines/local/servers")).StatusCode);
     }
+
+    [Fact]
+    public async Task An_admin_resetting_a_password_or_disabling_the_user_ends_their_tokens()
+    {
+        var me = await _f.UserAsync("resetme", Role.Operator);
+        var made = await (await me.PostAsync("/api/v2/auth/tokens", new ApiTokenRequest("script", null))).Content.ReadFromJsonAsync<JsonElement>(AgentFixture.Json);
+        var script = Script(made.GetProperty("token").GetString()!);
+        Assert.Equal(HttpStatusCode.OK, (await script.GetAsync("/api/v2/auth/me")).StatusCode);
+
+        // The owner resets the password (say the account was compromised): the token stops working.
+        var reset = await _f.Owner.PutAsync("/api/v2/users/resetme", new UserRequest("resetme", Role.Operator, true, null, "a-brand-new-password-1"));
+        Assert.True(reset.IsSuccessStatusCode, await reset.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Unauthorized, (await script.GetAsync("/api/v2/auth/me")).StatusCode);
+    }
 }

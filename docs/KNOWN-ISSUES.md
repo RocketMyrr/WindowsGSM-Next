@@ -39,6 +39,11 @@ The servers keep running, and RCON works throughout. Games that also write their
 other Unity games started with `-logfile`, and Minecraft: Java — show that file instead until their next restart;
 other games' console output appears again after each server's next restart.
 
+**Minecraft servers made before 2.0.0-beta.11 have RCON off.**
+Without it, a server that kept running while the agent restarted can't be stopped cleanly (it's ended after the stop
+timeout), and TPS and whitelist changes on a running server don't work. The server's Health check says how to turn it
+on: `enable-rcon=true` and an `rcon.password` in server.properties, and the same port and password in Settings.
+
 **Rust started with `-noconsole` and without RCON is slow to stop.**
 Stop sends "quit" over RCON when the server has an RCON port in its settings (servers set up by WindowsGSM do).
 Without RCON it types "quit" into the console, which `-noconsole` turns off, so WindowsGSM waits out the stop

@@ -3,6 +3,15 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## 2.0.0-rc.1
+
+The release candidate for 2.0.0: no new features from here, only fixes. What to try before 2.0.0 is in docs/RC-CHECKLIST.md.
+
+- **Security: API tokens end when an admin resets the user's password or disables them** (like their sign-ins) — a
+  token made from a compromised account no longer survives the clean-up, or comes back when the account is re-enabled.
+- **Docs:** the README, install guide and known issues cover what's new since beta.5 (runtimes, NeoForge, API tokens,
+  Rust and Minecraft additions), and `docs/RC-CHECKLIST.md` lists what to try by hand before 2.0.0.
+
 ## 2.0.0-beta.11
 
 Rust fixes (Oxide after updates, player names, map and world size, uMod with many plugins), NeoForge for Minecraft, and Minecraft RCON and console fixes.

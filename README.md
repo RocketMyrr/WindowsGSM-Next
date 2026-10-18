@@ -14,7 +14,7 @@ WindowsGSM Next is the rebuild of [WindowsGSM](https://github.com/WindowsGSM/Win
 whether or not any window is open, every existing game plugin keeps working, and your current WindowsGSM folder —
 servers, backups, accounts, schedules, Discord bot — carries straight over.
 
-> **Status: 2.0.0-beta.11 (pre-release).** Everything planned for 2.0 is in; from here on it's fixes. Settings files
+> **Status: 2.0.0-rc.1 (release candidate).** Everything planned for 2.0 is in; from here on it's fixes. Settings files
 > are stable: later versions read them as they are. Keep backups, and try it on a copy of your WindowsGSM folder
 > first if you're switching from the old app. What changed in each version: [CHANGELOG.md](CHANGELOG.md). Problems
 > we already know about, with ways around them: [Known issues](docs/KNOWN-ISSUES.md).
@@ -130,12 +130,17 @@ two bots don't answer at once.
   aren't touched, and updates go on hold until you resume them.
 - Update automatically, update before every start, and **Update available** badges.
 - Steam branches (betas), with passwords.
+- **The right runtimes, found for you.** Minecraft gets the Java its version needs (an installed one, or a copy
+  downloaded for WindowsGSM's own use). The Health check reads what each server program needs — Visual C++, DirectX,
+  .NET — and offers **Install** for anything missing, so a fresh Windows (Server) doesn't just fail to start.
 
 ### Game-specific tools
-- **Minecraft Java**: Vanilla, Paper, Purpur or Fabric at the version you choose. Plugins and mods from
-  **Modrinth** with dependencies, update all, remove.
-- **Rust plugins from uMod** (Oxide or Carbon): search, install with requirements, update all, keep hand-added ones up
-  to date, never overwrite your edits — no restart needed.
+- **Minecraft Java**: Vanilla, Paper, Purpur, Fabric or **NeoForge** at the version you choose. Plugins and mods from
+  **Modrinth** with dependencies, update all (or before every start), remove. **Whitelist and operators** on the
+  Players tab (Bedrock: the allowlist).
+- **Rust**: plugins from **uMod** (Oxide or Carbon): search, install with requirements, update all (or before every
+  start), keep hand-added ones up to date, never overwrite your edits — no restart needed. Oxide or Carbon goes
+  back on by itself after every Rust update. Map by seed and world size, or a custom map link.
 - **ARK: Survival Ascended**: CurseForge mods in load order, and clusters.
 - **Steam Workshop**: mods by link or collection, kept up to date (DayZ / Arma 3 `@Mod` folders and keys,
   Conan Exiles `modlist.txt`).
@@ -157,7 +162,7 @@ two bots don't answer at once.
 - **Overview** with live server cards, a *Needs attention* panel, and per-machine health.
 - **Charts** for CPU, memory, players and game performance (server FPS/TPS over RCON), from the last hour to a
   year, plus uptime, peak players and who plays most.
-- **Players** tab: who's on, recent visitors, and why counts are missing if they are.
+- **Players** tab: who's on, recent visitors, and why counts are missing if they are (Rust's names come over RCON).
 - **Schedules**: restarts, updates, backups and commands on a timetable, with warnings in game chat first.
   Add one schedule to many servers.
 - **Automations**: *if this, then that*. Stop an empty server after 2 hours, restart one stuck at full CPU, tell
@@ -237,6 +242,8 @@ optional, and owners can point updates at another repository or their own feed.
 
 - **Accounts and roles**: owner, admin, operator, member and viewer, with per-server permissions on top.
 - **Two-factor sign-in** (authenticator app) and **passkeys** (fingerprint, face or phone).
+- **API tokens** for scripts and tools (Home Assistant, a Stream Deck…): they act as you, can't manage accounts or
+  other tokens, are stored only as a hash, and end when an admin resets your password or disables you.
 - **Audit log** of every action: who, from where, and through what (panel, hub, Discord).
 - **Encrypted secrets**: the Steam password, Discord bot token, webhook URLs, certificate passwords, the hub link
   and sign-in cookie keys are protected with Windows data protection for your account.

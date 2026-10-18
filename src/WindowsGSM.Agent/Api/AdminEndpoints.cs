@@ -42,6 +42,7 @@ public static class AdminEndpoints
             if (problem == null && (!body.Enabled || !string.IsNullOrEmpty(body.Password)))
             {
                 ctx.Sessions.RemoveAllForUser(username); // disabled, or password reset: signed out everywhere
+                ctx.Tokens.RemoveAllForUser(username);   // …and their API tokens go too (a compromised account's would survive)
             }
             ctx.Record(http, "user-update", null, problem == null,
                 problem ?? $"{username}: {body.Role}, {(body.Enabled ? "enabled" : "disabled")}{(string.IsNullOrEmpty(body.Password) ? "" : ", password reset")}");

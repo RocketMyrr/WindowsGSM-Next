@@ -3,11 +3,19 @@ using System.Diagnostics;
 namespace WindowsGSM.Core.Tests;
 
 /// <summary>
+/// Runs alone, after everything else: the scenarios use the PC's console host, and other tests starting game
+/// processes or consoles at the same time made them fail now and then (alone they pass every time).
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class ConsoleScenarios { public const string Name = "Console scenarios"; }
+
+/// <summary>
 /// Game servers in console windows of their own, end to end: the console handling only switches on in a process
 /// without a visible console (as the agent runs), so this starts tests/WindowsGSM.ConsoleHarness windowless — the
 /// way the launcher starts the agent — and checks every scenario it reports: a game that keeps its console, one that
 /// moves to its parent's (Rust), two of those together, plugins "pressing keys", and the agent restarting.
 /// </summary>
+[Collection(ConsoleScenarios.Name)]
 public class ConsoleHostScenarioTests
 {
     /// <summary>The harness built next to these tests (same configuration, same framework).</summary>
