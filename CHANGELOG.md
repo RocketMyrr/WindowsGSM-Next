@@ -3,6 +3,10 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## Unreleased
+
+- **The previous logo is back** (beta.10's new logo is reverted).
+
 ## 2.0.0-beta.10
 
 A new logo, and the desktop app's sign-ins tidied up.
