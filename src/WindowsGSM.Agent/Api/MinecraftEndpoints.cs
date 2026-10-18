@@ -33,9 +33,20 @@ public static class MinecraftEndpoints
                     kind = c.ProjectType, folder = c.Folder,
                     tracked = modrinth.List(s.Id),
                     others = modrinth.Others(s.Id, c),
+                    updateBeforeStart = s.Config.GetCustomSetting(ModrinthBeforeStart.SettingKey, "") == "1",
                 },
             });
         }).Needs(Capability.View);
+
+        // "Update them before every start".
+        mc.MapPut("/update-before-start", (HttpContext http, AgentContext ctx, UModSettingRequest body) =>
+        {
+            var s = ctx.Engine.Servers.Get(Scopes.Server(http).Id)!;
+            WindowsGSM.Functions.ServerConfig.SetSetting(s.Id, ModrinthBeforeStart.SettingKey, body.On ? "1" : "0");
+            s.ReloadConfig();
+            ctx.Record(http, "modrinth", s.Id, true, body.On ? "update before start: on" : "update before start: off");
+            return Results.NoContent();
+        }).Needs(Capability.Addons);
 
         mc.MapGet("/versions", async (HttpContext http, AgentContext ctx, string flavor) =>
         {

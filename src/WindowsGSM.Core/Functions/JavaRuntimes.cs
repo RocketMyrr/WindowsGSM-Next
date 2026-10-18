@@ -101,9 +101,11 @@ namespace WindowsGSM.Functions
         /// java.exe for this jar: an installed Java that's new enough, or Temurin of the needed version downloaded into
         /// WindowsGSM's folder. <paramref name="note"/> hears what happened (for the server's log).
         /// </summary>
-        public static async Task<string> ForJarAsync(string jarPath, Action<string> note)
+        public static Task<string> ForJarAsync(string jarPath, Action<string> note) => ForMajorAsync(RequiredMajor(jarPath), note);
+
+        /// <summary>java.exe that is at least Java <paramref name="needs"/> (any when null), downloaded when there's none.</summary>
+        public static async Task<string> ForMajorAsync(int? needs, Action<string> note)
         {
-            int? needs = RequiredMajor(jarPath);
             if (Best(Installed(), needs) is Runtime ok) { return ok.Exe; }
 
             int major = needs ?? 25;

@@ -267,6 +267,31 @@ namespace WindowsGSM.Engine.Services
             }
         }
 
+        /// <summary>
+        /// NEXT: a Rust update (or verify) puts back Rust's own Assembly-CSharp and friends, which Oxide patches — so Oxide
+        /// silently stopped loading, and the server came up without plugins unless "update add-ons on start" happened to
+        /// be on. Right after the game's files change, the Oxide or Carbon WindowsGSM manages goes back on (the custom
+        /// add-on that provides it, when one does), whatever that setting says. Caller holds the gate.
+        /// </summary>
+        internal async Task ReapplyAfterGameUpdateAsync(ServerInstance s, JobContext job)
+        {
+            var managed = InstalledAddonStore.Load(s.Id);
+            var custom = CustomAddonStore.Load(s.Id);
+            var present = Present(s);
+            foreach (var d in BuiltIn.Where(d => Conflicts.ContainsKey(d.Key) && managed.Contains(d.Key) && present.TryGetValue(d.Key, out bool here) && here))
+            {
+                job.Report(stage: $"Putting {d.Label} back");
+                if (ProvidedBy(d.Key, custom) is CustomAddon by)
+                {
+                    string? error = await InstallCustomCoreAsync(s, by.Name, by.Url, by.Subfolder, job).ConfigureAwait(false);
+                    _log.Write(s.Id, error == null ? $"Add-on: {d.Label} put back after the game update (custom add-on '{by.Name}')" : $"[ERROR] Add-on: {d.Label} couldn't be put back after the game update: {error}");
+                    continue;
+                }
+                bool ok = await d.Install(Row(s)).ConfigureAwait(false);
+                _log.Write(s.Id, ok ? $"Add-on: {d.Label} put back after the game update" : $"[ERROR] Add-on: {d.Label} couldn't be put back after the game update — install it from the Add-ons tab before starting.");
+            }
+        }
+
         // ─────────────────────────────── Helpers ───────────────────────────────
 
         private OperationRequest Run(ServerInstance s, string title, Func<JobContext, Task<string?>> work)

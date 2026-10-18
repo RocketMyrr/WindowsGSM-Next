@@ -71,6 +71,8 @@ namespace WindowsGSM.Engine.Services
             public DateTimeOffset NextDiscovery;
             public string? QueryNote;
             public int? LastPlayers, LastMaxPlayers;
+            public DateTimeOffset NextRconPlayers;  // Rust: when its RCON player list may be asked for again
+            public List<PlayerData>? RconPlayers;
             public volatile bool Discovering;
             public TimeSpan LastCpu;
             public DateTimeOffset LastCpuAt;
@@ -354,12 +356,41 @@ namespace WindowsGSM.Engine.Services
             return "127.0.0.1";
         }
 
+        /// <summary>Names from Rust's RCON "playerlist" reply (a JSON array; other console lines may be mixed in).</summary>
+        internal static List<PlayerData> ParseRustPlayerList(string reply)
+        {
+            var list = new List<PlayerData>();
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(reply ?? "",
+                         @"""DisplayName""\s*:\s*""(?<name>(?:[^""\\]|\\.)*)""(?:[^{}]*?""ConnectedSeconds""\s*:\s*(?<secs>\d+))?"))
+            {
+                string name = System.Text.RegularExpressions.Regex.Unescape(m.Groups["name"].Value);
+                TimeSpan? on = m.Groups["secs"].Success ? TimeSpan.FromSeconds(long.Parse(m.Groups["secs"].Value)) : null;
+                if (name.Length > 0) { list.Add(new PlayerData(list.Count, name, 0, on)); }
+            }
+            return list;
+        }
+
         private async Task RefreshPlayerListAsync(ServerInstance s, Watch w)
         {
             if (w.Query is not QueryTemplate template) { return; }
             List<PlayerData>? list;
             try { list = await template.GetPlayersData().ConfigureAwait(false); } catch { return; }
             list ??= new List<PlayerData>();
+            // NEXT: Rust's query gives the count but no names (so the Players tab and history stayed empty); its RCON
+            // "playerlist" has them. Asked at most every 30 s, and only while someone's on and RCON is set up.
+            if ((w.LastPlayers ?? 0) > 0 && list.All(x => string.IsNullOrWhiteSpace(x.Name)) && ConsoleService.UsesRustRcon(s.Game)
+                && ConsoleService.RconConfigured(s.Config, out string ip, out int port))
+            {
+                var now = DateTimeOffset.UtcNow;
+                if (now >= w.NextRconPlayers)
+                {
+                    w.NextRconPlayers = now + TimeSpan.FromSeconds(30);
+                    try { w.RconPlayers = ParseRustPlayerList(await ConsoleService.RustOneShotAsync(ip, port, s.Config.RconPassword ?? "", "playerlist").ConfigureAwait(false)); }
+                    catch { /* RCON not answering: keep the last list */ }
+                }
+                list = w.RconPlayers ?? list;
+            }
+            else { w.RconPlayers = null; }
             string signature = string.Join("|", list.Select(x => x.Name).OrderBy(x => x, StringComparer.Ordinal));
             if (signature == w.PlayersSignature) { return; }
             w.PlayersSignature = signature;

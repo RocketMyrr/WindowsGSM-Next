@@ -100,7 +100,7 @@ public sealed class UMod
     {
         string sort = string.IsNullOrWhiteSpace(query) ? "&sort=downloads&sortdir=desc" : "";
         string url = $"{Site}/plugins/search.json?query={Uri.EscapeDataString(query ?? "")}&page=1{sort}&categories%5B%5D=rust";
-        var data = JsonNode.Parse(await _http.GetStringAsync(url, token))!["data"]!.AsArray();
+        var data = JsonNode.Parse(await GetStringAsync(url, token))!["data"]!.AsArray();
         var installed = List(serverId).Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var c = ContextFor(serverId);
         return data.Where(x => (string?)x!["distribution"] == "download" && IsValidName((string?)x["name"]))
@@ -110,12 +110,65 @@ public sealed class UMod
             .ToList();
     }
 
-    /// <summary>The plugin called exactly <paramref name="name"/> on uMod (for Rust, downloadable), or null.</summary>
+    /// <summary>
+    /// The plugin called exactly <paramref name="name"/> on uMod (downloadable), or null. NEXT: its own page
+    /// (/plugins/Name.json) rather than a search — a search's first page could miss an exact name — and remembered for
+    /// 10 minutes, so opening the Rust tab again doesn't ask uMod once per plugin each time.
+    /// </summary>
     private async Task<JsonNode?> FindAsync(string name, CancellationToken token)
     {
-        string url = $"{Site}/plugins/search.json?query={Uri.EscapeDataString(name)}&page=1&categories%5B%5D=rust";
-        var data = JsonNode.Parse(await _http.GetStringAsync(url, token))!["data"]!.AsArray();
-        return data.FirstOrDefault(x => string.Equals((string?)x!["name"], name, StringComparison.Ordinal) && (string?)x["distribution"] == "download");
+        if (Found.TryGetValue(name, out var hit) && DateTimeOffset.UtcNow - hit.At < Remember) { return hit.Plugin; }
+        using var res = await SendAsync(new Uri($"{Site}/plugins/{Uri.EscapeDataString(name)}.json"), token);
+        JsonNode? plugin = null;
+        if (res.StatusCode != System.Net.HttpStatusCode.NotFound)
+        {
+            res.EnsureSuccessStatusCode();
+            var node = JsonNode.Parse(await res.Content.ReadAsStringAsync(token));
+            if (string.Equals((string?)node?["name"], name, StringComparison.Ordinal) && (string?)node!["distribution"] == "download") { plugin = node; }
+        }
+        Found[name] = (plugin, DateTimeOffset.UtcNow);
+        return plugin;
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (JsonNode? Plugin, DateTimeOffset At)> Found = new(StringComparer.Ordinal);
+    private static readonly SemaphoreSlim Pace = new(1, 1);
+    private static DateTimeOffset _lastCall;
+
+    /// <summary>Swappable for tests: how long a plugin's uMod details are reused.</summary>
+    public static TimeSpan Remember { get; set; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>Swappable for tests: the gap kept between uMod requests (it allows 30 a minute).</summary>
+    public static TimeSpan Gap { get; set; } = TimeSpan.FromMilliseconds(2100);
+
+    /// <summary>
+    /// Every uMod request goes through here: one at a time, at most 30 a minute (uMod's limit), and when uMod still
+    /// says "too many" (429) it waits as long as uMod asks and tries again.
+    /// </summary>
+    private async Task<HttpResponseMessage> SendAsync(Uri uri, CancellationToken token)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            await Pace.WaitAsync(token);
+            try
+            {
+                var wait = _lastCall + Gap - DateTimeOffset.UtcNow;
+                if (wait > TimeSpan.Zero) { await Task.Delay(wait, token); }
+                _lastCall = DateTimeOffset.UtcNow;
+            }
+            finally { Pace.Release(); }
+            var res = await _http.GetAsync(uri, token);
+            if ((int)res.StatusCode != 429 || attempt >= 3) { return res; }
+            var retry = res.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(30);
+            res.Dispose();
+            await Task.Delay(retry > TimeSpan.FromSeconds(90) ? TimeSpan.FromSeconds(90) : retry, token);
+        }
+    }
+
+    private async Task<string> GetStringAsync(string url, CancellationToken token)
+    {
+        using var res = await SendAsync(new Uri(url), token);
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadAsStringAsync(token);
     }
 
     /// <summary>Installs a plugin and the plugins it requires ("// Requires: Name" in its source). Returns what was installed.</summary>
@@ -245,7 +298,8 @@ public sealed class UMod
         {
             throw new InvalidOperationException("Unexpected download address.");
         }
-        byte[] data = await _http.GetByteArrayAsync(uri, token);
+        byte[] data;
+        using (var res = await SendAsync(uri, token)) { res.EnsureSuccessStatusCode(); data = await res.Content.ReadAsByteArrayAsync(token); }
         string checksum = Sha1(data);
         string? expected = (string?)plugin["latest_release_version_checksum"];
         if (expected != null && !checksum.Equals(expected, StringComparison.OrdinalIgnoreCase)) { throw new InvalidOperationException("The download's checksum doesn't match — try again."); }

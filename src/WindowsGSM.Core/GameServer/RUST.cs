@@ -38,6 +38,11 @@ namespace WindowsGSM.GameServer
 
         public string AppId = "258550";
 
+        /// <summary>NEXT: a World size box beside Map (a procedural map is its seed plus its size). Not a full schema,
+        /// so the usual name/map/token boxes stay.</summary>
+        public const string WorldSizeKey = "worldsize";
+        public object[] CustomSettings = { new { Key = WorldSizeKey, Label = "World size (1000–6000, for a seed)", Default = "" } };
+
         public RUST(Functions.ServerConfig serverData)
         {
             _serverData = serverData;
@@ -97,19 +102,28 @@ namespace WindowsGSM.GameServer
         /// <summary>The start line: Rust's usual switches, the form's settings, RCON (when set) and Extra start parameters.</summary>
         internal static string Arguments(Functions.ServerConfig cfg)
         {
+            // A quote inside a value would end it early and let the rest become extra settings: never one.
+            static string Q(string? v) => "\"" + (v ?? "").Replace("\"", "'") + "\"";
             string param = "-nographics -batchmode -silent-crashes";
-            param += string.IsNullOrWhiteSpace(cfg.ServerName) ? string.Empty : $" +server.hostname \"{cfg.ServerName}\"";
+            param += string.IsNullOrWhiteSpace(cfg.ServerName) ? string.Empty : $" +server.hostname {Q(cfg.ServerName)}";
             param += string.IsNullOrWhiteSpace(cfg.ServerIP) ? string.Empty : $" +server.ip {cfg.ServerIP}";
             param += string.IsNullOrWhiteSpace(cfg.ServerPort) ? string.Empty : $" +server.port {cfg.ServerPort}";
             param += string.IsNullOrWhiteSpace(cfg.ServerQueryPort) ? string.Empty : $" +server.queryport {cfg.ServerQueryPort}";
-            //param += string.IsNullOrWhiteSpace(cfg.ServerMap) ? string.Empty : $" +server.level \"{cfg.ServerMap}\"";
+            // NEXT: the Map box (legacy ignored it): a custom map's download link, or a seed (a number) for a procedural
+            // map — with the World size box — or a map name ("Procedural Map", "Barren"…). A link ignores seed and size.
+            string map = (cfg.ServerMap ?? "").Trim();
+            bool custom = map.StartsWith("http", StringComparison.OrdinalIgnoreCase);
+            if (custom) { param += $" +server.levelurl {Q(map)}"; }
+            else if (long.TryParse(map, out long seed) && seed >= 0) { param += $" +server.seed {seed}"; }
+            else if (map.Length > 0) { param += $" +server.level {Q(map)}"; }
+            if (!custom && int.TryParse(cfg.GetCustomSetting(WorldSizeKey, ""), out int size) && size >= 1000 && size <= 6000) { param += $" +server.worldsize {size}"; }
             param += string.IsNullOrWhiteSpace(cfg.ServerMaxPlayer) ? string.Empty : $" +server.maxplayers {cfg.ServerMaxPlayer}";
 
             // RCON from the server's RCON settings (WindowsGSM's console uses the same), when a port is set.
             if (int.TryParse(cfg.RconPort, out int rconPort) && rconPort > 0)
             {
                 param += string.IsNullOrWhiteSpace(cfg.RconIp) ? string.Empty : $" +rcon.ip {cfg.RconIp}";
-                param += $" +rcon.port {rconPort} +rcon.password \"{cfg.RconPassword}\" +rcon.web 1";
+                param += $" +rcon.port {rconPort} +rcon.password {Q(cfg.RconPassword)} +rcon.web 1";
             }
 
             // Then only what you set yourself.

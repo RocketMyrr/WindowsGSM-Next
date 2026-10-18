@@ -109,6 +109,9 @@ namespace WindowsGSM.Engine.Services
         /// <summary>Tests: replaces DepotDownloader for roll back.</summary>
         public Func<string, string, IReadOnlyDictionary<uint, ulong>, bool, Task<(Process?, string?)>>? RollbackRunner { get; set; }
 
+        /// <summary>Runs after an update or verify replaced game files (set by the engine: re-applies Oxide/Carbon).</summary>
+        public Func<ServerInstance, JobContext, Task>? AfterGameFilesChanged { get; set; }
+
         private async Task<string?> RollbackCoreAsync(ServerInstance s, DepotHistory.Build build, string label, JobContext ctx, bool validate)
         {
             string id = s.Id;
@@ -208,7 +211,8 @@ namespace WindowsGSM.Engine.Services
             bool steam = !string.IsNullOrWhiteSpace(appId);
             string branch = steam ? BranchName(s.Id) : string.Empty;
 
-            if (steam) { DepotHistory.Record(s.Id, BuildCache.Read(s.Id)); } // name the build we're leaving, for roll back
+            string before = steam ? BuildCache.Read(s.Id) : string.Empty;
+            if (steam) { DepotHistory.Record(s.Id, before); } // name the build we're leaving, for roll back
             s.SetState(ServerState.Updating);
             _log.Write(s.Id, "Action: Update" + (steam ? $" | Steam branch {branch}" : string.Empty) + notes);
 
@@ -263,6 +267,12 @@ namespace WindowsGSM.Engine.Services
                     string build = steam ? BuildCache.Read(s.Id) : string.Empty;
                     if (steam) { DepotHistory.Record(s.Id, build); }
                     _log.Write(s.Id, $"Server: Updated {(validate ? "Validate " : string.Empty)}{(steam ? $"Steam branch {branch} " : string.Empty)}{(string.IsNullOrEmpty(build) ? string.Empty : $"to build {build}")}".TrimEnd());
+                    // The game's files changed (a new build, or verified back to Steam's): mods that patch them go back on.
+                    if (AfterGameFilesChanged != null && (validate || build != before))
+                    {
+                        try { await AfterGameFilesChanged(s, job).ConfigureAwait(false); }
+                        catch (Exception ex) { _log.Write(s.Id, "[ERROR] Putting mods back after the update failed: " + ex.Message); }
+                    }
                     return null;
                 }
                 finally

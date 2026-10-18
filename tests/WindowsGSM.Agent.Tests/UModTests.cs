@@ -11,7 +11,12 @@ namespace WindowsGSM.Agent.Tests;
 public class UModTests
 {
     private readonly AgentFixture _f;
-    public UModTests(AgentFixture f) => _f = f;
+    public UModTests(AgentFixture f)
+    {
+        _f = f;
+        UMod.Gap = TimeSpan.Zero;        // no pacing against a fake
+        UMod.Remember = TimeSpan.Zero;   // the fake's versions change during a test
+    }
 
     private static string Plugin(string title, string version, string? requires = null) =>
         (requires != null ? $"// Requires: {requires}\n" : "") +
@@ -48,6 +53,11 @@ public class UModTests
                 string query = System.Text.RegularExpressions.Regex.Match(url, @"query=([^&]*)").Groups[1].Value;
                 var names = Sources.Keys.Where(n => query.Length == 0 || n.Contains(query, StringComparison.OrdinalIgnoreCase));
                 body = $"{{\"data\":[{string.Join(",", names.Select(Entry))}],\"total\":{names.Count()}}}";
+            }
+            else if (url.StartsWith("https://umod.org/plugins/") && url.EndsWith(".json"))
+            {
+                string name = url["https://umod.org/plugins/".Length..^5];
+                if (Sources.ContainsKey(name)) { body = Entry(name); } // a plugin's own page
             }
             else if (url.StartsWith("https://umod.org/plugins/") && url.EndsWith(".cs"))
             {
@@ -141,5 +151,29 @@ public class UModTests
     public async Task The_Rust_tab_is_only_for_Rust_servers()
     {
         Assert.Equal(HttpStatusCode.BadRequest, (await _f.Owner.GetAsync(_f.ServerUrl("103", "/rust"))).StatusCode);
+    }
+
+    private sealed class BusyOnce : HttpMessageHandler
+    {
+        public int Calls;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            if (++Calls == 1)
+            {
+                var busy = new HttpResponseMessage((HttpStatusCode)429);
+                busy.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.Zero);
+                return Task.FromResult(busy);
+            }
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"data\":[]}") });
+        }
+    }
+
+    [Fact]
+    public async Task When_uMod_says_too_many_requests_it_waits_and_tries_again()
+    {
+        var busy = new BusyOnce();
+        var hits = await new UMod(new HttpClient(busy)).SearchAsync("103", "kits", CancellationToken.None);
+        Assert.Empty(hits);
+        Assert.Equal(2, busy.Calls); // refused once (429), then answered
     }
 }

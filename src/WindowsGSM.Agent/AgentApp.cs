@@ -284,6 +284,7 @@ public static class AgentApp
         _ = app.Services.GetRequiredService<PortForwarding>(); // forwards router ports as servers start
         engine.Lifecycle.PreStartSteps.Add(new WorkshopBeforeStart(app.Services.GetRequiredService<Workshop>()));
         engine.Lifecycle.PreStartSteps.Add(new UModBeforeStart(app.Services.GetRequiredService<UMod>()));
+        engine.Lifecycle.PreStartSteps.Add(new ModrinthBeforeStart(app.Services.GetRequiredService<Modrinth>()));
         var offsite = app.Services.GetRequiredService<OffsiteBackups>();
         engine.Backups.Finished = offsite.BackupFinished;
         // Once listening: find the internal loopback address, then connect to our hub (if this machine joined one).

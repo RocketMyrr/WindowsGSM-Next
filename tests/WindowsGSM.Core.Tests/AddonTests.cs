@@ -252,6 +252,13 @@ public class AddonTests
         await job.Completion.WaitAsync(TimeSpan.FromSeconds(60));
         Assert.Equal("staging", File.ReadAllText(Files(id, @"RustDedicated_Data\Managed\Oxide.Core.dll")));
         Assert.Contains(engine.Log.Tail(id, 50), line => line.Contains("skipped, the custom add-on 'staging' installs it"));
+
+        // A Rust update puts Rust's own files back; right after, the Oxide that was there goes back on.
+        File.WriteAllText(Files(id, @"RustDedicated_Data\Managed\Oxide.Core.dll"), "overwritten by the update");
+        var after = engine.Jobs.Start("update", id, "test", async ctx => { await engine.Addons.ReapplyAfterGameUpdateAsync(s, ctx); return null; });
+        await after.Completion.WaitAsync(TimeSpan.FromSeconds(60));
+        Assert.Equal("staging", File.ReadAllText(Files(id, @"RustDedicated_Data\Managed\Oxide.Core.dll")));
+        Assert.Contains(engine.Log.Tail(id, 50), line => line.Contains("put back after the game update"));
     }
 
     [Fact]

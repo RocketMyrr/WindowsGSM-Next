@@ -1,7 +1,10 @@
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.DependencyInjection;
+using WindowsGSM.Agent.Api;
 using WindowsGSM.Agent.Hosting;
+using WindowsGSM.Engine.Operations;
 using WindowsGSM.Functions;
 using WindowsGSM.Installer;
 
@@ -93,8 +96,24 @@ public class MinecraftTests
             Assert.False(File.Exists(Path.Combine(dir, "plugins", "LuckPerms-v1.jar")));
             Assert.True(File.Exists(Path.Combine(dir, "plugins", "LuckPerms-v2.jar")));
 
+            // "Update them before every start": nothing while it's off; the newest when it's on.
+            var engine = _f.App.Services.GetRequiredService<AgentContext>().Engine;
+            var s = engine.Servers.Get(id)!;
+            async Task BeforeStart() => await engine.Jobs.Start("start", id, "test", async ctx => { await new ModrinthBeforeStart(modrinth).RunAsync(s, WindowsGSM.Engine.Services.StartReason.Manual, ctx); return null; }).Completion;
+            fake.LuckPermsVersion = "v3";
+            await BeforeStart();
+            Assert.True(File.Exists(Path.Combine(dir, "plugins", "LuckPerms-v2.jar")));
+            ServerConfig.SetSetting(id, ModrinthBeforeStart.SettingKey, "1");
+            s.ReloadConfig();
+            try
+            {
+                await BeforeStart();
+                Assert.True(File.Exists(Path.Combine(dir, "plugins", "LuckPerms-v3.jar")));
+            }
+            finally { ServerConfig.SetSetting(id, ModrinthBeforeStart.SettingKey, ""); s.ReloadConfig(); }
+
             Assert.True(modrinth.Remove(id, c, "LP"));
-            Assert.False(File.Exists(Path.Combine(dir, "plugins", "LuckPerms-v2.jar")));
+            Assert.False(File.Exists(Path.Combine(dir, "plugins", "LuckPerms-v3.jar")));
             Assert.True(File.Exists(Path.Combine(dir, "plugins", "MyOwn.jar"))); // never touched
         }
         finally

@@ -25,7 +25,7 @@ namespace WindowsGSM.GameServer
         public string QueryPort = "25565";
         public string Defaultmap = "world";
         public string Maxplayers = "20";
-        public string Additional = "-Xmx1024M -Xms1024M";
+        public string Additional = "-Xms2G -Xmx4G"; // NEXT: 1 GB (legacy) is tight for current Minecraft
 
         public MC(Functions.ServerConfig serverData)
         {
@@ -44,9 +44,16 @@ namespace WindowsGSM.GameServer
                 configText = configText.Replace("{{rconPort}}", (int.Parse(_serverData.ServerPort) + 10).ToString());
                 configText = configText.Replace("{{serverIP}}", _serverData.ServerIP);
                 configText = configText.Replace("{{defaultmap}}", Defaultmap);
-                configText = configText.Replace("{{rcon_password}}", _serverData.GetRCONPassword());
+                string rconPassword = _serverData.GetRCONPassword();
+                configText = configText.Replace("{{rcon_password}}", rconPassword);
                 configText = configText.Replace("{{serverName}}", _serverData.ServerName);
+                // NEXT: RCON on, and WindowsGSM's RCON settings to match — Stop after an agent restart, the TPS reading
+                // and whitelist changes on a running server go through it (the template left it off and unknown).
+                configText = System.Text.RegularExpressions.Regex.Replace(configText, @"(?m)^enable-rcon=.*$", "enable-rcon=true");
                 File.WriteAllText(configPath, configText);
+                string rconPort = (int.Parse(_serverData.ServerPort) + 10).ToString();
+                Functions.ServerConfig.SetSetting(_serverData.ServerID, Functions.ServerConfig.SettingName.RconPort, rconPort);
+                Functions.ServerConfig.SetSetting(_serverData.ServerID, Functions.ServerConfig.SettingName.RconPassword, rconPassword);
             }
         }
 
@@ -54,10 +61,25 @@ namespace WindowsGSM.GameServer
         {
             string workingDir = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID);
 
+            // NEXT: NeoForge starts from its arguments file, not server.jar; Minecraft's own jar sits in its libraries.
+            var software = Installer.MinecraftSoftware.Read(_serverData.ServerID);
+            bool neoforge = software?.Flavor == "neoforge" && software.Build != null;
+            string launch = "-jar server.jar nogui";
             string serverJarPath = Path.Combine(workingDir, "server.jar");
+            if (neoforge)
+            {
+                string args = Installer.MinecraftSoftware.NeoForgeArgs(software!.Build!);
+                if (!File.Exists(Path.Combine(workingDir, args)))
+                {
+                    Error = $"NeoForge {software.Build} isn't fully installed ({args} is missing) — reinstall it from the Minecraft tab.";
+                    return null;
+                }
+                launch = $"@user_jvm_args.txt @{args.Replace('\\', '/')} nogui";
+                serverJarPath = Path.Combine(workingDir, Installer.MinecraftSoftware.NeoForgeMinecraftJar(software.Version));
+            }
             if (!File.Exists(serverJarPath))
             {
-                Error = $"server.jar not found ({serverJarPath})";
+                Error = $"{Path.GetFileName(serverJarPath)} not found ({serverJarPath})";
                 return null;
             }
 
@@ -94,7 +116,7 @@ namespace WindowsGSM.GameServer
                     {
                         WorkingDirectory = workingDir,
                         FileName = javaPath,
-                        Arguments = $"{_serverData.ServerParam} -jar server.jar nogui",
+                        Arguments = $"{_serverData.ServerParam} {launch}",
                         WindowStyle = ProcessWindowStyle.Minimized,
                         UseShellExecute = false
                     },
@@ -110,7 +132,11 @@ namespace WindowsGSM.GameServer
                     {
                         WorkingDirectory = workingDir,
                         FileName = javaPath,
-                        Arguments = $"{_serverData.ServerParam} -jar server.jar nogui",
+                        // NEXT: UTF-8 both ways — redirected, Java otherwise writes Windows' old code page and names with
+                        // accents or other scripts came out garbled in the Console tab.
+                        Arguments = $"-Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 {_serverData.ServerParam} {launch}",
+                        StandardOutputEncoding = System.Text.Encoding.UTF8,
+                        StandardErrorEncoding = System.Text.Encoding.UTF8,
                         WindowStyle = ProcessWindowStyle.Minimized,
                         CreateNoWindow = true,
                         UseShellExecute = false,
@@ -133,17 +159,23 @@ namespace WindowsGSM.GameServer
 
         public async Task Stop(Process p)
         {
-            await Task.Run(() =>
+            // NEXT: a server picked up again after the agent restarted has no console input here (StartInfo throws);
+            // legacy's Stop failed and the server was ended without saving. RCON does it when it's set up.
+            bool typed = await Task.Run(() =>
             {
-                if (p.StartInfo.RedirectStandardInput)
+                try
                 {
-                    p.StandardInput.WriteLine("stop");
+                    if (p.StartInfo.RedirectStandardInput) { p.StandardInput.WriteLine("stop"); return true; }
+                    if (p.MainWindowHandle != System.IntPtr.Zero) { Functions.ServerConsole.SendMessageToMainWindow(p.MainWindowHandle, "stop"); return true; }
                 }
-                else
-                {
-                    Functions.ServerConsole.SendMessageToMainWindow(p.MainWindowHandle, "stop");
-                }
+                catch (System.InvalidOperationException) { /* not started by this agent */ }
+                return false;
             });
+            if (!typed && WindowsGSM.Engine.Services.ConsoleService.RconConfigured(_serverData, out string ip, out int port))
+            {
+                try { await Functions.RconClient.SendCommandAsync(ip, port, _serverData.RconPassword ?? string.Empty, "stop"); }
+                catch { /* not answering: the stop timeout ends it */ }
+            }
         }
 
         public async Task<Process> Install()

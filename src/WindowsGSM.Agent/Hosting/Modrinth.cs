@@ -1,6 +1,9 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using WindowsGSM.Engine.Operations;
+using WindowsGSM.Engine.Servers;
+using WindowsGSM.Engine.Services;
 using WindowsGSM.Functions;
 using WindowsGSM.Installer;
 
@@ -49,6 +52,7 @@ public sealed class Modrinth
             "paper" => new Context("paper", i.Version, "plugins", new[] { "paper", "spigot", "bukkit" }, "plugin"),
             "purpur" => new Context("purpur", i.Version, "plugins", new[] { "purpur", "paper", "spigot", "bukkit" }, "plugin"),
             "fabric" => new Context("fabric", i.Version, "mods", new[] { "fabric" }, "mod"),
+            "neoforge" => new Context("neoforge", i.Version, "mods", new[] { "neoforge" }, "mod"),
             _ => null,
         };
     }
@@ -179,4 +183,30 @@ public sealed class Modrinth
     }
 
     private static void TryDelete(string path) { try { File.Delete(path); } catch { /* in use: left for the user */ } }
+}
+
+/// <summary>"Update them before every start" (Minecraft tab): brings the tracked Modrinth plugins/mods up to date first.</summary>
+public sealed class ModrinthBeforeStart : IPreStartStep
+{
+    public const string SettingKey = "modrinthupdateonstart";
+    private readonly Modrinth _modrinth;
+    public ModrinthBeforeStart(Modrinth modrinth) => _modrinth = modrinth;
+    public string Name => "Update Modrinth plugins and mods";
+
+    public async Task RunAsync(ServerInstance server, StartReason reason, JobContext job)
+    {
+        if (server.Config.GetCustomSetting(SettingKey, "") != "1") { return; }
+        var c = Modrinth.ContextFor(server.Id);
+        if (c == null || _modrinth.List(server.Id).Count == 0) { return; }
+        try
+        {
+            job.Report(stage: $"Updating {c.ProjectType}s from Modrinth");
+            var changes = await _modrinth.UpdateAllAsync(server.Id, c, job.Cancellation);
+            if (changes.Count > 0) { job.Log("Modrinth: " + string.Join("; ", changes)); }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException or IOException)
+        {
+            job.Log("Couldn't update from Modrinth (" + ex.Message + ") — starting anyway.");
+        }
+    }
 }

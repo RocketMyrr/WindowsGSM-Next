@@ -3,9 +3,32 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
-## Unreleased
+## 2.0.0-beta.11
+
+Rust fixes (Oxide after updates, player names, map and world size, uMod with many plugins), NeoForge for Minecraft, and Minecraft RCON and console fixes.
 
 - **The previous logo is back** (beta.10's new logo is reverted).
+- **Rust: Oxide/Carbon go back on after a Rust update.** A Rust update (or Verify files) puts back the game files Oxide
+  patches, so the server came up without plugins unless "update add-ons on start" happened to be on. Now the Oxide or
+  Carbon WindowsGSM manages (or your custom build of it) is reinstalled right after the game's files change.
+- **Rust: players' names** on the Players tab and in player history come from RCON's playerlist when the game's query
+  leaves them out (asked at most every 30 seconds, only while someone's on).
+- **Rust: the Map box works** (it was ignored), with a new **World size** box beside it: a seed (a number) plus the
+  world size for a procedural map, or a custom map's download link (+server.levelurl, which ignores both). A map name
+  like "Barren" still works. A quote in the server name or RCON password can no longer break the start line.
+- **Rust: uMod plugins with many plugins installed.** uMod allows 30 requests a minute; checking or updating more
+  plugins than that failed part-way. Requests are now paced, wait when uMod says "too many", look a plugin up by its
+  exact name, and are remembered for 10 minutes.
+- **Minecraft: NeoForge** as server software (Minecraft tab), beside Vanilla, Paper, Purpur and Fabric: NeoForge's own
+  installer runs with the Java that Minecraft version needs, the server starts from NeoForge's arguments file, and
+  NeoForge mods come from Modrinth like Fabric's. Releases only (no betas); the installer is checksum-verified.
+- **Minecraft: "Update them before every start"** for Modrinth plugins and mods (Minecraft tab, off by default), like
+  Rust's uMod option: the tracked ones go to Modrinth's newest just before each start and restart.
+- **Minecraft: new servers have RCON on** (with a random password, and WindowsGSM's RCON settings to match), and the
+  Health check says when an existing server's is off and how to turn it on.
+- **Minecraft: Stop works after the agent restarts** — over RCON, instead of the server being ended without saving.
+- **Minecraft: the console shows accented and other non-English characters correctly** (UTF-8).
+- **Minecraft: new servers start with 2–4 GB of memory** (was 1 GB).
 
 ## 2.0.0-beta.10
 

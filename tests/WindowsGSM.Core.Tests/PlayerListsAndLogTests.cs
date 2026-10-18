@@ -112,4 +112,20 @@ public class PlayerListsAndLogTests
         File.Delete(ServerPath.GetServersServerFiles(id, "server.properties"));
         Assert.Null(ReadinessService.BoundInGameConfig(id));
     }
+
+    [Fact]
+    public async Task The_health_check_says_when_Minecraft_RCON_is_off_or_unknown()
+    {
+        string id = Minecraft("147", properties: new[] { "enable-rcon=false", "rcon.port=25575" });
+        using var engine = await EngineFixture.StartEngineAsync();
+        ReadinessCheck Rcon() => engine.Readiness.CheckServer(id).Single(c => c.Name == "RCON");
+
+        Assert.Contains("RCON is off", Rcon().Message);
+        File.WriteAllLines(ServerPath.GetServersServerFiles(id, "server.properties"), new[] { "enable-rcon=true", "rcon.port=25575", "rcon.password=pw" });
+        Assert.Contains("doesn't know it", Rcon().Message);
+        ServerConfig.SetSetting(id, ServerConfig.SettingName.RconPort, "25575");
+        engine.Servers.Get(id)!.ReloadConfig();
+        Assert.Equal(CheckStatus.Pass, Rcon().Status);
+        Assert.DoesNotContain(engine.Readiness.CheckServer("145"), c => c.Name == "RCON"); // not Minecraft
+    }
 }

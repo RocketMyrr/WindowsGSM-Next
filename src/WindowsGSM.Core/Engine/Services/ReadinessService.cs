@@ -91,6 +91,7 @@ namespace WindowsGSM.Engine.Services
 
             checks.AddRange(RuntimeChecks(s));
             if (GameConfigAddress(s) is ReadinessCheck bind) { checks.Add(bind); }
+            if (MinecraftRcon(s) is ReadinessCheck rcon) { checks.Add(rcon); }
 
             var backup = BackupSettings.Load(id);
             try { checks.Add(Writable("Backup", "Backup location writable", backup.ResolveLocation())); }
@@ -270,6 +271,25 @@ namespace WindowsGSM.Engine.Services
             return new ReadinessCheck("Server", "Game config address", CheckStatus.Fail,
                 $"server.properties has server-ip={bound}, which isn't an address of this PC, so the game can't open its port. " +
                 $"Change it under Configs to {(now != null ? now + ", or " : "")}leave it empty (every address of this PC).");
+        }
+
+        /// <summary>
+        /// NEXT: Minecraft: Java with RCON off. Without it, WindowsGSM can't stop the server cleanly after the agent restarts,
+        /// read its TPS, or change its whitelist while it runs. Advice only — the file isn't changed.
+        /// </summary>
+        private static ReadinessCheck? MinecraftRcon(ServerInstance s)
+        {
+            if (!string.Equals(s.Game, GameServer.MC.FullName, StringComparison.OrdinalIgnoreCase)) { return null; }
+            string file = ServerPath.GetServersServerFiles(s.Id, "server.properties");
+            if (!File.Exists(file)) { return null; }
+            var props = File.ReadAllLines(file).Select(l => l.Split('=', 2)).Where(kv => kv.Length == 2).GroupBy(kv => kv[0].Trim()).ToDictionary(g => g.Key, g => g.Last()[1].Trim());
+            bool on = props.TryGetValue("enable-rcon", out var v) && v.Equals("true", StringComparison.OrdinalIgnoreCase);
+            bool known = ConsoleService.RconConfigured(s.Config, out _, out _);
+            if (on && known) { return new ReadinessCheck("Server", "RCON", CheckStatus.Pass, "RCON is on, and WindowsGSM uses it."); }
+            string port = props.TryGetValue("rcon.port", out var p) && p.Length > 0 ? p : "25575";
+            return new ReadinessCheck("Server", "RCON", CheckStatus.Info, on
+                ? $"RCON is on in server.properties, but WindowsGSM doesn't know it: set RCON port {port} and the same password in Settings."
+                : $"RCON is off. Without it WindowsGSM can't stop this server cleanly after the agent restarts, show its TPS, or change its whitelist while it runs. To turn it on: in Configs → server.properties set enable-rcon=true and an rcon.password, then put RCON port {port} and that password in Settings.");
         }
 
         /// <summary>server-ip from the server's server.properties ("" when empty), or null when there's no such setting.</summary>

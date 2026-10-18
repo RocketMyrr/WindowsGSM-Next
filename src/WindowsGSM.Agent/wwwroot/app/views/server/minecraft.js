@@ -2,9 +2,9 @@
 // and plugins / mods from Modrinth.
 
 import { h, icon, clear, append, debounce, fmtDateTime } from "../../dom.js";
-import { get, post, del, srv } from "../../api.js";
+import { get, post, put, del, srv } from "../../api.js";
 import { store } from "../../store.js";
-import { select, busy, toast, toastError, confirm, loading, isStopped } from "../../ui.js";
+import { select, busy, toast, toastError, confirm, loading, isStopped, toggle } from "../../ui.js";
 import { can } from "../../perms.js";
 
 export default async function minecraftTab(host, { id, machine, server, scope }) {
@@ -25,6 +25,7 @@ export default async function minecraftTab(host, { id, machine, server, scope })
     function paintSoftware() {
         const i = state.installed;
         const flavorName = f => state.flavors.find(x => x.id === f)?.name || f;
+        const flavorFolder = f => state.flavors.find(x => x.id === f)?.addonFolder;
         let flavor = i?.flavor || "paper";
         const cards = h("div", { class: "mc-flavors" });
         const version = select([{ value: "latest", label: "Newest version" }], "latest");
@@ -54,7 +55,7 @@ export default async function minecraftTab(host, { id, machine, server, scope })
             const changing = i && i.flavor !== flavor;
             if (changing && !(await confirm({
                 title: `Switch to ${flavorName(flavor)}?`,
-                message: `${flavorName(i.flavor)} is installed now. Worlds stay; the old server.jar is kept as server.jar.previous. ${flavor === "fabric" || i.flavor === "fabric" ? "Plugins and Fabric mods don't mix — what's installed for one won't load in the other." : ""}`,
+                message: `${flavorName(i.flavor)} is installed now. Worlds stay; the old server.jar is kept as server.jar.previous. ${flavor !== i.flavor && (flavorFolder(flavor) === "mods" || flavorFolder(i.flavor) === "mods") ? "Plugins and mods don't mix, and Fabric and NeoForge mods don't load in each other — what's installed for one won't load in the other." : ""}`,
                 confirmLabel: "Switch", iconName: "restart",
             }))) return;
             await busy(go, async () => {
@@ -143,10 +144,19 @@ export default async function minecraftTab(host, { id, machine, server, scope })
             load();
         }, "Couldn't update") }, icon("update"), "Update all") : null;
 
+        const beforeStart = a.tracked.length ? toggle("Update them before every start", a.updateBeforeStart, {
+            disabled: !canEdit,
+            hint: `Brings the ${a.kind}s WindowsGSM keeps up to date to Modrinth's newest before each start and restart (while nothing has them open).`,
+            onChange: async on => {
+                try { await put(`${base}/update-before-start`, { on }); toast(on ? `${a.kind === "plugin" ? "Plugins" : "Mods"} update before every start` : "No longer updated before starting", { type: "good", timeout: 2500 }); }
+                catch (e) { toastError(e, "Couldn't save that"); }
+            },
+        }) : null;
+
         append(clear(addons), [
             h("div", { class: "panel-head wrap" }, icon("puzzle"), h("h2", { text: a.kind === "plugin" ? "Plugins" : "Mods" }),
                 h("span", { class: "sub", text: `${a.folder}\\ · from Modrinth, for this Minecraft version` }), h("span", { class: "spacer" }), updateAll),
-            h("div", { class: "panel-body stack" }, list,
+            h("div", { class: "panel-body stack" }, list, beforeStart,
                 canEdit ? h("div", { class: "search" }, icon("search"), box) : null,
                 results),
         ]);
