@@ -3,8 +3,11 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
-## Unreleased
+## 2.0.0-beta.10
 
+A new logo, and the desktop app's sign-ins tidied up.
+
+- **New logo** for the desktop app, the installer, the web panel, the phone home-screen icon and the Discord bot.
 - **Fixed:** the desktop app on the server showed as "Unknown device" under Where you're signed in, and each time it
   signed itself back in (after an update, say) it left its old session listed. It now shows as the WindowsGSM app
   and replaces its earlier session.
