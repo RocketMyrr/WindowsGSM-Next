@@ -140,6 +140,13 @@ public sealed class HubLinks
                 _stream.PublishRemote(link.MachineId, (string?)m["type"] ?? "unknown", (string?)m["topic"] ?? "servers", (string?)m["server"], vis,
                     m["data"]?.DeepClone(), m["at"] is JsonNode at ? at.GetValue<DateTimeOffset>() : DateTimeOffset.UtcNow);
                 break;
+            case "leave":
+                // The machine left this hub from its own panel: forget it here too.
+                var left = _registry.Get(link.MachineId);
+                _registry.Remove(link.MachineId);
+                _ctx.Audit.Write(null, null, "machine-left", null, true, $"{left?.Name} ({link.MachineId})");
+                _log($"Machine {left?.Name ?? link.MachineId} left this hub.");
+                break;
             case "res":
                 if (link.Pending.TryGetValue((int?)m["id"] ?? -1, out var p)) { p.Head.TrySetResult(m); }
                 break;
@@ -200,7 +207,7 @@ public sealed class HubLinks
             await link.Channel.SendAsync(new
             {
                 t = "req", id, method = req.Method, path = req.Path.Value + req.QueryString.Value,
-                contentType = req.ContentType, hasBody,
+                contentType = req.ContentType, hasBody, credit = true,
                 user = Delegation.Encode(user, machine, _ctx.Settings.MachineName),
                 ip = AgentContext.Ip(http),
             }, abort);
@@ -249,6 +256,7 @@ public sealed class HubLinks
             await foreach (byte[] chunk in pending.Body.Reader.ReadAllAsync(abort))
             {
                 await http.Response.Body.WriteAsync(chunk, abort);
+                await SafeSend(link, new { t = "ack", id }); // passed on: the machine may send another
             }
         }
         catch (OperationCanceledException) when (abort.IsCancellationRequested)

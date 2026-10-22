@@ -13,6 +13,7 @@ namespace WindowsGSM.Functions
     /// NEXT: after the agent restarts, a running server's console output can't be reconnected (it went to the old
     /// agent's pipe), so the Console tab stayed empty until the server's next restart. When the game also writes its
     /// output to a log file — Unity games' -logfile (Rust…), Minecraft's logs\latest.log — that file is followed instead.
+    /// The same for a game that never gives the panel its console (Rust with -noconsole): see LifecycleService.
     /// </summary>
     public static class ConsoleLogTail
     {
@@ -44,12 +45,12 @@ namespace WindowsGSM.Functions
         }
 
         /// <summary>Follows <paramref name="file"/> into the server's console until <paramref name="p"/> is no longer its process.</summary>
-        public static void Follow(ServerInstance s, Process p, string file, int recentLines = 50)
+        public static void Follow(ServerInstance s, Process p, string file, int recentLines = 50, string? note = null)
         {
             _ = Task.Run(async () =>
             {
                 var console = s.Console;
-                console.Add($"[WindowsGSM] Reconnected after the agent restarted: showing {Path.GetFileName(file)}. Commands still work over RCON if it's set up; the live console returns at the server's next restart.");
+                console.Add(note ?? $"[WindowsGSM] Reconnected after the agent restarted: showing {Path.GetFileName(file)}. Commands still work over RCON if it's set up; the live console returns at the server's next restart.");
                 long position = 0;
                 var partial = new StringBuilder();
                 bool first = true;

@@ -301,6 +301,16 @@ export default async function overviewTab(host, { id, machine, key, server, scop
         } }, icon("download"), "Install");
     }
 
+    // Minecraft made before RCON was on by default: set it up when asked (never on its own).
+    function rconButton(c) {
+        if (c.action !== "rcon:on" || !can(server(), "EditConfig")) return null;
+        return h("button", { class: "btn sm primary", onclick: e => busy(e.currentTarget, async () => {
+            const res = await post(srv(machine, id, "/minecraft/rcon"));
+            toast("RCON is on", { type: "good", text: res.restartNeeded ? "Restart the server for it to take effect." : "It works from the next start." });
+            paintChecks();
+        }, "Couldn't turn on RCON") }, icon("check"), "Turn on RCON");
+    }
+
     async function paintChecks() {
         if (!checks.isConnected) return;
         try {
@@ -308,7 +318,7 @@ export default async function overviewTab(host, { id, machine, key, server, scop
             clear(checks).append(...list.map(c => h("div", { class: ["check", c.status.toLowerCase()] },
                 icon(c.status === "Pass" ? "checkCircle" : c.status === "Fail" ? "xCircle" : c.status === "Warning" ? "warn" : "info"),
                 h("div", { class: "grow" }, h("b", { text: c.name }), h("div", { class: "tiny muted", text: c.message })),
-                runtimeButton(c))));
+                runtimeButton(c), rconButton(c))));
         } catch (e) { clear(checks).append(h("div", { class: "small faint", text: e.message })); }
     }
 

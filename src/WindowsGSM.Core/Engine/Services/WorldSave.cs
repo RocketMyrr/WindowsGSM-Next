@@ -48,22 +48,22 @@ namespace WindowsGSM.Engine.Services
             int.TryParse(s.Config.GetCustomSetting(StopTimeoutKey, ""), out int t) ? Math.Clamp(t, 5, 600) : 30;
 
         /// <summary>Sends the save command (if any) and waits. Never throws; a failed save doesn't block the stop.</summary>
-        public static async Task RunAsync(ServerInstance s, string? appId, ConsoleService console, ServerLog log)
+        public static async Task RunAsync(ServerInstance s, string? appId, ConsoleService console, ServerLog log, string before = "stopping")
         {
             try
             {
                 var (command, wait) = For(s, appId);
                 if (command.Length == 0) { return; }
-                log.Write(s.Id, $"Saving the world before stopping ({command})…");
+                log.Write(s.Id, $"Saving the world before {before} ({command})…");
                 var sent = await console.SendAsync(s.Id, command, "WindowsGSM").ConfigureAwait(false);
                 if (!sent.Sent)
                 {
-                    log.Write(s.Id, $"[NOTICE] Couldn't send the save command: {sent.Error} — stopping without it.");
+                    log.Write(s.Id, $"[NOTICE] Couldn't send the save command: {sent.Error} — {before} without it.");
                     return;
                 }
                 if (wait > 0) { await Task.Delay(TimeSpan.FromSeconds(wait)).ConfigureAwait(false); }
             }
-            catch (Exception ex) { log.Write(s.Id, $"[NOTICE] Save before stop failed: {ex.Message}"); }
+            catch (Exception ex) { log.Write(s.Id, $"[NOTICE] Save before {before} failed: {ex.Message}"); }
         }
     }
 }

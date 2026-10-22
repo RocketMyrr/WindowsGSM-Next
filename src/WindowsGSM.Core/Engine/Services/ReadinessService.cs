@@ -275,7 +275,7 @@ namespace WindowsGSM.Engine.Services
 
         /// <summary>
         /// NEXT: Minecraft: Java with RCON off. Without it, WindowsGSM can't stop the server cleanly after the agent restarts,
-        /// read its TPS, or change its whitelist while it runs. Advice only — the file isn't changed.
+        /// read its TPS, or change its whitelist while it runs. The file is only changed when someone presses Turn on RCON.
         /// </summary>
         private static ReadinessCheck? MinecraftRcon(ServerInstance s)
         {
@@ -288,8 +288,10 @@ namespace WindowsGSM.Engine.Services
             if (on && known) { return new ReadinessCheck("Server", "RCON", CheckStatus.Pass, "RCON is on, and WindowsGSM uses it."); }
             string port = props.TryGetValue("rcon.port", out var p) && p.Length > 0 ? p : "25575";
             return new ReadinessCheck("Server", "RCON", CheckStatus.Info, on
-                ? $"RCON is on in server.properties, but WindowsGSM doesn't know it: set RCON port {port} and the same password in Settings."
-                : $"RCON is off. Without it WindowsGSM can't stop this server cleanly after the agent restarts, show its TPS, or change its whitelist while it runs. To turn it on: in Configs → server.properties set enable-rcon=true and an rcon.password, then put RCON port {port} and that password in Settings.");
+                ? $"RCON is on in server.properties, but WindowsGSM doesn't know it. Turn on RCON copies port {port} and the password to Settings."
+                : "RCON is off. Without it WindowsGSM can't stop this server cleanly after the agent restarts, show its TPS, or change its whitelist while it runs. " +
+                  "Turn on RCON sets it up in server.properties (keeping anything already there) and in Settings; it works from the next start.",
+                Action: "rcon:on");
         }
 
         /// <summary>server-ip from the server's server.properties ("" when empty), or null when there's no such setting.</summary>

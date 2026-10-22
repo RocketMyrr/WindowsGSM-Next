@@ -119,7 +119,7 @@ export default async function playersTab(host, { id, machine, key, server, scope
     async function load() { try { paint(await get(srv(machine, id, "/players"))); } catch { /* keep */ } }
 
     // ── Whitelist / operators (Minecraft Java) and allowlist (Bedrock) ──
-    const access = h("div", { class: "stack loose" });
+    const access = h("div", { class: "stack loose players-access" });
     host.append(access);
     async function loadAccess() {
         let lists;

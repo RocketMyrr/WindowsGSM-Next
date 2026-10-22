@@ -3,6 +3,32 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## 2.0.0-rc.2
+
+Fixes from the release-candidate review: several machines, backups, and a few rough edges.
+
+- **Backups can't lose data any more:** a file the running server has locked is left out (and noted) instead of being
+  stored empty — a restore used to put that empty file back. Restoring a whole-server backup keeps the current copy of
+  any file the backup left out, instead of deleting it. Test (✓) says when a backup left files out.
+- **Backing up a running server saves the world first** (the game's save command, as Stop does).
+- **A crash loop no longer replaces your good backups:** after a crash, "Backup before start" is skipped when the last
+  backup is under an hour old.
+- **Each server lists only its own backups** — a backup folder several servers share no longer mixes them (or lets one
+  restore another's). Zips you put there by hand show only with WindowsGSM's naming.
+- **Off-site: bring back backups from another PC's folder** — after a reinstall (or a dead disk), the old PC's
+  off-site backups are offered, and come back named for this server.
+- **Several machines:** a big download through the hub no longer freezes that machine's panel (or knocks it offline);
+  *Update all* checks each machine first, with the hub's pre-release choice; two PCs with the same identity (a copied
+  WindowsGSM folder, a cloned PC) are refused and told what to do instead of fighting; a machine the hub no longer
+  knows says so plainly; leaving a hub removes the machine there too.
+- **Minecraft: Turn on RCON** in the Health check for servers made before beta.11 — only when you press it.
+- **Console tab:** a game that gives the panel no console (Rust with `-noconsole`) shows its log file instead of
+  staying empty.
+- **Discord bot:** the page no longer stays on "Connecting…" while the bot works; *Post actions in the channel* works
+  in any channel (it needed a permission the bot often lacked).
+- **Updates page:** shows what's in the version you're running, not only before an update.
+- Players tab: spacing between Regulars and the whitelist.
+
 ## 2.0.0-rc.1
 
 The release candidate for 2.0.0: no new features from here, only fixes. What to try before 2.0.0 is in docs/RC-CHECKLIST.md.

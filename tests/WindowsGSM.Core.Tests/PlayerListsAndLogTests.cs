@@ -128,4 +128,28 @@ public class PlayerListsAndLogTests
         Assert.Equal(CheckStatus.Pass, Rcon().Status);
         Assert.DoesNotContain(engine.Readiness.CheckServer("145"), c => c.Name == "RCON"); // not Minecraft
     }
+
+    [Fact]
+    public void Turn_on_RCON_keeps_what_is_there_and_tells_WindowsGSM()
+    {
+        string id = Minecraft("149", properties: new[] { "#Minecraft server properties", "motd=Café", "enable-rcon=false", "rcon.port=", "server-port=25565" });
+        File.AppendAllLines(Path.Combine(ServerPath.GetServersConfigs(id), "WindowsGSM.cfg"), new[] { "serverport=\"25565\"" });
+        byte[] motd = File.ReadAllBytes(ServerPath.GetServersServerFiles(id, "server.properties"));
+
+        WindowsGSM.GameServer.MC.TurnOnRcon(id);
+
+        var lines = File.ReadAllLines(ServerPath.GetServersServerFiles(id, "server.properties"));
+        Assert.Contains("enable-rcon=true", lines);
+        Assert.Contains("rcon.port=25575", lines);
+        string password = lines.Single(l => l.StartsWith("rcon.password=")).Split('=', 2)[1];
+        Assert.True(password.Length >= 12);
+        Assert.Equal(File.ReadAllLines(ServerPath.GetServersServerFiles(id, "server.properties"), System.Text.Encoding.Latin1)[1],
+            System.Text.Encoding.Latin1.GetString(motd).Split('\n')[1].TrimEnd('\r')); // other lines byte-for-byte
+        var config = new ServerConfig(id);
+        Assert.Equal(("25575", password), (config.RconPort, config.RconPassword));
+
+        // Again: the password and port stay.
+        WindowsGSM.GameServer.MC.TurnOnRcon(id);
+        Assert.Contains($"rcon.password={password}", File.ReadAllLines(ServerPath.GetServersServerFiles(id, "server.properties")));
+    }
 }

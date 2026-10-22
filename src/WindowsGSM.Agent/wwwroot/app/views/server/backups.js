@@ -11,8 +11,13 @@ export default async function backupsTab(host, { id, machine, key, server, scope
     const list = h("div");
     const settingsBody = h("div", { class: "stack" });
     const offsiteList = h("div");
+    // Other folders in the storage: another PC's, or this one's before it was set up again (after a disk died).
+    let offsiteFrom = "";
+    const offsiteSource = h("select", { class: "input sm", hidden: true, "aria-label": "Whose off-site backups",
+        title: "Backups from another PC, or from this one before WindowsGSM was set up again",
+        onchange: () => { offsiteFrom = offsiteSource.value; loadOffsite(); } });
     const offsitePanel = h("section", { class: "panel", hidden: true },
-        h("div", { class: "panel-head" }, icon("upload"), h("h2", { text: "Off-site" }), h("span", { class: "sub", text: "Copies in this machine's off-site storage" })),
+        h("div", { class: "panel-head wrap" }, icon("upload"), h("h2", { text: "Off-site" }), h("span", { class: "sub grow", text: "Copies in this machine's off-site storage" }), offsiteSource),
         h("div", { class: "panel-body flush" }, offsiteList));
     const canRestore = can(server(), "Restore");
     let offsiteReady = false;
@@ -98,11 +103,15 @@ export default async function backupsTab(host, { id, machine, key, server, scope
     // ── Off-site copies ──
     async function loadOffsite() {
         let res;
-        try { res = await get(srv(machine, id, "/backups/offsite")); }
+        try { res = await get(srv(machine, id, "/backups/offsite" + (offsiteFrom ? "?from=" + encodeURIComponent(offsiteFrom) : ""))); }
         catch (e) { offsitePanel.hidden = false; clear(offsiteList).append(h("div", { class: "callout bad" }, icon("warn"), h("span", { text: e.message }))); return; }
         offsiteReady = res.ready;
         offsitePanel.hidden = !res.ready;
         if (!res.ready) return;
+        offsiteSource.hidden = !res.sources?.length && !offsiteFrom;
+        clear(offsiteSource).append(h("option", { value: "", text: "This server" }),
+            ...(res.sources || []).map(f => { const [m, sv] = f.split("/"); return h("option", { value: f, text: `${m} · ${sv.replace("server-", "server ")}` }); }));
+        offsiteSource.value = offsiteFrom;
         clear(offsiteList);
         if (!res.backups.length) {
             offsiteList.append(empty("upload", "Nothing off-site yet", res.upload ? "The next backup is uploaded automatically — or use the upload button on a backup above." : "Turn on “Also upload each backup off-site” in Backup settings, or upload one with its button above."));
@@ -119,7 +128,7 @@ export default async function backupsTab(host, { id, machine, key, server, scope
 
     async function bringBack(b, button) {
         await busy(button, async () => {
-            const res = await post(srv(machine, id, `/backups/offsite/${encodeURIComponent(b.name)}/download`));
+            const res = await post(srv(machine, id, `/backups/offsite/${encodeURIComponent(b.name)}/download` + (offsiteFrom ? "?from=" + encodeURIComponent(offsiteFrom) : "")));
             store.trackJob(res.job, machine);
             toast("Bringing it back", { type: "info", text: "When it's done it appears in the Backups list — restore it from there.", timeout: 4000 });
         }, "Couldn't bring it back");

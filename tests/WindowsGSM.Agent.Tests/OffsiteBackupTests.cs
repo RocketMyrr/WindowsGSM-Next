@@ -187,6 +187,17 @@ public class OffsiteBackupTests
             Assert.Equal(original, File.ReadAllBytes(archive));
             Assert.Equal(HttpStatusCode.BadRequest, (await _f.Owner.PostAsync(_f.ServerUrl(id, $"/backups/offsite/{Uri.EscapeDataString(newest)}/download"))).StatusCode); // already here
             Assert.Equal(HttpStatusCode.BadRequest, (await _f.Owner.PostAsync(_f.ServerUrl(id, "/backups/offsite/..%2F..%2Fx.zip/download"))).StatusCode);
+
+            // After a reinstall (a new machine id) the old PC's folder is offered; its backup comes back named for this server.
+            var oldBytes = File.ReadAllBytes(archive);
+            s3.Objects["windowsgsm/m-oldpc/server-7/wgsm-7-20250101-120000.zip"] = (oldBytes, DateTime.UtcNow);
+            var withSources = await _f.Owner.GetJsonAsync<JsonElement>(_f.ServerUrl(id, "/backups/offsite"));
+            Assert.Equal(new[] { "m-oldpc/server-7" }, withSources.GetProperty("sources").EnumerateArray().Select(x => x.GetString()).ToArray());
+            var fromOld = await _f.Owner.GetJsonAsync<JsonElement>(_f.ServerUrl(id, "/backups/offsite?from=m-oldpc%2Fserver-7"));
+            Assert.Equal("wgsm-7-20250101-120000.zip", fromOld.GetProperty("backups").EnumerateArray().Single().GetProperty("name").GetString());
+            Assert.Equal(HttpStatusCode.BadRequest, (await _f.Owner.GetAsync(_f.ServerUrl(id, "/backups/offsite?from=..%2Fx"))).StatusCode);
+            Assert.Equal(HttpStatusCode.Accepted, (await _f.Owner.PostAsync(_f.ServerUrl(id, "/backups/offsite/wgsm-7-20250101-120000.zip/download?from=m-oldpc%2Fserver-7"))).StatusCode);
+            await Core.Tests.EngineFixture.WaitUntil(() => _f.Context.Engine.Backups.List(id).Any(b => b.Name == $"wgsm-{id}-20250101-120000.zip"), "the old PC's backup to come back", 30000);
         }
         finally
         {

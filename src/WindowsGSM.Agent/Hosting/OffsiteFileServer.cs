@@ -107,6 +107,20 @@ internal sealed class OffsiteFileServer : IAsyncDisposable
         }
     }
 
+    /// <summary>The folders in a folder (an absent folder has none).</summary>
+    public async Task<List<string>> ListFoldersAsync(string dir, CancellationToken token)
+    {
+        dir = Dir(dir);
+        if (_ftp != null)
+        {
+            if (!await _ftp.DirectoryExists(dir, token)) { return new(); }
+            return (await _ftp.GetListing(dir, token)).Where(i => i.Type == FtpObjectType.Directory).Select(i => i.Name).ToList();
+        }
+        return await Task.Run(() => _sftp!.Exists(dir)
+            ? _sftp.ListDirectory(dir).Where(f => f.IsDirectory && f.Name is not ("." or "..")).Select(f => f.Name).ToList()
+            : new List<string>(), token);
+    }
+
     /// <summary>The files in a folder (an absent folder is simply empty).</summary>
     public async Task<List<(string Name, long Size, DateTimeOffset Modified)>> ListAsync(string dir, CancellationToken token)
     {

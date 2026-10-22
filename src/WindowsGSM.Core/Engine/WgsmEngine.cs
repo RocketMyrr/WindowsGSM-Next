@@ -45,6 +45,7 @@ namespace WindowsGSM.Engine
             Prompts = new PromptBroker(Events);
             Games = new GameCatalog(Plugins);
             Lifecycle.BeforeStop = s => WorldSave.RunAsync(s, Games.Get(s.Game)?.AppId, Console, Log);
+            Backups.BeforeLiveBackup = s => WorldSave.RunAsync(s, Games.Get(s.Game)?.AppId, Console, Log, "backing up");
             Settings = new ServerSettingsService(Servers, Games, Events);
             Files = new ServerFiles();
             Readiness = new ReadinessService(Servers, Plugins);

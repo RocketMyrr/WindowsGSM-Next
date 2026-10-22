@@ -154,6 +154,9 @@ namespace WindowsGSM.Functions
             }
         }
 
+        /// <summary>Lines in the buffer now (this run's, since the last <see cref="Clear"/>).</summary>
+        public int Count { get { lock (_gate) { return _consoleList.Count; } } }
+
         public string Get()
         {
             lock (_gate) { return string.Join(Environment.NewLine, _consoleList); }

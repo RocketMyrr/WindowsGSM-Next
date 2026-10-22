@@ -75,6 +75,9 @@ namespace WindowsGSM.Engine.Backups
             }));
         }
 
+        /// <summary>Before backing up a running server: its save command (the engine sets it), so the world on disk is current.</summary>
+        public Func<ServerInstance, Task>? BeforeLiveBackup { get; set; }
+
         /// <summary>A backup was written (server id, archive path) — the agent uploads it off-site from here.</summary>
         public Action<string, string>? Finished { get; set; }
 
@@ -107,10 +110,16 @@ namespace WindowsGSM.Engine.Backups
             string root = settings.ResolveLocation();
             var result = new List<BackupInfo>();
 
+            // Only this server's, by name: a folder several servers share (or other zips in it) must not show — or
+            // restore — another server's backups.
             foreach (var file in Directory.EnumerateFiles(root, "*.zip"))
             {
-                var format = Path.GetFileName(file).StartsWith("WGSM-Backup-Server-", StringComparison.OrdinalIgnoreCase) ? BackupFormat.LegacyDesktop : BackupFormat.Next;
-                result.Add(Info(file, Path.GetFileName(file), format));
+                string name = Path.GetFileName(file);
+                BackupFormat? format = name.StartsWith($"wgsm-{id}-", StringComparison.OrdinalIgnoreCase) ? BackupFormat.Next
+                    : name.StartsWith($"WGSM-Backup-Server-{id}-", StringComparison.OrdinalIgnoreCase) ? BackupFormat.LegacyDesktop
+                    : Regex.IsMatch(name, @"^backup-\d{8}-\d{6}", RegexOptions.IgnoreCase) ? BackupFormat.LegacyWeb // a legacy web backup brought back from off-site
+                    : null;
+                if (format != null) { result.Add(Info(file, name, format.Value)); }
             }
             string web = Path.Combine(root, "web");
             if (Directory.Exists(web))
@@ -147,6 +156,8 @@ namespace WindowsGSM.Engine.Backups
             public bool WholeServerFiles { get; set; }
             public List<string> Paths { get; set; } = new List<string>();
             public List<ExternalEntry> External { get; set; } = new List<ExternalEntry>();
+            /// <summary>Entries that were in use and left out: a restore keeps the server's current copy of them.</summary>
+            public List<string> Skipped { get; set; } = new List<string>();
         }
 
         private sealed class ExternalEntry
@@ -168,7 +179,11 @@ namespace WindowsGSM.Engine.Backups
             }
 
             _log.Write(s.Id, "Action: Backup" + notes);
-            if (running) { _log.Write(s.Id, "[NOTICE] Backing up while the server runs — files it's writing may be skipped or inconsistent."); }
+            if (running)
+            {
+                if (BeforeLiveBackup != null) { await BeforeLiveBackup(s).ConfigureAwait(false); }
+                _log.Write(s.Id, "[NOTICE] Backing up while the server runs — files it's writing may be skipped or inconsistent.");
+            }
 
             string? partial = null;
             try
@@ -231,15 +246,16 @@ namespace WindowsGSM.Engine.Backups
                     foreach (var (source, entryName) in items)
                     {
                         job.Cancellation.ThrowIfCancellationRequested();
-                        try
+                        // Opened first: a file in use is left out (and noted), never stored as an empty file a restore would put back.
+                        FileStream src;
+                        try { src = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete); }
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { skipped++; manifest.Skipped.Add(entryName); continue; }
+                        using (src)
                         {
                             var entry = zip.CreateEntry(entryName, CompressionLevel.Optimal);
-                            using var src = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                             using var dst = entry.Open();
-                            src.CopyTo(dst);
+                            src.CopyTo(dst); // a read failing half-way fails the backup: a cut-off file would pass the test
                         }
-                        catch (IOException) { skipped++; } // locked by the running server
-                        catch (UnauthorizedAccessException) { skipped++; }
                         done += SafeLength(source);
                         job.Report((int)(done * 100 / total));
                     }
@@ -380,7 +396,14 @@ namespace WindowsGSM.Engine.Backups
                 {
                     return "The backup has no server files in it.";
                 }
-                _log.Write(id, $"Backup test passed: {Path.GetFileName(path)} — {files.Count} file(s), {FormatSize(total)}, all intact.");
+                int left = 0;
+                if (zip.GetEntry(ManifestName) is { } m)
+                {
+                    using var reader = new StreamReader(m.Open());
+                    left = JsonConvert.DeserializeObject<Manifest>(reader.ReadToEnd())?.Skipped.Count ?? 0;
+                }
+                _log.Write(id, $"Backup test passed: {Path.GetFileName(path)} — {files.Count} file(s), {FormatSize(total)}, all intact." +
+                    (left > 0 ? $" {left} file(s) were in use when it was made and aren't in it; a restore keeps the server's current copy of those." : ""));
                 return null;
             }
             catch (OperationCanceledException) { throw; }
@@ -456,6 +479,9 @@ namespace WindowsGSM.Engine.Backups
                     Place(item.Source, item.Target);
                 }
 
+                int keptFiles = KeepSkipped(staging, ServerLocation.RealPath(s.Id), swapped);
+                if (keptFiles > 0) { _log.Write(s.Id, $"Kept the current copy of {keptFiles} file(s) the backup didn't have (they were in use when it was made)."); }
+
                 // All in — discard what was replaced.
                 foreach (var (_, old) in swapped) { if (old != null) { DeleteQuietly(old); } }
                 if (kept != null)
@@ -489,6 +515,34 @@ namespace WindowsGSM.Engine.Backups
                 DeleteQuietly(staging);
                 s.SetState(ServerState.Stopped);
             }
+        }
+
+        /// <summary>
+        /// Files the backup left out because they were in use: the server's copy from before the restore is put back,
+        /// so restoring a whole folder doesn't lose them. Returns how many.
+        /// </summary>
+        private static int KeepSkipped(string staging, string serverFiles, List<(string target, string? old)> swapped)
+        {
+            string file = Path.Combine(staging, ManifestName);
+            if (!File.Exists(file)) { return 0; }
+            var skipped = JsonConvert.DeserializeObject<Manifest>(File.ReadAllText(file))?.Skipped ?? new List<string>();
+            int kept = 0;
+            foreach (string entry in skipped.Where(e => e.StartsWith("serverfiles/", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (!TryJail(serverFiles, entry["serverfiles/".Length..], out string target) || File.Exists(target)) { continue; }
+                foreach (var (t, old) in swapped)
+                {
+                    string root = t.TrimEnd('\\');
+                    if (old == null || !(target.Equals(root, StringComparison.OrdinalIgnoreCase) || target.StartsWith(root + "\\", StringComparison.OrdinalIgnoreCase))) { continue; }
+                    string from = old.TrimEnd('\\') + target[root.Length..];
+                    if (!File.Exists(from)) { break; }
+                    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                    File.Move(from, target);
+                    kept++;
+                    break;
+                }
+            }
+            return kept;
         }
 
         /// <summary>A setting's value exactly as WindowsGSM.cfg has it ("" when absent).</summary>
@@ -690,9 +744,20 @@ namespace WindowsGSM.Engine.Backups
 
         public string Name => "Backup before start";
 
+        /// <summary>After a crash, no new backup before start if the last one is newer than this.</summary>
+        public static readonly TimeSpan RecentEnough = TimeSpan.FromHours(1);
+
         public async Task RunAsync(ServerInstance server, StartReason reason, JobContext job)
         {
             if (reason == StartReason.Restart || !BackupSettings.Load(server.Id).BeforeStart) { return; }
+            // Restarting after a crash with a fresh backup already there: a crash loop would otherwise replace every
+            // good backup (here and off-site) with copies of the broken state within minutes.
+            if (reason == StartReason.AutoRestart && _backups.List(server.Id).FirstOrDefault(b => b.Format == BackupFormat.Next) is { } last
+                && DateTimeOffset.Now - last.Created < RecentEnough)
+            {
+                job.Log($"Backup before start skipped: restarting after a crash, and the last backup is only {(int)(DateTimeOffset.Now - last.Created).TotalMinutes} minute(s) old.");
+                return;
+            }
             string? error = await _backups.BackupCoreAsync(server, everything: false, job, notes: " | Backup on Start").ConfigureAwait(false);
             if (error != null) { job.Log("Backup before start failed: " + error + " — starting anyway."); }
         }

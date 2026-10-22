@@ -80,7 +80,7 @@ public class HubTests
             Assert.Contains(servers, s => s.Id == "101");
             Assert.Equal(HttpStatusCode.OK, (await _f.Owner.GetAsync($"/api/v2/machines/{Remote}/servers/101/console")).StatusCode);
 
-            string big = new string('x', 300_000); // several link chunks
+            string big = new string('x', 3_000_000); // more chunks than the credit window: needs the hub's acks
             File.WriteAllText(ServerPath.GetServersServerFiles("103", "big.txt"), big);
             var download = await _f.Owner.GetAsync($"/api/v2/machines/{Remote}/servers/103/files/download?path=big.txt");
             Assert.Equal(HttpStatusCode.OK, download.StatusCode);
@@ -275,6 +275,39 @@ public class HubTests
             await update.CheckAsync();
             await _f.Owner.DeleteAsync($"/api/v2/hub/machines/{Remote}");
             await link.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Leaving_a_hub_removes_the_machine_there_too()
+    {
+        var (link, _) = await PairAndConnect();
+        await link.LeaveAsync();
+        await EngineFixture.WaitUntil(() => !_f.Owner.GetJsonAsync<List<MachineDto>>("/api/v2/machines").GetAwaiter().GetResult().Any(m => m.Id == Remote), "the hub to forget the machine");
+    }
+
+    [Fact]
+    public async Task A_second_PC_with_the_same_identity_is_refused_and_told_why()
+    {
+        var (first, settings) = await PairAndConnect();
+        AgentSettings copySettings = new() { MachineName = "Copy", HubUrl = settings.HubUrl, HubCredential = settings.HubCredential, HubName = settings.HubName };
+        var copy = new MemberLink(_f.Context, () => new HttpClient(_f.Server.CreateHandler()) { BaseAddress = _f.Server.BaseAddress }, Connector, _ => { }, Remote, copySettings);
+        try
+        {
+            // Pairing the copy while the original is connected would cut the original off.
+            var code = await ApiClient.Read<JsonElement>(await _f.Owner.PostAsync("/api/v2/hub/pairing-codes"));
+            var again = await _f.NewClient().PostAsync("/api/v2/hub/pair", new { code = code.GetProperty("code").GetString(), machineId = Remote, machineName = "Copy", version = "test" });
+            Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+
+            // A copy that already has the credential takes over the link; the one pushed off says why (and backs off).
+            copy.Start();
+            await EngineFixture.WaitUntil(() => first.LastError?.Contains("Another computer is connected") == true, "the original to explain the clash");
+        }
+        finally
+        {
+            await copy.StopAsync();
+            await first.StopAsync();
+            await _f.Owner.DeleteAsync($"/api/v2/hub/machines/{Remote}");
         }
     }
 

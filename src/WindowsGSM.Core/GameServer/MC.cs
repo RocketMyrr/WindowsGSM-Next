@@ -57,6 +57,35 @@ namespace WindowsGSM.GameServer
             }
         }
 
+        /// <summary>
+        /// NEXT: turns RCON on for a server made before it was on by default — only when someone asks, from its Health
+        /// check. Keeps an existing rcon.password and rcon.port; WindowsGSM's RCON settings are set to match.
+        /// Takes effect the next time the server starts.
+        /// </summary>
+        public static void TurnOnRcon(string serverId)
+        {
+            string file = ServerPath.GetServersServerFiles(serverId, "server.properties");
+            var latin1 = System.Text.Encoding.Latin1; // reads and writes back every byte as it was
+            var lines = new System.Collections.Generic.List<string>(File.ReadAllLines(file, latin1));
+            int Find(string key) => lines.FindLastIndex(l => !l.TrimStart().StartsWith("#") && l.Split('=', 2)[0].Trim() == key);
+            string Get(string key) { int i = Find(key); return i < 0 ? "" : (lines[i].Split('=', 2) is { Length: 2 } kv ? kv[1].Trim() : ""); }
+            void Set(string key, string value) { int i = Find(key); if (i >= 0) { lines[i] = $"{key}={value}"; } else { lines.Add($"{key}={value}"); } }
+
+            var config = new ServerConfig(serverId);
+            string password = Get("rcon.password");
+            if (password.Length == 0) { password = config.GetRCONPassword(); Set("rcon.password", password); }
+            string port = Get("rcon.port");
+            if (!int.TryParse(port, out int p) || p is < 1 or > 65535)
+            {
+                port = int.TryParse(config.ServerPort, out int game) && game + 10 <= 65535 ? (game + 10).ToString() : "25575";
+                Set("rcon.port", port);
+            }
+            Set("enable-rcon", "true");
+            File.WriteAllLines(file, lines, latin1);
+            ServerConfig.SetSetting(serverId, ServerConfig.SettingName.RconPort, port);
+            ServerConfig.SetSetting(serverId, ServerConfig.SettingName.RconPassword, password);
+        }
+
         public async Task<Process> Start()
         {
             string workingDir = Functions.ServerPath.GetServersServerFiles(_serverData.ServerID);

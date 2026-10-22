@@ -114,7 +114,8 @@ public sealed class SelfUpdate : IDisposable
 
     // ───────────────────────────── Checking ─────────────────────────────
 
-    public async Task CheckAsync(bool quiet = false)
+    /// <param name="prerelease">For this check only, instead of the setting (the hub's Update all uses its own).</param>
+    public async Task CheckAsync(bool quiet = false, bool? prerelease = null)
     {
         if (!await _busy.WaitAsync(0)) { return; }
         try
@@ -122,7 +123,7 @@ public sealed class SelfUpdate : IDisposable
             State = UpdateState.Checking;
             Error = null;
             var releases = FeedOverride != null ? await FeedOverride(CancellationToken.None) : await FetchAsync();
-            bool pre = _ctx.Settings.UpdatePrerelease;
+            bool pre = prerelease ?? _ctx.Settings.UpdatePrerelease;
             Latest = releases.Where(r => pre || !r.Prerelease).OrderByDescending(r => r.Version, Comparer<string>.Create(Compare)).FirstOrDefault();
             CheckedAt = DateTimeOffset.UtcNow;
             State = UpdateState.Idle;

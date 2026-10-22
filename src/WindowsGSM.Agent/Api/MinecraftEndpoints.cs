@@ -18,6 +18,20 @@ public static class MinecraftEndpoints
     {
         var mc = server.MapGroup("/minecraft");
 
+        // Asked for from the Health check: RCON on in server.properties, and WindowsGSM's settings to match.
+        mc.MapPost("/rcon", (HttpContext http, AgentContext ctx) =>
+        {
+            var s = ctx.Engine.Servers.Get(Scopes.Server(http).Id)!;
+            if (!IsJava(s)) { return ApiResults.BadRequest("Only for Minecraft: Java Edition servers."); }
+            if (!File.Exists(WindowsGSM.Functions.ServerPath.GetServersServerFiles(s.Id, "server.properties"))) { return ApiResults.BadRequest("This server has no server.properties yet — start it once first."); }
+            try { WindowsGSM.GameServer.MC.TurnOnRcon(s.Id); }
+            catch (IOException ex) { return ApiResults.Error(500, "rcon", $"Couldn't change server.properties: {ex.Message}"); }
+            s.ReloadConfig();
+            ctx.Engine.Log.Write(s.Id, "RCON turned on (server.properties and Settings)");
+            ctx.Record(http, "minecraft-rcon", s.Id, true);
+            return Results.Json(new { restartNeeded = s.State != WindowsGSM.Engine.Servers.ServerState.Stopped });
+        }).Needs(Capability.EditConfig);
+
         mc.MapGet("", (HttpContext http, AgentContext ctx, Modrinth modrinth) =>
         {
             var s = ctx.Engine.Servers.Get(Scopes.Server(http).Id)!;

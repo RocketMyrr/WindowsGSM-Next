@@ -240,4 +240,57 @@ public class BackupTests
         }
         finally { EngineFixture.KillQuietly(s.Process); }
     }
+
+    [Fact]
+    public async Task A_file_in_use_is_left_out_and_a_restore_keeps_the_current_copy()
+    {
+        EngineFixture.CreateServer("229");
+        ResetBackups("229");
+        Write("229", "world/level.dat", "original");
+        Write("229", "world/locked.db", "live data");
+        // Someone else's zip in the folder (a shared backup folder): not this server's backup.
+        string folder = Path.Combine(WgsmEnvironment.DataRoot, "backups", "229");
+        Directory.CreateDirectory(folder);
+        using (var other = ZipFile.Open(Path.Combine(folder, "wgsm-2290-20260101-120000.zip"), ZipArchiveMode.Create)) { other.CreateEntry("x"); }
+        using var engine = await EngineFixture.StartEngineAsync();
+
+        JobSnapshot made;
+        using (new FileStream(Files("229", "world/locked.db"), FileMode.Open, FileAccess.ReadWrite, FileShare.None)) // held by the "game"
+        {
+            made = await Run(engine.Backups.Backup("229"));
+        }
+        Assert.Equal(JobStatus.Succeeded, made.Status);
+        var backup = Assert.Single(engine.Backups.List("229")); // the other server's zip isn't listed
+        using (var zip = ZipFile.OpenRead(Path.Combine(folder, backup.Name)))
+        {
+            Assert.DoesNotContain(zip.Entries, e => e.FullName == "serverfiles/world/locked.db"); // not an empty file
+        }
+
+        Write("229", "world/level.dat", "changed");
+        Write("229", "world/locked.db", "newer live data");
+        Assert.Equal(JobStatus.Succeeded, (await Run(engine.Backups.Restore("229", backup.Name))).Status);
+        Assert.Equal("original", File.ReadAllText(Files("229", "world/level.dat")));
+        Assert.Equal("newer live data", File.ReadAllText(Files("229", "world/locked.db"))); // kept, not lost
+        Assert.Empty(Directory.GetDirectories(ServerPath.GetServers("229"), "*.wgsm-old-*"));
+    }
+
+    [Fact]
+    public async Task A_crash_restart_right_after_a_backup_doesnt_make_another()
+    {
+        EngineFixture.CreateServer("230");
+        ResetBackups("230");
+        Write("230", "a.txt", "a");
+        Settings("230", s => s.BeforeStart = true);
+        using var engine = await EngineFixture.StartEngineAsync();
+        var s = engine.Servers.Get("230")!;
+        var step = new BackupBeforeStartStep(engine.Backups);
+        async Task Before(StartReason reason) =>
+            await engine.Jobs.Start("t", "230", "t", async job => { await step.RunAsync(s, reason, job); return null; }).Completion.WaitAsync(TimeSpan.FromSeconds(60));
+
+        await Before(StartReason.Manual);
+        await Before(StartReason.AutoRestart); // a crash loop: skipped, the last one is minutes old
+        Assert.Single(engine.Backups.List("230"));
+        await Before(StartReason.Manual);     // someone starting it by hand still gets one
+        Assert.Equal(2, engine.Backups.List("230").Count);
+    }
 }

@@ -142,6 +142,8 @@ public sealed class DiscordBotService : IAsyncDisposable
                 else if (State == BotState.Online) { State = BotState.Connecting; }
                 return Task.CompletedTask;
             };
+            // A resumed session doesn't fire Ready again: without this the page says "Connecting…" while the bot works.
+            client.Connected += () => { if (State == BotState.Connecting && BotUser != null) { State = BotState.Online; } return Task.CompletedTask; };
             client.SlashCommandExecuted += c => Guard(c, () => OnSlashAsync(c));
             client.ButtonExecuted += c => Guard(c, () => OnComponentAsync(c));
             client.SelectMenuExecuted += c => Guard(c, () => OnComponentAsync(c));
@@ -207,6 +209,14 @@ public sealed class DiscordBotService : IAsyncDisposable
             if (target != null) { await target.BulkOverwriteApplicationCommandAsync(commands); }
             else { await client.BulkOverwriteGlobalApplicationCommandsAsync(commands); }
 
+            // Online now: a rename or picture below can wait minutes on Discord's rate limit.
+            State = BotState.Online;
+            BotLog($"Online as {BotUser} in: {string.Join(", ", Guilds)}");
+            _log($"Discord bot online as {BotUser} in {Guilds.Count} server{(Guilds.Count == 1 ? "" : "s")}.");
+            _presence?.Cancel();
+            _presence = new CancellationTokenSource();
+            _ = PresenceLoopAsync(client, _presence.Token);
+
             if (!string.IsNullOrWhiteSpace(Settings.BotName) && client.CurrentUser != null && client.CurrentUser.Username != Settings.BotName)
             {
                 try { await client.CurrentUser.ModifyAsync(u => u.Username = Settings.BotName); }
@@ -230,13 +240,6 @@ public sealed class DiscordBotService : IAsyncDisposable
                 }
                 catch (Exception ex) { _log($"Discord bot: couldn't set its picture: {ex.Message}"); }
             }
-
-            State = BotState.Online;
-            BotLog($"Online as {BotUser} in: {string.Join(", ", Guilds)}");
-            _log($"Discord bot online as {BotUser} in {Guilds.Count} server{(Guilds.Count == 1 ? "" : "s")}.");
-            _presence?.Cancel();
-            _presence = new CancellationTokenSource();
-            _ = PresenceLoopAsync(client, _presence.Token);
         }
         catch (Exception ex)
         {
@@ -405,8 +408,9 @@ public sealed class DiscordBotService : IAsyncDisposable
             });
             if (error == null && Settings.PostActions)
             {
-                try { await c.Channel.SendMessageAsync($"📝 {c.User.Mention} **{DiscordEmbeds.Actions[action].Past}** `{s.Name}`{where}", allowedMentions: AllowedMentions.None); }
-                catch { /* the bot may not be allowed to post in this channel */ }
+                // A public follow-up to the interaction: unlike a channel message it needs no Send Messages permission there.
+                try { await c.FollowupAsync($"📝 {c.User.Mention} **{DiscordEmbeds.Actions[action].Past}** `{s.Name}`{where}", ephemeral: false, allowedMentions: AllowedMentions.None); }
+                catch (Exception ex) { BotLog($"Couldn't post the action in the channel: {ex.Message}"); }
             }
             await Task.Delay(2500);
             await ShowServer(c, user, key);

@@ -41,22 +41,32 @@ public static class OffsiteEndpoints
             return Results.Json(new { ok = failed == null, message = failed ?? $"Connected: wrote, read back and removed a test file on {where}.{warning}" });
         });
 
-        server.MapGet("/backups/offsite", async (HttpContext http, OffsiteBackups offsite) =>
+        // ?from={machine id}/server-{id}: another folder in the storage (another PC's, or this one's before a reinstall).
+        server.MapGet("/backups/offsite", async (HttpContext http, OffsiteBackups offsite, string? from) =>
         {
             var s = Scopes.Server(http);
             if (!offsite.Settings.Ready) { return Results.Json(new { ready = false, upload = BackupSettings.Load(s.Id).UploadOffsite, backups = Array.Empty<RemoteBackup>() }); }
-            try { return Results.Json(new { ready = true, upload = BackupSettings.Load(s.Id).UploadOffsite, backups = await offsite.ListAsync(s.Id, http.RequestAborted) }); }
+            if (from != null && !OffsiteBackups.Source.IsMatch(from)) { return ApiResults.BadRequest("That isn't an off-site folder."); }
+            try
+            {
+                return Results.Json(new
+                {
+                    ready = true, upload = BackupSettings.Load(s.Id).UploadOffsite, from,
+                    backups = await offsite.ListAsync(s.Id, http.RequestAborted, from),
+                    sources = await offsite.SourcesAsync(s.Id, http.RequestAborted),
+                });
+            }
             catch (Exception ex) when (ex is not OperationCanceledException || !http.RequestAborted.IsCancellationRequested)
             {
                 return ApiResults.Error(502, "unavailable", "Couldn't reach the off-site storage: " + ex.Message);
             }
         }).Needs(Capability.Backup);
 
-        server.MapPost("/backups/offsite/{name}/download", (HttpContext http, AgentContext ctx, OffsiteBackups offsite, string name) =>
+        server.MapPost("/backups/offsite/{name}/download", (HttpContext http, AgentContext ctx, OffsiteBackups offsite, string name, string? from) =>
         {
             var s = Scopes.Server(http);
-            var (job, problem) = offsite.Download(s.Id, name);
-            ctx.Record(http, "offsite-download", s.Id, job != null, problem ?? name);
+            var (job, problem) = offsite.Download(s.Id, name, from);
+            ctx.Record(http, "offsite-download", s.Id, job != null, problem ?? (from == null ? name : $"{from}/{name}"));
             return job == null ? ApiResults.BadRequest(problem!) : ApiResults.FromRequest(WindowsGSM.Engine.Services.OperationRequest.Running(job), ctx);
         }).Needs(Capability.Restore);
 

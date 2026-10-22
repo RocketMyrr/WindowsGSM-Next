@@ -67,6 +67,8 @@ export function updatesPanel(machine, scope) {
             u.error && u.state === "Error" ? h("div", { class: "callout bad" }, icon("warn"), h("span", { text: u.error })) : null,
             !u.installed ? h("div", { class: "callout info" }, icon("info"), h("span", { text: "This copy runs from a build folder, so it can't update itself. Install WindowsGSM with setup to get one-click updates." })) : null,
             u.available && u.notes ? h("details", { class: "update-notes" }, h("summary", { text: "What's new" }), h("pre", { text: readable(u.notes) })) : null,
+            // Up to date: the notes of the version running now (the feed's newest is this one).
+            !u.available && u.notes && u.latest === u.current ? h("details", { class: "update-notes" }, h("summary", { text: `What's in ${u.current}` }), h("pre", { text: readable(u.notes) })) : null,
             owner ? feedSettings(u) : null]);
     }
 
@@ -85,7 +87,10 @@ export function updatesPanel(machine, scope) {
 /** Hub: installs the latest version on every online machine that has one waiting. */
 export async function updateAll() {
     const machines = [...store.machines.values()].filter(m => m.online !== false);
-    const status = await Promise.all(machines.map(async m => ({ m, u: await get(base(m.id)).catch(() => null) })));
+    // A fresh check on each (its last one can be hours old), with this machine's pre-release choice.
+    const mine = await get(base("local")).catch(() => null);
+    const q = mine ? `?prerelease=${mine.prerelease}` : "";
+    const status = await Promise.all(machines.map(async m => ({ m, u: await post(base(m.id) + "/check" + q).catch(() => null) })));
     const waiting = status.filter(x => x.u && x.u.installed && x.u.available);
     if (!waiting.length) { toast("Every machine is up to date", { type: "good", text: "Or can't update itself (not installed with setup)." }); return; }
     const list = waiting.map(x => `${x.m.name} (${x.u.current} → ${x.u.latest})`).join(", ");

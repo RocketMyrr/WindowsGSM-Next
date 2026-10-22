@@ -33,10 +33,10 @@ public static class UpdateEndpoints
         machine.MapGet("", (HttpContext http, AgentContext ctx, SelfUpdate update) =>
             ctx.CurrentUser(http)!.IsAdmin ? Results.Json(ToDto(update, ctx)) : ApiResults.Forbidden());
 
-        machine.MapPost("/check", async (HttpContext http, AgentContext ctx, SelfUpdate update) =>
+        machine.MapPost("/check", async (HttpContext http, AgentContext ctx, SelfUpdate update, bool? prerelease) =>
         {
             if (!ctx.CurrentUser(http)!.IsAdmin) { return ApiResults.Forbidden(); }
-            await update.CheckAsync();
+            await update.CheckAsync(prerelease: prerelease);
             return Results.Json(ToDto(update, ctx));
         });
 

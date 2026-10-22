@@ -33,7 +33,7 @@ public static class HubEndpoints
         });
 
         // Called by the machine being added (it has no account here — the one-time code is its proof).
-        api.MapPost("/hub/pair", (HttpContext http, AgentContext ctx, PairingCodes codes, MachineRegistry registry, MemberLink member, PairRequest body) =>
+        api.MapPost("/hub/pair", (HttpContext http, AgentContext ctx, PairingCodes codes, MachineRegistry registry, MemberLink member, HubLinks links, PairRequest body) =>
         {
             if (member.Joined) { return ApiResults.Conflict("This machine is itself a member of another hub, so it can't accept machines."); }
             if (!codes.Consume(body.Code))
@@ -43,6 +43,12 @@ public static class HubEndpoints
             }
             if (string.IsNullOrWhiteSpace(body.MachineId) || body.MachineId.Length > 64 || body.MachineId.Contains('/')) { return ApiResults.BadRequest("Invalid machine id."); }
             if (string.Equals(body.MachineId, ctx.MachineId, StringComparison.OrdinalIgnoreCase)) { return ApiResults.BadRequest("A machine can't join itself."); }
+            // The same id connected right now is another PC: pairing would cut that one off.
+            if (links.IsOnline(body.MachineId))
+            {
+                return ApiResults.Conflict($"{registry.Get(body.MachineId)?.Name ?? "Another machine"} is connected to this hub with the same identity ({body.MachineId}) — WindowsGSM's folder was probably copied from it, or the PC cloned. " +
+                    "On the PC you're adding: stop WindowsGSM, remove the \"machineId\" line from configs\\next\\agent.json, start it, then join again.");
+            }
             string credential = registry.Pair(body.MachineId, body.MachineName, body.Version);
             ctx.Audit.Write(null, AgentContext.Ip(http), "machine-pair", null, true, $"{body.MachineName} ({body.MachineId})");
             return Results.Json(new { credential, hubName = ctx.Settings.MachineName, hubMachineId = ctx.MachineId });

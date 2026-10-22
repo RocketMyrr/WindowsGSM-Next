@@ -458,6 +458,19 @@ namespace WindowsGSM.Engine.Services
             }
             s.Reattached = false; // a fresh run: its console is ours again
 
+            // NEXT: a game that gives the panel no console at all (Rust with -noconsole…) but writes a log file: after a
+            // quiet start, the Console tab shows that file instead of staying empty.
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(QuietConsoleWait).ConfigureAwait(false);
+                if (s.Process != p || SafeHasExited(p) || s.ConsoleWindow != IntPtr.Zero || s.Console.Count > 0) { return; }
+                if (ConsoleLogTail.LogFileFor(s) is string logFile)
+                {
+                    ConsoleLogTail.Follow(s, p, logFile, recentLines: 0,
+                        note: $"[WindowsGSM] The game sends no console output here, so this shows its log file ({Path.GetFileName(logFile)}). Commands still work over RCON if it's set up.");
+                }
+            });
+
             // Settle the console window in the background, like legacy.
             bool showConsole = s.Config.ShowConsole;
             _ = Task.Run(async () =>
@@ -735,6 +748,9 @@ namespace WindowsGSM.Engine.Services
             _events.Publish(new ServerAlert(s.Id, AlertKind.AutoRestarted, $"{s.Name} restarted", "Auto-restart brought the server back up."));
             return null;
         }
+
+        /// <summary>How long a fresh start may stay silent before the Console tab falls back to the game's log file.</summary>
+        public static TimeSpan QuietConsoleWait { get; set; } = TimeSpan.FromSeconds(15);
 
         // ─────────────────────────────── Helpers ───────────────────────────────
 

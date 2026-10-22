@@ -42,6 +42,8 @@ public sealed class MemberLink : IAsyncDisposable
     private Task? _loop;
     private HashSet<string> _watched = new();
     private readonly ConcurrentDictionary<int, (Pipe? Body, CancellationTokenSource Cancel)> _requests = new();
+    private readonly ConcurrentDictionary<int, SemaphoreSlim> _credits = new();
+    private LinkChannel? _channel;
 
     public MemberLink(AgentContext ctx, Func<HttpClient> localApi, Connector? connect, Action<string> log, string? machineIdOverride = null, AgentSettings? settings = null)
     {
@@ -119,6 +121,8 @@ public sealed class MemberLink : IAsyncDisposable
 
     public async Task LeaveAsync()
     {
+        // Connected: tell the hub, so it doesn't keep this machine as "offline" for good.
+        if (_channel is { IsOpen: true } live) { try { await live.SendAsync(new { t = "leave" }); } catch { /* leaving anyway */ } }
         await StopAsync();
         var s = _settings;
         s.HubUrl = s.HubCredential = s.HubName = s.HubCertThumbprint = null;
@@ -141,6 +145,7 @@ public sealed class MemberLink : IAsyncDisposable
                 var uri = new Uri(Regex.Replace(_settings.HubUrl!, "^http", "ws") + "/api/v2/hub/link");
                 using var socket = await _connect(uri, $"WGSM-Machine {_machineId}:{_settings.HubCredential}", _settings.HubCertThumbprint, token);
                 await using var channel = new LinkChannel(socket);
+                _channel = channel;
                 attempt = 0;
                 State = LinkState.Connected;
                 ConnectedSince = DateTimeOffset.UtcNow;
@@ -152,6 +157,7 @@ public sealed class MemberLink : IAsyncDisposable
             catch (Exception ex) { LastError = ex.Message; }
             finally
             {
+                _channel = null;
                 ConnectedSince = null;
                 foreach (var r in _requests.Values) { r.Cancel.Cancel(); r.Body?.Writer.Complete(); }
                 _requests.Clear();
@@ -169,6 +175,15 @@ public sealed class MemberLink : IAsyncDisposable
             State = LinkState.Offline;
             LastError ??= "Disconnected from the hub.";
             var delay = TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, Math.Min(attempt++, 6))));
+            // Neither fixes itself in a minute: retry rarely instead of knocking (or fighting the other PC) every few seconds.
+            if (closed == LinkChannel.Codes.Replaced)
+            {
+                LastError = $"Another computer is connected to the hub as this machine ({_machineId}) — WindowsGSM's folder was probably copied from it, or the PC cloned. " +
+                    "On the copy: stop WindowsGSM, remove the \"machineId\" line from configs\\next\\agent.json, start it, then leave the hub and join again.";
+                _log(LastError);
+                delay = TimeSpan.FromMinutes(5);
+            }
+            else if (LastError == LinkChannel.UnknownToHubException.Text) { delay = TimeSpan.FromMinutes(5); }
             try { await Task.Delay(delay, token); } catch (OperationCanceledException) { break; }
         }
     }
@@ -243,6 +258,9 @@ public sealed class MemberLink : IAsyncDisposable
             case "cancel":
                 if (_requests.TryRemove((int?)m["id"] ?? 0, out var c)) { c.Cancel.Cancel(); c.Body?.Writer.Complete(); }
                 break;
+            case "ack":
+                if (_credits.TryGetValue((int?)m["id"] ?? 0, out var credit)) { credit.Release(); }
+                break;
             case "watch":
                 _watched = new HashSet<string>(m["servers"]?.AsArray().Select(x => (string?)x ?? "") ?? Enumerable.Empty<string>());
                 break;
@@ -284,11 +302,14 @@ public sealed class MemberLink : IAsyncDisposable
             await channel.SendAsync(new { t = "res", id, status = (int)response.StatusCode, headers }, token);
             headSent = true;
 
+            // A hub that confirms chunks ("credit") gets at most CreditWindow unconfirmed ones; an older hub, as before.
+            var credit = (bool?)m["credit"] == true ? _credits[id] = new SemaphoreSlim(LinkChannel.CreditWindow) : null;
             await using var stream = await response.Content.ReadAsStreamAsync(token);
             byte[] buffer = new byte[LinkChannel.ChunkSize];
             int n;
             while ((n = await stream.ReadAsync(buffer, token)) > 0)
             {
+                if (credit != null) { await credit.WaitAsync(token); }
                 await channel.SendChunkAsync(LinkChannel.ResponseBody, id, buffer.AsMemory(0, n), token);
             }
             await channel.SendAsync(new { t = "resend", id }, token);
@@ -312,6 +333,7 @@ public sealed class MemberLink : IAsyncDisposable
         finally
         {
             _requests.TryRemove(id, out _);
+            _credits.TryRemove(id, out _); // not disposed: a late "ack" may still Release it
         }
     }
 
@@ -320,6 +342,7 @@ public sealed class MemberLink : IAsyncDisposable
     private static async Task<WebSocket> ConnectAsync(Uri uri, string authorization, string? pinnedThumbprint, CancellationToken token)
     {
         var ws = new ClientWebSocket();
+        ws.Options.CollectHttpResponseDetails = true;
         ws.Options.SetRequestHeader("Authorization", authorization);
         ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
         ws.Options.KeepAliveTimeout = TimeSpan.FromSeconds(20); // NEXT: no answer to a ping in 20 s = the link is dead (power or network gone), so reconnect
@@ -332,6 +355,11 @@ public sealed class MemberLink : IAsyncDisposable
             timeout.CancelAfter(TimeSpan.FromSeconds(20));
             await ws.ConnectAsync(uri, timeout.Token);
             return ws;
+        }
+        catch (WebSocketException) when (ws.HttpStatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            ws.Dispose();
+            throw new LinkChannel.UnknownToHubException();
         }
         catch
         {

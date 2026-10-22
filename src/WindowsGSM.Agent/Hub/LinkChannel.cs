@@ -100,4 +100,17 @@ public sealed class LinkChannel : IAsyncDisposable
         public const WebSocketCloseStatus Unpaired = (WebSocketCloseStatus)4403;   // the hub removed this machine: stop and forget the hub
         public const WebSocketCloseStatus Replaced = (WebSocketCloseStatus)4409;   // a newer connection from the same machine took over
     }
+
+    /// <summary>
+    /// Response chunks a member may send for one request before the hub confirms it passed them on ("ack"). Keeps a
+    /// slow or paused download from piling up on the hub and from blocking the link for everything else.
+    /// </summary>
+    public const int CreditWindow = 32;
+
+    /// <summary>The hub doesn't recognise this machine (removed while it was offline, or the hub was set up again).</summary>
+    public sealed class UnknownToHubException : Exception
+    {
+        public const string Text = "The hub doesn't know this machine any more — it was removed there, or the hub was set up again. Leave the hub here and join it again with a new code.";
+        public UnknownToHubException() : base(Text) { }
+    }
 }

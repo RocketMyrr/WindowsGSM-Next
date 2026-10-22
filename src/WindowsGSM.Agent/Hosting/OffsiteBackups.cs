@@ -64,6 +64,8 @@ public sealed record RemoteBackup(string Key, string Name, long Size, DateTimeOf
 public sealed class OffsiteBackups
 {
     private static readonly Regex SafeName = new(@"^[A-Za-z0-9 _.()\-]{1,200}\.zip$", RegexOptions.Compiled);
+    /// <summary>Another PC's (or server's) folder in the storage: "{machine id}/server-{id}".</summary>
+    public static readonly Regex Source = new(@"^[A-Za-z0-9_.\-]{1,64}/server-[A-Za-z0-9_\-]{1,32}$", RegexOptions.Compiled);
     private readonly AgentContext _ctx;
 
     /// <summary>For tests: the S3 client to use instead of one made from the settings.</summary>
@@ -104,7 +106,47 @@ public sealed class OffsiteBackups
     }
 
     /// <summary>Where a server's backups go in the bucket.</summary>
-    public string ServerPrefix(string serverId) => $"{Settings.Prefix.Trim().Trim('/')}/{_ctx.MachineId}/server-{serverId}/".TrimStart('/');
+    public string ServerPrefix(string serverId) => SourcePrefix($"{_ctx.MachineId}/server-{serverId}");
+
+    /// <summary>A "{machine id}/server-{id}" folder's place in the storage.</summary>
+    private string SourcePrefix(string source) => $"{Settings.Prefix.Trim().Trim('/')}/{source}/".TrimStart('/');
+
+    /// <summary>
+    /// Other folders in the storage with backups — other PCs, or this one before it was set up again (a new machine
+    /// id): after a disk dies, the old backups are there to bring back. "{machine id}/server-{id}", sorted.
+    /// </summary>
+    public async Task<List<string>> SourcesAsync(string serverId, CancellationToken token)
+    {
+        string root = $"{Settings.Prefix.Trim().Trim('/')}/".TrimStart('/');
+        string mine = $"{_ctx.MachineId}/server-{serverId}";
+        var found = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (Settings.FileServer)
+        {
+            await using var server = await OffsiteFileServer.ConnectAsync(Settings, token);
+            Pin(server);
+            foreach (string machine in await server.ListFoldersAsync(root, token))
+            {
+                foreach (string folder in await server.ListFoldersAsync(root + machine, token)) { found.Add($"{machine}/{folder}"); }
+            }
+        }
+        else
+        {
+            using var client = Client(Settings);
+            string? next = null;
+            do
+            {
+                var page = await client.ListObjectsV2Async(new ListObjectsV2Request { BucketName = Settings.Bucket, Prefix = root, ContinuationToken = next }, token);
+                foreach (var o in page.S3Objects ?? new List<S3Object>())
+                {
+                    var parts = o.Key[root.Length..].Split('/');
+                    if (parts.Length == 3 && SafeName.IsMatch(parts[2])) { found.Add($"{parts[0]}/{parts[1]}"); }
+                }
+                next = page.IsTruncated == true ? page.NextContinuationToken : null;
+            } while (next != null);
+        }
+        found.RemoveWhere(f => !Source.IsMatch(f) || string.Equals(f, mine, StringComparison.OrdinalIgnoreCase));
+        return found.ToList();
+    }
 
     /// <summary>Writes, reads back and deletes a small file: whether the settings work. Null, or what's wrong.</summary>
     public async Task<string?> TestAsync(OffsiteSettings s, CancellationToken token)
@@ -229,7 +271,7 @@ public sealed class OffsiteBackups
             int removed = 0;
             if (settings.KeepCount > 0)
             {
-                foreach (var old in (await ListFileServerAsync(server, serverId, job.Cancellation)).Skip(settings.KeepCount))
+                foreach (var old in (await ListFileServerAsync(server, ServerPrefix(serverId), job.Cancellation)).Skip(settings.KeepCount))
                 {
                     await server.DeleteAsync(old.Key, job.Cancellation);
                     removed++;
@@ -258,9 +300,8 @@ public sealed class OffsiteBackups
         }
     }
 
-    private async Task<List<RemoteBackup>> ListFileServerAsync(OffsiteFileServer server, string serverId, CancellationToken token)
+    private async Task<List<RemoteBackup>> ListFileServerAsync(OffsiteFileServer server, string dir, CancellationToken token)
     {
-        string dir = ServerPrefix(serverId);
         return (await server.ListAsync(dir, token)).Where(f => SafeName.IsMatch(f.Name))
             .Select(f => new RemoteBackup(dir + f.Name, f.Name, f.Size, f.Modified))
             .OrderByDescending(b => b.Uploaded).ThenByDescending(b => b.Name, StringComparer.Ordinal).ToList();
@@ -270,7 +311,7 @@ public sealed class OffsiteBackups
     private async Task<int> PruneAsync(IAmazonS3 client, OffsiteSettings settings, string serverId, CancellationToken token)
     {
         if (settings.KeepCount <= 0) { return 0; }
-        var all = await ListAsync(client, settings, serverId, token);
+        var all = await ListAsync(client, settings, ServerPrefix(serverId), token);
         int removed = 0;
         foreach (var old in all.Skip(settings.KeepCount))
         {
@@ -280,23 +321,23 @@ public sealed class OffsiteBackups
         return removed;
     }
 
-    /// <summary>The server's off-site backups, newest first.</summary>
-    public async Task<List<RemoteBackup>> ListAsync(string serverId, CancellationToken token)
+    /// <summary>The server's off-site backups, newest first — or those in another folder (<see cref="SourcesAsync"/>).</summary>
+    public async Task<List<RemoteBackup>> ListAsync(string serverId, CancellationToken token, string? from = null)
     {
+        string prefix = from == null ? ServerPrefix(serverId) : SourcePrefix(from);
         if (Settings.FileServer)
         {
             await using var server = await OffsiteFileServer.ConnectAsync(Settings, token);
             Pin(server);
-            return await ListFileServerAsync(server, serverId, token);
+            return await ListFileServerAsync(server, prefix, token);
         }
         using var client = Client(Settings);
-        return await ListAsync(client, Settings, serverId, token);
+        return await ListAsync(client, Settings, prefix, token);
     }
 
-    private async Task<List<RemoteBackup>> ListAsync(IAmazonS3 client, OffsiteSettings settings, string serverId, CancellationToken token)
+    private async Task<List<RemoteBackup>> ListAsync(IAmazonS3 client, OffsiteSettings settings, string prefix, CancellationToken token)
     {
         var list = new List<RemoteBackup>();
-        string prefix = ServerPrefix(serverId);
         string? next = null;
         do
         {
@@ -316,12 +357,14 @@ public sealed class OffsiteBackups
     /// Brings an off-site backup back into the server's backups folder (a job), where it can be restored as usual.
     /// Null and the job, or why not.
     /// </summary>
-    public (Job? Job, string? Problem) Download(string serverId, string name)
+    public (Job? Job, string? Problem) Download(string serverId, string name, string? from = null)
     {
         if (!Settings.Ready) { return (null, "Off-site backups aren't set up (Agent settings → Off-site backups)."); }
         if (!SafeName.IsMatch(name)) { return (null, "That isn't a backup name."); }
+        if (from != null && !Source.IsMatch(from)) { return (null, "That isn't an off-site folder."); }
         string folder = BackupSettings.Load(serverId).ResolveLocation();
-        string target = Path.Combine(folder, name);
+        string key = (from == null ? ServerPrefix(serverId) : SourcePrefix(from)) + name;
+        string target = Path.Combine(folder, LocalName(name, serverId));
         if (File.Exists(target)) { return (null, $"{name} is already on this PC — restore it from the list above."); }
         var s = _ctx.Engine.Servers.Get(serverId);
         var job = _ctx.Engine.Jobs.Start("offsite", serverId, $"Bring back {name} for {s?.Name ?? serverId}", async job =>
@@ -334,14 +377,14 @@ public sealed class OffsiteBackups
                 {
                     await using var server = await OffsiteFileServer.ConnectAsync(settings, job.Cancellation);
                     Pin(server);
-                    await server.DownloadAsync(ServerPrefix(serverId) + name, partial, p => job.Report((int)p, $"Downloading {name}"), job.Cancellation);
+                    await server.DownloadAsync(key, partial, p => job.Report((int)p, $"Downloading {name}"), job.Cancellation);
                     File.Move(partial, target);
                     _ctx.Engine.Log.Write(serverId, $"Off-site: brought back {name} — it's in the backups list now");
                     return null;
                 }
                 using var client = Client(settings);
                 using var transfer = new TransferUtility(client);
-                var request = new TransferUtilityDownloadRequest { BucketName = settings.Bucket, Key = ServerPrefix(serverId) + name, FilePath = partial };
+                var request = new TransferUtilityDownloadRequest { BucketName = settings.Bucket, Key = key, FilePath = partial };
                 request.WriteObjectProgressEvent += (_, e) => job.Report(e.PercentDone, $"Downloading {name}");
                 await transfer.DownloadAsync(request, job.Cancellation);
                 File.Move(partial, target);
@@ -356,6 +399,16 @@ public sealed class OffsiteBackups
             }
         });
         return (job, null);
+    }
+
+    /// <summary>
+    /// A backup's name on this PC: one made for another server id (another PC's, or before a reinstall) is named for
+    /// this server, so it shows in this server's list.
+    /// </summary>
+    internal static string LocalName(string name, string serverId)
+    {
+        name = Regex.Replace(name, @"^wgsm-[^-]+-", $"wgsm-{serverId}-", RegexOptions.IgnoreCase);
+        return Regex.Replace(name, @"^WGSM-Backup-Server-[^-]+-", $"WGSM-Backup-Server-{serverId}-", RegexOptions.IgnoreCase);
     }
 
     private static void TryDelete(string path) { try { File.Delete(path); } catch { /* best effort */ } }
