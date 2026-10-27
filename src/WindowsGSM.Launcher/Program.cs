@@ -55,15 +55,43 @@ namespace WindowsGSM.Launcher
 
                 if (Arg("--switch") is string target || Has("--rollback"))
                 {
-                    WaitFor(Arg("--wait-pid"));
-                    string from = install.VersionDir(install.Current) + "\\";
-                    if (Has("--rollback"))
+                    // From the Start menu (nobody handed over): ask, and stop the running agent first.
+                    if (Has("--rollback") && Arg("--wait-pid") == null)
                     {
                         if (string.IsNullOrWhiteSpace(install.Previous) || !Directory.Exists(install.VersionDir(install.Previous))) { return Fail("There's no previous version to go back to."); }
-                        install.SwitchTo(install.Previous);
+                        if (MessageBox.Show($"Go back from WindowsGSM {install.Current} to {install.Previous}?\n\nThe agent restarts on the older version; your game servers keep running.",
+                                "WindowsGSM", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) { return 1; }
+                        if (!install.ControlOnly && AgentControl.StopAgent(install) is string stopError) { return Fail(stopError); }
                     }
-                    else { install.SwitchTo(Arg("--switch")); }
-                    if (Has("--start-agent") && !install.ControlOnly) { install.Start(install.AgentExe, Array.Empty<string>(), hidden: true); }
+                    WaitFor(Arg("--wait-pid"));
+                    string old = install.Current;
+                    string from = install.VersionDir(old) + "\\";
+                    string problem = null;
+                    // NEXT: whatever goes wrong here, an agent is started again — this often runs on a PC nobody is watching.
+                    try
+                    {
+                        if (Has("--rollback"))
+                        {
+                            if (string.IsNullOrWhiteSpace(install.Previous) || !Directory.Exists(install.VersionDir(install.Previous))) { problem = "There's no previous version to go back to."; }
+                            else { install.SwitchTo(install.Previous); }
+                        }
+                        else { install.SwitchTo(Arg("--switch")); }
+                    }
+                    catch (Exception ex) { problem = $"Couldn't switch to the new version: {ex.Message}"; }
+                    if ((Has("--start-agent") || problem != null) && !install.ControlOnly)
+                    {
+                        var agent = install.Start(install.AgentExe, Array.Empty<string>(), hidden: true);
+                        // A new version that doesn't come up goes straight back to the one that worked.
+                        if (problem == null && install.Current != old && !AgentControl.CameUp(install, agent, TimeSpan.FromMinutes(3)))
+                        {
+                            string failed = install.Current;
+                            try { if (!agent.HasExited) { agent.Kill(); agent.WaitForExit(10000); } } catch { }
+                            install.SwitchTo(old);
+                            install.Start(install.AgentExe, Array.Empty<string>(), hidden: true);
+                            AgentControl.NoteFallback(install, failed, old);
+                        }
+                    }
+                    if (problem != null && Arg("--wait-pid") == null) { return Fail(problem); }
                     // NEXT: the desktop window, if open, moves to the new version too (it was still the old one until
                     // closed). Game servers aren't involved — they kept running throughout.
                     bool reopen = false;
@@ -143,8 +171,11 @@ namespace WindowsGSM.Launcher
         private static void WaitFor(string pid)
         {
             if (!int.TryParse(pid, out int id)) { return; }
-            try { using (var p = Process.GetProcessById(id)) { p.WaitForExit(60000); } }
+            // NEXT: an agent still stopping after 2 minutes is ended — the new one needs its port and files, and game
+            // servers don't depend on it (they keep running and are picked up again).
+            try { using (var p = Process.GetProcessById(id)) { if (!p.WaitForExit(120000)) { p.Kill(); p.WaitForExit(10000); } } }
             catch (ArgumentException) { /* already gone */ }
+            catch (System.ComponentModel.Win32Exception) { /* can't end it; carry on */ }
             Thread.Sleep(500); // let file handles close
         }
 

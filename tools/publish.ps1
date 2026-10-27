@@ -1,6 +1,6 @@
 <#
   Builds a WindowsGSM release: dist\WindowsGSM-<version>.zip (+ .sha256) laid out as
-      WindowsGSM.exe                 the launcher / setup (.NET Framework 4.8 — built into Windows)
+      WindowsGSM.exe                 the launcher / setup (.NET Framework 4.6.2 — built into Windows 10/11 and Server 2016+)
       versions\<version>\            the app: WindowsGSM.exe (desktop), wgsm-agent.exe, everything they need
   Self-contained, so nothing else has to be installed. Upload both files to a GitHub release on the update
   feed's repository and every installed copy will offer the update.

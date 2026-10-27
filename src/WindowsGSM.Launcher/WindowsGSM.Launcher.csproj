@@ -2,11 +2,12 @@
   <!--
     WindowsGSM.exe at the top of an install: a tiny launcher that stays put while versions change under it.
     It starts the current version (versions\<ver>\), switches versions after an update, rolls back, and — run
-    from a fresh download — is the setup. .NET Framework 4.8 is part of Windows 10/11, so it needs nothing
-    installed and survives any update of the app itself.
+    from a fresh download — is the setup. It targets .NET Framework 4.6.2, which every Windows 10/11 and Windows
+    Server 2016 or newer already has (4.8 isn't on Server 2016/2019), so it needs nothing installed and survives any
+    update of the app itself.
   -->
   <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net462</TargetFramework>
     <OutputType>WinExe</OutputType>
     <AssemblyName>WindowsGSM</AssemblyName>
     <RootNamespace>WindowsGSM.Launcher</RootNamespace>

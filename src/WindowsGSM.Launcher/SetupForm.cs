@@ -923,13 +923,28 @@ namespace WindowsGSM.Launcher
                 throw new InvalidOperationException("WindowsGSM is running on that folder. Close it first (tray icon → Stop everything and quit), then run setup again.");
             }
             string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
-            foreach (string file in new[] { @"configs\next\users.json", @"configs\next\sessions.json", @"configs\webdashboard\users.json" })
+            // Everything that lets someone in: accounts, sign-ins, API tokens, the desktop app's keys, and the Discord bot (its admin list).
+            foreach (string file in new[] { @"configs\next\users.json", @"configs\next\sessions.json", @"configs\next\apitokens.json", @"configs\next\app-keys.json",
+                                            @"configs\next\discord-bot.json", @"configs\webdashboard\users.json" })
             {
                 string path = Path.Combine(data, file);
                 if (!File.Exists(path)) { continue; }
                 File.Move(path, path + ".old-" + stamp);
                 Say(null, $"Set aside {file} (now {Path.GetFileName(path)}.old-{stamp})");
             }
+        }
+
+        /// <summary>
+        /// Switching a folder the old app ran: its "Start on boot" task (WGSM) is turned off — not deleted — so after a
+        /// restart the two never manage the same servers. It runs as administrator, so Windows may ask once.
+        /// </summary>
+        private void TurnOffOldAppStartup(string data)
+        {
+            bool adopting = false;
+            Invoke((Action)(() => adopting = _useExisting.Checked));
+            if (!adopting || !Shell.LegacyStartupTaskPointsAt(data)) { return; }
+            if (Shell.DisableLegacyStartupTask()) { Say(null, "Turned off the old app's start with Windows (scheduled task WGSM)"); }
+            else { Say(null, "Couldn't turn off the old app's start with Windows — in the old app: Settings → Start on boot → off"); }
         }
 
         /// <summary>A fresh install (or a separate copy).</summary>
@@ -952,6 +967,7 @@ namespace WindowsGSM.Launcher
                 Say("Setting up your game servers folder…", data);
                 Directory.CreateDirectory(data);
                 SetAccountsAside(data);
+                TurnOffOldAppStartup(data);
             }
             var install = there ?? Install.Create(root, _version, data);
             install.Data = data ?? install.Data; // just the app over a copy that runs servers: it keeps running them

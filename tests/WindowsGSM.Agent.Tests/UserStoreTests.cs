@@ -70,4 +70,20 @@ public class UserStoreTests
         Assert.Throws<InvalidDataException>(() => new UserStore(dir));
         WindowsGSM.Core.Tests.TestData.DeleteDirectory(dir);
     }
+
+    [Fact]
+    public void Wrong_guesses_lock_only_that_address_and_a_deleted_servers_permissions_go()
+    {
+        var store = new UserStore(TempDir());
+        Assert.Null(store.Create("owner", "correct-horse-battery", Role.Owner, true, null));
+        for (int i = 0; i < 6; i++) { store.Validate("owner", "wrong", null, out _, "203.0.113.9"); }
+        Assert.Equal(LoginOutcome.BadCredentials, store.Validate("owner", "correct-horse-battery", null, out _, "203.0.113.9")); // the guesser is locked out
+        Assert.Equal(LoginOutcome.Ok, store.Validate("owner", "correct-horse-battery", null, out _, "198.51.100.4"));     // the owner isn't
+        Assert.Null(store.ResetCredentials("owner", "staple-battery-horse", false));                                      // a reset clears it
+        Assert.Equal(LoginOutcome.Ok, store.Validate("owner", "staple-battery-horse", null, out _, "203.0.113.9"));
+
+        Assert.Null(store.Create("member", "correct-horse-battery", Role.Member, true, new Dictionary<string, Capability> { ["m-1/5"] = Capability.All, ["m-1/6"] = Capability.View }));
+        Assert.True(store.ForgetServer("m-1", "5"));
+        Assert.Equal(new[] { "m-1/6" }, store.Get("member")!.Grants.Keys.ToArray());
+    }
 }

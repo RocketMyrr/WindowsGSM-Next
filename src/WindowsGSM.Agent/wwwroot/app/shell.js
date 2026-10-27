@@ -151,7 +151,7 @@ export function unmountShell() {
 
 // ─────────────────────────── Notifications (the bell) ───────────────────────────
 
-let bell = null; // { el, anchor, unreadAtOpen, cleanup }
+let bell = null; // { el, anchor, cleanup }
 
 function toggleBell(anchor) {
     if (bell) { closeBell(); return; }
@@ -165,10 +165,9 @@ function toggleBell(anchor) {
     document.addEventListener("pointerdown", onDown, true);
     document.addEventListener("keydown", onKey);
     anchor.setAttribute("aria-expanded", "true");
-    // What was unread when you opened it stays highlighted while it's open; the count clears now.
-    bell = { el, anchor, unreadAtOpen: store.readUpTo, cleanup: () => { document.removeEventListener("pointerdown", onDown, true); document.removeEventListener("keydown", onKey); } };
+    // Opening the bell doesn't mark anything read: each one is, when opened — or all of them, with Mark all read.
+    bell = { el, anchor, cleanup: () => { document.removeEventListener("pointerdown", onDown, true); document.removeEventListener("keydown", onKey); } };
     paintBellPanel();
-    store.markNotificationsRead();
 }
 
 function closeBell() {
@@ -182,10 +181,11 @@ function closeBell() {
 function paintBellPanel() {
     const list = store.notifications.slice(0, 20);
     const body = h("div", { class: "notif-list" }, ...(list.length
-        ? list.map(n => notificationItem(n, { unread: n.id > bell.unreadAtOpen, onOpen: closeBell }))
+        ? list.map(n => notificationItem(n, { onOpen: closeBell }))
         : [h("div", { class: "empty compact" }, icon("bell"), h("h3", { text: "All quiet" }), h("p", { text: "Crashes, restarts, updates and machines going offline show up here." }))]));
     bell.el.replaceChildren(
         h("div", { class: "notif-pop-head" }, h("b", { class: "grow", text: "Notifications" }),
+            store.unread > 0 ? h("button", { class: "btn ghost sm", onclick: () => store.markNotificationsRead() }, icon("check"), "Mark all read") : null,
             h("a", { class: "btn ghost sm", href: "/notifications", onclick: () => closeBell() }, "See all", icon("chevronRight"))),
         body);
 }

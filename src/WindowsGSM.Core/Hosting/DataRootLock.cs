@@ -31,7 +31,7 @@ namespace WindowsGSM.Hosting
         {
             string root = Path.GetFullPath(dataRoot).TrimEnd(Path.DirectorySeparatorChar);
 
-            string? legacy = FindLegacyAppUsing(root);
+            string? legacy = LegacyAppUsing(root);
             if (legacy != null)
             {
                 throw new DataRootInUseException(
@@ -56,22 +56,63 @@ namespace WindowsGSM.Hosting
             }
         }
 
-        private static string? FindLegacyAppUsing(string root)
+        /// <summary>
+        /// The legacy app running from <paramref name="root"/> ("PID 1234"), or null. NEXT: it runs as administrator, and
+        /// Process.MainModule can't read an elevated program's path from a normal one — the check silently passed. The
+        /// limited query used here works across that.
+        /// </summary>
+        public static string? LegacyAppUsing(string root)
         {
+            root = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
             foreach (var p in Process.GetProcessesByName("WindowsGSM"))
             {
                 try
                 {
                     if (p.Id == Environment.ProcessId) { continue; }
-                    string? exe = p.MainModule?.FileName;
+                    string? exe = ImagePath(p.Id);
                     string? dir = exe == null ? null : Path.GetDirectoryName(exe)?.TrimEnd(Path.DirectorySeparatorChar);
                     if (dir != null && string.Equals(dir, root, StringComparison.OrdinalIgnoreCase)) { return $"PID {p.Id}"; }
                 }
-                catch { /* can't inspect (e.g. elevated) — the lock file still covers Next instances */ }
+                catch { /* gone meanwhile */ }
                 finally { p.Dispose(); }
             }
             return null;
         }
+
+        /// <summary>A process's program file, readable even for one running as administrator (or null).</summary>
+        public static string? ImagePath(int pid)
+        {
+            IntPtr h = OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */, false, pid);
+            if (h == IntPtr.Zero) { return null; }
+            try
+            {
+                var sb = new StringBuilder(1024);
+                int size = sb.Capacity;
+                return QueryFullProcessImageName(h, 0, sb, ref size) ? sb.ToString(0, size) : null;
+            }
+            finally { CloseHandle(h); }
+        }
+
+        /// <summary>
+        /// Whether this process may end <paramref name="pid"/> and wait for it — false for one running as administrator
+        /// while WindowsGSM isn't (Windows allows only a look at it then).
+        /// </summary>
+        public static bool CanControl(int pid)
+        {
+            IntPtr h = OpenProcess(0x0001 /* TERMINATE */ | 0x00100000 /* SYNCHRONIZE */ | 0x1000 /* QUERY_LIMITED_INFORMATION */, false, pid);
+            if (h == IntPtr.Zero) { return false; }
+            CloseHandle(h);
+            return true;
+        }
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder name, ref int size);
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        private static extern bool CloseHandle(IntPtr handle);
 
         private static string TryReadOwner(string path)
         {

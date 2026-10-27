@@ -151,11 +151,22 @@ export const store = {
         this.emit("notifications");
     },
 
-    /** Marks everything up to the newest notification as read (for this person, on every device). */
+    /** One notification was opened: it's read (for this person, on every device). */
+    async markOneRead(n) {
+        n.read = true;
+        const kept = this.notifications.find(x => x.id === n.id);
+        if (kept) kept.read = true;
+        this.unread = Math.max(0, this.unread - 1);
+        this.emit("notifications");
+        try { const res = await post("/notifications/read", { upTo: 0, id: n.id }); this.unread = res.unread; this.emit("notifications"); } catch { /* next load corrects it */ }
+    },
+
+    /** "Mark all read": everything up to the newest notification (for this person, on every device). */
     async markNotificationsRead() {
         const newest = this.notifications[0]?.id || 0;
-        if (!newest || newest <= this.readUpTo) { this.unread = 0; this.emit("notifications"); return; }
-        this.readUpTo = newest;
+        for (const n of this.notifications) n.read = true;
+        if (!newest) { this.unread = 0; this.emit("notifications"); return; }
+        this.readUpTo = Math.max(this.readUpTo, newest);
         this.unread = 0;
         this.emit("notifications");
         try { const res = await post("/notifications/read", { upTo: newest }); this.unread = res.unread; this.emit("notifications"); } catch { /* next load corrects it */ }
@@ -249,7 +260,7 @@ function wireLive() {
             if (store.notifications.some(x => x.id === n.id)) return;
             store.notifications.unshift(n);
             if (store.notifications.length > NOTIFICATIONS) store.notifications.length = NOTIFICATIONS;
-            if (n.id > store.readUpTo) store.unread++;
+            store.unread++;
             store.emit("notifications");
             store.emit("notificationAdded", n);
         }),

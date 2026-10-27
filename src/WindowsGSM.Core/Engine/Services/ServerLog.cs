@@ -25,8 +25,33 @@ namespace WindowsGSM.Engine.Services
         /// Logs for a server id ("7" → "[#7]") or a named source ("System", "Web"). Messages starting with
         /// "[ERROR]" or "[NOTICE]" get that level on the event, matching how the legacy UI coloured them.
         /// </summary>
+        /// <summary>Server logs and crash reports older than this are removed (once a day). NEXT: they were kept forever.</summary>
+        public static int KeepDays { get; set; } = 90;
+        private static DateTime _lastPrune = DateTime.MinValue;
+
+        /// <summary>Removes logs\L*.log and the files under logs\servers older than <see cref="KeepDays"/>. Returns how many.</summary>
+        public static int PruneOld(DateTime now)
+        {
+            int removed = 0;
+            string root = Path.Combine(WgsmEnvironment.DataRoot, "logs");
+            if (!Directory.Exists(root)) { return 0; }
+            var cutoff = now.AddDays(-KeepDays);
+            var files = Directory.EnumerateFiles(root, "L*.log").Concat(Directory.Exists(Path.Combine(root, "servers"))
+                ? Directory.EnumerateFiles(Path.Combine(root, "servers"), "*", SearchOption.AllDirectories) : Enumerable.Empty<string>());
+            foreach (string f in files.ToList())
+            {
+                try { if (File.GetLastWriteTime(f) < cutoff) { File.Delete(f); removed++; } } catch { /* in use: next time */ }
+            }
+            return removed;
+        }
+
         public void Write(string source, string message)
         {
+            if (DateTime.Now.Date != _lastPrune.Date)
+            {
+                _lastPrune = DateTime.Now;
+                _ = System.Threading.Tasks.Task.Run(() => { try { PruneOld(DateTime.Now); } catch { /* next day */ } });
+            }
             string title = int.TryParse(source, out int n) ? $"#{n}" : source;
             string line = $"[{DateTime.Now:MM/dd/yyyy-HH:mm:ss}][{title}] {message}";
 

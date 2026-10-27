@@ -54,6 +54,24 @@ public static class CrashLog
     }
 
     /// <summary>On start: if the last run crashed, say so in the notification centre (and its channels).</summary>
+    /// <summary>The launcher went back to the previous version because the new one didn't start: say so once.</summary>
+    public static void ReportFallback(string dataRoot, NotificationCentre centre, string machineId)
+    {
+        string marker = Path.Combine(dataRoot, "logs", "update-fallback.txt");
+        if (!File.Exists(marker)) { return; }
+        try
+        {
+            string[] lines = File.ReadAllLines(marker);
+            string failed = lines.Length > 1 ? lines[1] : "the new version", back = lines.Length > 2 ? lines[2] : "the previous one";
+            centre.Record("appUpdateFailed", $"WindowsGSM {failed} didn't start — back on {back}",
+                $"The update to {failed} was installed but its agent didn't come up, so WindowsGSM went back to {back} by itself; game servers kept running. " +
+                "Its log is in logs\\agent. Try the update again later, or report it (Help → Report a problem).",
+                machineId, null, null, Visibility.Admin);
+            File.Delete(marker);
+        }
+        catch { /* try again next start */ }
+    }
+
     public static void ReportPrevious(string dataRoot, NotificationCentre centre, string machineId)
     {
         string marker = Path.Combine(dataRoot, "logs", "crash-pending.txt");

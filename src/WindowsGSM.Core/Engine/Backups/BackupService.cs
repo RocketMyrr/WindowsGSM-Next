@@ -283,9 +283,14 @@ namespace WindowsGSM.Engine.Backups
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
+                // Some failures carry no text (the soak test logged 77 blank ones): fall back to the inner reason, then the
+                // exception itself, so the log always says what went wrong.
+                string reason = !string.IsNullOrWhiteSpace(ex.Message) ? ex.Message
+                    : !string.IsNullOrWhiteSpace(ex.GetBaseException().Message) ? ex.GetBaseException().Message
+                    : $"{ex.GetType().Name} (0x{ex.HResult:X8}) at {ex.StackTrace?.Trim().Split('\n')[0].Trim()}";
                 _log.Write(s.Id, "Server: Fail to backup");
-                _log.Write(s.Id, "[ERROR] " + ex.Message);
-                return ex.Message;
+                _log.Write(s.Id, "[ERROR] " + reason);
+                return reason;
             }
             finally
             {
@@ -321,7 +326,7 @@ namespace WindowsGSM.Engine.Backups
                 partial = null;
 
                 var mine = Directory.EnumerateFiles(dir, $"wgsm-{id}-*.zip").Select(f => Info(f, Path.GetFileName(f), BackupFormat.Next))
-                    .OrderByDescending(b => b.Created).ToList();
+                    .OrderByDescending(b => string.Equals(b.Name, Path.GetFileName(archive), StringComparison.OrdinalIgnoreCase)).ThenByDescending(b => b.Created).ToList();
                 var remove = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 if (settings.KeepCount > 0) { foreach (var b in mine.Skip(settings.KeepCount)) { remove.Add(b.Name); } }
                 if (settings.KeepDays > 0) { foreach (var b in mine.Where(b => b.Created < DateTimeOffset.Now.AddDays(-settings.KeepDays))) { remove.Add(b.Name); } }
@@ -416,7 +421,9 @@ namespace WindowsGSM.Engine.Backups
         /// <summary>Applies keep-count and keep-days to this system's archives. Never deletes <paramref name="keep"/>.</summary>
         private int Prune(string id, BackupSettings settings, string keep)
         {
-            var mine = List(id).Where(b => b.Format == BackupFormat.Next && b.Name.StartsWith($"wgsm-{id}-", StringComparison.OrdinalIgnoreCase)).ToList();
+            // The new one first, whatever the order: several made in one second tie on their time.
+            var mine = List(id).Where(b => b.Format == BackupFormat.Next && b.Name.StartsWith($"wgsm-{id}-", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(b => string.Equals(b.Name, keep, StringComparison.OrdinalIgnoreCase)).ThenByDescending(b => b.Created).ToList();
             var remove = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (settings.KeepCount > 0) { foreach (var b in mine.Skip(settings.KeepCount)) { remove.Add(b.Name); } }
             if (settings.KeepDays > 0)

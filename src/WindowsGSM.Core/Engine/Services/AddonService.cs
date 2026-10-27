@@ -117,6 +117,8 @@ namespace WindowsGSM.Engine.Services
             {
                 return OperationRequest.Rejected($"{other} is installed on {s.Name}, and {d.Label} can't run alongside it. Remove {other} first.");
             }
+            // These replace files the running game has loaded: a half-done install breaks the next start.
+            if (s.State != ServerState.Stopped) { return OperationRequest.Rejected($"Stop {s.Name} before installing {d.Label} — the game has its files open."); }
             return Run(s, $"Install {d.Label} on {s.Name}", async ctx =>
             {
                 ctx.Report(stage: $"Installing {d.Label}");

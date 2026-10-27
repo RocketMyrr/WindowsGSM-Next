@@ -57,16 +57,19 @@ public class AuthTests
     }
 
     [Fact]
-    public async Task Five_wrong_passwords_lock_the_account_even_for_the_right_one()
+    public async Task Five_wrong_passwords_lock_the_account_from_that_address_even_for_the_right_one()
     {
         await _f.UserAsync("locky", Role.Viewer);
-        var c = _f.NewClient();
+        var c = _f.NewClient("203.0.113.7");
         for (int i = 0; i < 5; i++)
         {
             Assert.Equal(HttpStatusCode.Unauthorized, (await c.PostAsync("/api/v2/auth/login", new LoginRequest("locky", "nope"))).StatusCode);
         }
-        var right = await _f.NewClient().PostAsync("/api/v2/auth/login", new LoginRequest("locky", "password-locky"));
+        var right = await _f.NewClient("203.0.113.7").PostAsync("/api/v2/auth/login", new LoginRequest("locky", "password-locky"));
         Assert.Equal(HttpStatusCode.Unauthorized, right.StatusCode);
+        // Someone else's guesses don't lock the real person out from where they are.
+        var elsewhere = await _f.NewClient("198.51.100.77").PostAsync("/api/v2/auth/login", new LoginRequest("locky", "password-locky"));
+        Assert.Equal(HttpStatusCode.OK, elsewhere.StatusCode);
     }
 
     [Fact]

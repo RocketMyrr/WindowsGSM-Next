@@ -259,17 +259,7 @@ namespace WindowsGSM.Engine.GameConfig
             return full;
         }
 
-        /// <summary>Reads text and remembers whether the file had a UTF-8 byte-order mark, so saving keeps it.</summary>
-        private static (string Text, Encoding Encoding) ReadText(string full)
-        {
-            byte[] bytes = File.ReadAllBytes(full);
-            bool bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
-            if (bytes.Length >= 2 && ((bytes[0] == 0xFF && bytes[1] == 0xFE) || (bytes[0] == 0xFE && bytes[1] == 0xFF)))
-            {
-                var enc = bytes[0] == 0xFF ? Encoding.Unicode : Encoding.BigEndianUnicode;
-                return (enc.GetString(bytes, 2, bytes.Length - 2), enc);
-            }
-            return (new UTF8Encoding(false).GetString(bytes, bom ? 3 : 0, bytes.Length - (bom ? 3 : 0)), new UTF8Encoding(bom));
-        }
+        /// <summary>Reads text in the encoding it was written in, so saving keeps it (see <see cref="Services.TextCodec"/>).</summary>
+        private static (string Text, Encoding Encoding) ReadText(string full) => Services.TextCodec.Decode(File.ReadAllBytes(full));
     }
 }

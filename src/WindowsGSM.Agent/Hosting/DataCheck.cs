@@ -29,7 +29,7 @@ public static class DataCheck
         }
 
         // ── Who else is using it ──
-        string? legacy = LegacyAppUsing(folder);
+        string? legacy = global::WindowsGSM.Hosting.DataRootLock.LegacyAppUsing(folder);
         if (legacy != null) { f.Add(new("Folder", "block", "The current WindowsGSM app is running from this folder.", $"Close it ({legacy}) before switching — two managers must never run the same servers.")); }
         string lockFile = Path.Combine(folder, "wgsm.lock");
         if (File.Exists(lockFile) && IsLocked(lockFile)) { f.Add(new("Folder", "block", "WindowsGSM Next is already running on this folder.")); }
@@ -41,6 +41,11 @@ public static class DataCheck
             f.Add(new("Folder", empty ? "ok" : "info", empty ? "An empty folder — a fresh start." : "This doesn't look like a WindowsGSM folder yet — it'll be set up as a new one."));
         }
         if (File.Exists(Path.Combine(folder, "WindowsGSM.exe"))) { f.Add(new("Folder", "info", "The current WindowsGSM app lives here.", "It stays as it is. Keep it for now in case you want to go back — just don't run both at once.")); }
+        if (LegacyStartupTask.PointsAt(folder))
+        {
+            f.Add(new("Folder", "warn", "The current WindowsGSM app starts with Windows.",
+                "Setup turns that off when you switch (Windows asks once for permission), so the two never run together after a restart."));
+        }
         if (Directory.Exists(Path.Combine(folder, "configs", "next"))) { f.Add(new("Folder", "info", "WindowsGSM Next has used this folder before.", "Its accounts and settings are kept.")); }
 
         // ── Game plugins (compiled in memory; needed to recognise plugin games) ──
@@ -205,19 +210,55 @@ public static class DataCheck
         catch { return false; }
     }
 
-    private static string? LegacyAppUsing(string root)
+}
+
+/// <summary>The legacy app's "Start on boot": a scheduled task named WGSM that runs its WindowsGSM.exe at sign-in.</summary>
+public static class LegacyStartupTask
+{
+    /// <summary>Whether that task exists, is on, and starts the app in <paramref name="folder"/>.</summary>
+    public static bool PointsAt(string folder)
     {
-        foreach (var p in Process.GetProcessesByName("WindowsGSM"))
+        try
         {
-            try
-            {
-                if (p.Id == Environment.ProcessId) { continue; }
-                string? dir = Path.GetDirectoryName(p.MainModule?.FileName ?? "")?.TrimEnd(Path.DirectorySeparatorChar);
-                if (dir != null && string.Equals(dir, root, StringComparison.OrdinalIgnoreCase)) { return $"PID {p.Id}"; }
-            }
-            catch { /* can't inspect */ }
-            finally { p.Dispose(); }
+            var psi = new ProcessStartInfo("schtasks.exe", "/query /tn WGSM /xml") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+            using var p = Process.Start(psi)!;
+            string xml = p.StandardOutput.ReadToEnd();
+            p.WaitForExit(10000);
+            if (p.ExitCode != 0) { return false; }
+            var doc = System.Xml.Linq.XDocument.Parse(xml);
+            if (doc.Descendants().Any(e => e.Name.LocalName == "Enabled" && e.Parent?.Name.LocalName == "Settings" && e.Value.Trim() == "false")) { return false; }
+            string? command = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "Command")?.Value.Trim().Trim('"');
+            string? dir = command == null ? null : Path.GetDirectoryName(command)?.TrimEnd(Path.DirectorySeparatorChar);
+            return dir != null && string.Equals(dir, Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder)), StringComparison.OrdinalIgnoreCase);
         }
-        return null;
+        catch { return false; }
     }
+}
+
+/// <summary>
+/// NEXT: the old app opened on this folder while the agent runs (its shortcut, or its own start-with-Windows): two
+/// managers would fight over the same servers. Checked every minute; said loudly each time it appears.
+/// </summary>
+public sealed class LegacyAppWatch : IDisposable
+{
+    private readonly Timer _timer;
+    private string? _seen;
+
+    public LegacyAppWatch(WindowsGSM.Agent.Api.AgentContext ctx, WindowsGSM.Agent.Notifications.NotificationCentre centre)
+    {
+        _timer = new Timer(_ =>
+        {
+            string? pid = global::WindowsGSM.Hosting.DataRootLock.LegacyAppUsing(WgsmEnvironment.DataRoot);
+            if (pid != null && pid != _seen)
+            {
+                ctx.Engine.Log.Write("Agent", $"[ERROR] The old WindowsGSM app ({pid}) is running on this data folder — close it: two managers fight over the same servers.");
+                centre.Record("legacyApp", "The old WindowsGSM app is running on this folder",
+                    $"It ({pid}) and WindowsGSM Next both manage the same servers now — expect double starts and restarts. Close the old app, and turn off its \"Start on boot\".",
+                    ctx.MachineId, null, null, WindowsGSM.Agent.Realtime.Visibility.Admin);
+            }
+            _seen = pid;
+        }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+    }
+
+    public void Dispose() => _timer.Dispose();
 }

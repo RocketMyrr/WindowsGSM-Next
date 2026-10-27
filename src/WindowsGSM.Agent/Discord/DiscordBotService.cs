@@ -107,6 +107,14 @@ public sealed class DiscordBotService : IAsyncDisposable
         _log($"Discord bot: stopped — this machine now reports to {MemberOf ?? "a hub"}, whose bot covers it.");
     }
 
+    /// <summary>A server was deleted: Discord admins' access to just that server goes.</summary>
+    public void ForgetServer(string machine, string server)
+    {
+        bool changed = false;
+        foreach (var a in Settings.Admins) { changed |= a.Servers.RemoveAll(s => string.Equals(s, $"{machine}/{server}", StringComparison.OrdinalIgnoreCase)) > 0; }
+        if (changed) { Settings.Save(_ctx.ConfigDir); }
+    }
+
     /// <summary>Saves new settings and reconnects if anything that matters changed.</summary>
     public async Task ApplyAsync(DiscordBotSettings next)
     {

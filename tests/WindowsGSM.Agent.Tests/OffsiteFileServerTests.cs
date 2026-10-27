@@ -31,7 +31,17 @@ public class OffsiteFileServerTests
 
         private FileServer(Process p, string dir, int sftp, int ftp) { _process = p; Dir = dir; SftpPort = sftp; FtpPort = ftp; }
 
+        /// <summary>Started; tried again on fresh ports if one was taken between choosing it and SFTPGo binding it.</summary>
         public static async Task<FileServer?> StartAsync()
+        {
+            for (int attempt = 1; ; attempt++)
+            {
+                try { return await TryStartAsync(); }
+                catch (InvalidOperationException) when (attempt < 3) { /* another try on other ports */ }
+            }
+        }
+
+        private static async Task<FileServer?> TryStartAsync()
         {
             string? exe = TestTools.Find("sftpgo", "sftpgo.exe");
             if (exe == null) { return null; }
@@ -45,6 +55,9 @@ public class OffsiteFileServerTests
                 File.WriteAllText(Path.Combine(dir, "key.pem"), key.ExportPkcs8PrivateKeyPem());
             }
             int[] ports = TestTools.FreePorts(2);
+            // FTP's data connections: SFTPGo's default 50000-50100 sits in Windows' range for outgoing connections (and
+            // in FreePorts'), so a port already taken there stalled a listing or upload until it timed out.
+            int passive = TestTools.FreeRange(20, 30000, 45000);
             var p = TestTools.Start(exe, new[]
             {
                 "portable", "-d", Path.Combine(dir, "data"), "-u", User, "-p", Password, "-g", "*",
@@ -53,6 +66,7 @@ public class OffsiteFileServerTests
             }, dir, new Dictionary<string, string>
             {
                 ["SFTPGO_SFTPD__BINDINGS__0__ADDRESS"] = "127.0.0.1", ["SFTPGO_FTPD__BINDINGS__0__ADDRESS"] = "127.0.0.1", // this PC only
+                ["SFTPGO_FTPD__PASSIVE_PORT_RANGE__START"] = passive.ToString(), ["SFTPGO_FTPD__PASSIVE_PORT_RANGE__END"] = (passive + 19).ToString(),
             });
             for (int i = 0; i < 60 && !p.HasExited; i++)
             {

@@ -254,4 +254,83 @@ public class SchedulerAndMonitorTests
         }
         finally { EngineFixture.KillQuietly(first); EngineFixture.KillQuietly(s.Process); }
     }
+
+    [Fact]
+    public async Task A_run_missed_while_asleep_is_skipped_and_a_busy_server_is_tried_again()
+    {
+        EngineFixture.CreateServer("198");
+        using var engine = await EngineFixture.StartEngineAsync();
+        var events = EngineFixture.Record(engine, "198");
+        Assert.Null(engine.Scheduler.SaveManaged("198", new[] { new ScheduleEntry("0 6 * * *", ScheduledAction.Backup) }));
+        var now = new DateTime(2026, 1, 1, 5, 59, 0);
+        engine.Scheduler.Clock = () => now;
+        await engine.Scheduler.TickAsync();                  // armed for 06:00
+        now = new DateTime(2026, 1, 1, 9, 0, 0);             // the PC slept through it
+        await engine.Scheduler.TickAsync();
+        await EngineFixture.WaitUntil(() => { lock (events) { return events.Any(e => e is ServerLogged l && l.Message.Contains("was missed")); } }, "was missed");
+        Assert.Empty(engine.Backups.List("198"));
+
+        // Next day, the server's busy at 06:00: tried again 3 minutes later, and then it runs.
+        Assert.True(engine.Operations.TryBegin("198", WindowsGSM.Engine.Operations.OperationKind.Update, "Busy", out var lease, out _));
+        now = new DateTime(2026, 1, 2, 6, 0, 1);
+        await engine.Scheduler.TickAsync();
+        await EngineFixture.WaitUntil(() => { lock (events) { return events.Any(e => e is ServerLogged l && l.Message.Contains("Scheduled Backup skipped")); } }, "Scheduled Backup skipped");
+        lease!.Dispose();
+        now = now + SchedulerService.BusyRetry + TimeSpan.FromSeconds(1);
+        await engine.Scheduler.TickAsync();
+        await EngineFixture.WaitUntil(() => engine.Backups.List("198").Count == 1, "the retried backup");
+    }
+
+    [Fact]
+    public async Task A_server_running_before_the_PC_restarted_comes_back_with_auto_restart_on()
+    {
+        EngineFixture.CreateServer("199", autoRestart: true);
+        ServerCache.SavePID("199", 999_999);          // the PID it had; no such process now
+        ServerCache.SaveProcessName("199", "gone");
+        using var engine = await EngineFixture.StartEngineAsync();
+        var s = engine.Servers.Get("199")!;
+        try
+        {
+            Assert.Contains("199", engine.Lifecycle.Interrupted);
+            engine.Scheduler.StartAutoStartServers();
+            await EngineFixture.WaitUntil(() => s.State == ServerState.Running, "the server to come back");
+        }
+        finally { EngineFixture.KillQuietly(s.Process); }
+    }
+
+    [Fact]
+    public void Old_server_logs_are_removed_after_the_keep_period()
+    {
+        _ = TestData.DataRoot;
+        string logs = Path.Combine(WindowsGSM.Hosting.WgsmEnvironment.DataRoot, "logs");
+        Directory.CreateDirectory(Path.Combine(logs, "servers", "198"));
+        string old = Path.Combine(logs, "L20200101.log"), recent = Path.Combine(logs, "servers", "198", "crash_new.log"), oldCrash = Path.Combine(logs, "servers", "198", "crash_old.log");
+        foreach (var f in new[] { old, recent, oldCrash }) { File.WriteAllText(f, "x"); }
+        File.SetLastWriteTime(old, DateTime.Now.AddDays(-200));
+        File.SetLastWriteTime(oldCrash, DateTime.Now.AddDays(-91));
+        ServerLog.PruneOld(DateTime.Now);
+        Assert.False(File.Exists(old));
+        Assert.False(File.Exists(oldCrash));
+        Assert.True(File.Exists(recent));
+    }
+
+    [Fact]
+    public async Task A_game_started_by_hand_from_its_folder_is_taken_over()
+    {
+        EngineFixture.CreateServer("104");
+        if (Directory.Exists(ServerPath.GetServersCache("104"))) { foreach (var f in Directory.GetFiles(ServerPath.GetServersCache("104"))) { File.Delete(f); } } // no record of it
+        string game = ServerPath.GetServersServerFiles("104", "game.exe");
+        File.Copy(Path.Combine(Environment.SystemDirectory, "PING.EXE"), game, overwrite: true);
+        var manual = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(game, "-n 120 127.0.0.1") { CreateNoWindow = true, UseShellExecute = false })!;
+        try
+        {
+            using var engine = await EngineFixture.StartEngineAsync();
+            var s = engine.Servers.Get("104")!;
+            Assert.Equal(ServerState.Running, s.State);
+            Assert.Equal(manual.Id, s.Process!.Id);
+            Assert.Equal(manual.Id, ServerCache.GetPID("104")); // recorded, so the next agent start finds it the usual way
+            Assert.DoesNotContain("104", engine.Lifecycle.AdminOwned.Keys);
+        }
+        finally { EngineFixture.KillQuietly(manual); }
+    }
 }

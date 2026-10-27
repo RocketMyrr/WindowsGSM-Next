@@ -195,8 +195,16 @@ public sealed class OffsiteBackups
         Renci.SshNet.Common.SshAuthenticationException or FluentFTP.Exceptions.FtpAuthenticationException => "The server refused the username or password.",
         System.Net.Sockets.SocketException or TimeoutException or Renci.SshNet.Common.SshOperationTimeoutException => "Couldn't reach it: " + ex.Message,
         System.Security.Authentication.AuthenticationException => "The encrypted connection failed: " + ex.Message + " (does the server support this kind of FTPS?)",
-        _ => ex.InnerException is System.Net.Sockets.SocketException inner ? "Couldn't reach it: " + inner.Message : "It didn't work: " + ex.Message,
+        _ => ex.InnerException is System.Net.Sockets.SocketException inner ? "Couldn't reach it: " + inner.Message : "It didn't work: " + Innermost(ex),
     };
+
+    /// <summary>FluentFTP wraps the reason ("Error while uploading… See InnerException"): say the reason.</summary>
+    private static string Innermost(Exception ex)
+    {
+        string text = ex.Message;
+        for (var e = ex.InnerException; e != null; e = e.InnerException) { text = $"{ex.Message.Split(" See InnerException")[0].TrimEnd('.')}: {e.Message}"; }
+        return text;
+    }
 
     /// <summary>The first connection to a file server trusted its certificate / host key: remember it.</summary>
     private void Pin(OffsiteFileServer server)

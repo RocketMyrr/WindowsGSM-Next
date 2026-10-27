@@ -92,4 +92,36 @@ public class UpdateTests
         }
         finally { EngineFixture.KillQuietly(s.Process); }
     }
+
+    [Fact]
+    public async Task A_full_disk_refuses_the_update_and_a_cancelled_updater_is_ended()
+    {
+        EngineFixture.CreateServer("239");
+        long before = UpdateService.MinFreeBytes;
+        try
+        {
+            UpdateService.MinFreeBytes = long.MaxValue;
+            Assert.Contains("is free on", UpdateService.FreeSpaceProblem("239"));
+            using var engine = await EngineFixture.StartEngineAsync();
+            var refused = await Run(engine.Updates.Update("239"));
+            Assert.Equal(JobStatus.Failed, refused.Status);
+            Assert.False(File.Exists(Marker("239"))); // the updater never ran
+        }
+        finally { UpdateService.MinFreeBytes = before; }
+        Assert.Null(UpdateService.FreeSpaceProblem("239"));
+
+        // Cancelled: the updater (and what it started) is ended, not left writing.
+        var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c ping -n 60 127.0.0.1 >nul") { CreateNoWindow = true, UseShellExecute = false })!;
+        using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => UpdateService.WaitOrEndAsync(p, cancel.Token));
+        Assert.True(p.HasExited);
+    }
+
+    [Fact]
+    public void A_process_path_is_read_even_without_full_access()
+    {
+        using var me = System.Diagnostics.Process.GetCurrentProcess();
+        Assert.Equal(me.MainModule!.FileName, WindowsGSM.Hosting.DataRootLock.ImagePath(me.Id), StringComparer.OrdinalIgnoreCase);
+        Assert.Null(WindowsGSM.Hosting.DataRootLock.LegacyAppUsing(Path.GetTempPath()));
+    }
 }

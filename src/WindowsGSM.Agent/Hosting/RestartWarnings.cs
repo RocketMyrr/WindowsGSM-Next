@@ -120,6 +120,25 @@ public sealed class RestartWarnings : IDisposable
         }
     }
 
+    /// <summary>
+    /// Before something nobody scheduled (an automatic update): each warning at its time, then returns — so
+    /// "updating in 5 minutes" is true. Returns at once when the server's warnings are off.
+    /// </summary>
+    public async Task CountDownAsync(string server, ScheduledAction action)
+    {
+        var s = Get(server);
+        if (!s.Enabled || s.Leads.Count == 0) { return; }
+        var leads = s.Leads.OrderByDescending(x => x).ToList();
+        _ctx.Engine.Log.Write(server, $"Warning players: {ActionWord(action)} in {TimeWords(leads[0])}");
+        for (int i = 0; i < leads.Count; i++)
+        {
+            if (_ctx.Engine.Servers.Get(server)?.State != ServerState.Running) { return; } // stopped meanwhile: nobody to warn
+            try { await _ctx.Engine.Console.SendAsync(server, Compose(s, action, leads[i]), "Restart warning", false); }
+            catch { /* the next warning may get through */ }
+            await Task.Delay(TimeSpan.FromSeconds(leads[i] - (i + 1 < leads.Count ? leads[i + 1] : 0)));
+        }
+    }
+
     public async Task<string?> SendTestAsync(string server)
     {
         var s = Get(server);

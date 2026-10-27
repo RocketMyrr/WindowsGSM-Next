@@ -6,7 +6,9 @@ namespace WindowsGSM.Agent.Api;
 /// <summary>The notification centre (everyone, filtered to what they may see) and notification channels (owners).</summary>
 public static class NotificationEndpoints
 {
-    public sealed record ReadRequest(long UpTo);
+    /// <param name="UpTo">Everything up to this one (Mark all read).</param>
+    /// <param name="Id">Just this one (it was opened).</param>
+    public sealed record ReadRequest(long UpTo, long? Id = null);
     public sealed record ChannelRequest(string Name, string Type, string? Url, string? Mention, bool Enabled, List<string>? Events, List<string>? Scope);
 
     public static void Map(RouteGroupBuilder api)
@@ -21,7 +23,7 @@ public static class NotificationEndpoints
             var user = ctx.CurrentUser(http)!;
             return Results.Json(new
             {
-                items = centre.For(user, limit ?? 100).Select(NotificationCentre.ToDto),
+                items = centre.For(user, limit ?? 100).Select(e => NotificationCentre.ToDto(e, centre.IsRead(user, e.Id))),
                 unread = centre.Unread(user),
                 readUpTo = centre.ReadUpTo(user),
             });
@@ -30,7 +32,7 @@ public static class NotificationEndpoints
         signedIn.MapPost("/read", (HttpContext http, AgentContext ctx, NotificationCentre centre, ReadRequest body) =>
         {
             var user = ctx.CurrentUser(http)!;
-            centre.MarkRead(user, body.UpTo);
+            if (body.Id is long one) { centre.MarkOneRead(user, one); } else { centre.MarkRead(user, body.UpTo); }
             return Results.Json(new { unread = centre.Unread(user) });
         });
 

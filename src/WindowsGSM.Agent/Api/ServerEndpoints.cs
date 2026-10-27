@@ -215,8 +215,24 @@ public static class ServerEndpoints
         }).Needs(Capability.EditConfig);
 
         server.MapGet("/readiness", (HttpContext http, AgentContext ctx) =>
-            Results.Json(ctx.Engine.Readiness.CheckServer(Scopes.Server(http).Id)
-                .Select(c => new ReadinessCheckDto(c.Scope, c.Name, c.Status.ToString(), c.Message, c.Action)))).Needs(Capability.EditConfig);
+        {
+            string id = Scopes.Server(http).Id;
+            var checks = ctx.Engine.Readiness.CheckServer(id).ToList();
+            // Its game runs as administrator, outside WindowsGSM's reach (see LifecycleService.AdminOwned).
+            if (ctx.Engine.Lifecycle.AdminOwned.TryGetValue(id, out int pid) && ctx.Engine.Servers.Get(id)?.Process == null)
+            {
+                bool alive;
+                try { using var p = System.Diagnostics.Process.GetProcessById(pid); alive = true; } catch { alive = false; }
+                if (alive)
+                {
+                    checks.Insert(0, new WindowsGSM.Engine.Services.ReadinessCheck("Server", "Running outside WindowsGSM", WindowsGSM.Engine.Services.CheckStatus.Warning,
+                        $"The game is running (PID {pid}) as administrator — started by the old WindowsGSM, or from an administrator window — and WindowsGSM isn't, " +
+                        "so it can't control it. Stop it there (or close its window), then start it from here; or run WindowsGSM as administrator."));
+                }
+                else { ctx.Engine.Lifecycle.AdminOwned.TryRemove(id, out _); }
+            }
+            return Results.Json(checks.Select(c => new ReadinessCheckDto(c.Scope, c.Name, c.Status.ToString(), c.Message, c.Action)));
+        }).Needs(Capability.EditConfig);
 
         // Install a runtime the server needs (Visual C++, DirectX: for all of Windows, so admins only; .NET: into
         // WindowsGSM's own folder). Runs as a job; the health check shows the result.

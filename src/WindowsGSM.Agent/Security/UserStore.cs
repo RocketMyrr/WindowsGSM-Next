@@ -137,15 +137,18 @@ public sealed class UserStore
     /// Checks a sign-in. Wrong passwords (and wrong codes) count towards a 5-minute lockout; while locked out
     /// even the right password fails, and the answer is the same as for a wrong one.
     /// </summary>
-    public LoginOutcome Validate(string username, string password, string? code, out AgentUser? user)
+    /// <param name="ip">Where the attempt came from. NEXT: wrong guesses lock that name from that address only — locked
+    /// by name alone, anyone could keep the owner out of an internet-facing panel with a guess a minute.</param>
+    public LoginOutcome Validate(string username, string password, string? code, out AgentUser? user, string? ip = null)
     {
         user = null;
         if (string.IsNullOrWhiteSpace(username) || password == null) { return LoginOutcome.BadCredentials; }
         var now = Clock();
         string? hash;
+        string lockKey = ip == null ? username : $"{username}|{ip}";
         lock (_gate)
         {
-            if (_lockouts.TryGetValue(username, out var lk) && now < lk.until) { return LoginOutcome.BadCredentials; }
+            if (_lockouts.TryGetValue(lockKey, out var lk) && now < lk.until) { return LoginOutcome.BadCredentials; }
             hash = Find(username)?.PasswordHash;
         }
         // The slow part runs outside the lock (every request reads accounts), and always runs — against a dummy
@@ -159,7 +162,7 @@ public sealed class UserStore
             // The account may have changed meanwhile (password reset, disabled): only the hash that was checked counts.
             if (!passwordOk || u == null || !u.Enabled || u.PasswordHash != hash)
             {
-                Fail(username, now);
+                Fail(lockKey, now);
                 return LoginOutcome.BadCredentials;
             }
 
@@ -168,14 +171,14 @@ public sealed class UserStore
                 if (string.IsNullOrWhiteSpace(code)) { return LoginOutcome.TwoFactorRequired; }
                 if (!Totp.Verify(u.TotpSecret, code, out long step) || step <= u.LastTotpStep)
                 {
-                    Fail(username, now);
+                    Fail(lockKey, now);
                     return LoginOutcome.BadCode;
                 }
                 u.LastTotpStep = step;
                 Save();
             }
 
-            _lockouts.Remove(username);
+            _lockouts.Remove(lockKey);
             if (upgraded != null) { u.PasswordHash = upgraded; Save(); } // stronger hashing from now on
             user = u.Clone();
             return LoginOutcome.Ok;
@@ -248,7 +251,9 @@ public sealed class UserStore
             u.PasswordHash = PasswordHasher.Hash(newPassword);
             u.Enabled = true;
             if (disableTwoFactor) { u.TwoFactorEnabled = false; u.TotpSecret = null; }
-            _lockouts.Remove(u.Username);
+            // lockouts are kept per name|address — clear the name's from every address
+            foreach (var k in _lockouts.Keys.Where(k => k.Equals(u.Username, StringComparison.OrdinalIgnoreCase)
+                || k.StartsWith(u.Username + "|", StringComparison.OrdinalIgnoreCase)).ToList()) { _lockouts.Remove(k); }
             Save();
             return null;
         }
@@ -398,6 +403,19 @@ public sealed class UserStore
     /// become owners (they had every right, including managing users); members keep their per-server
     /// permissions as grants on this machine, and "may install" becomes an Install grant.
     /// </summary>
+    /// <summary>A server was deleted: permissions on it go, so a new server given the same number doesn't inherit them.</summary>
+    public bool ForgetServer(string machine, string server)
+    {
+        string scope = Roles.Scope(machine, server);
+        lock (_gate)
+        {
+            bool changed = false;
+            foreach (var u in _users) { changed |= u.Grants.Remove(scope); }
+            if (changed) { Save(); }
+            return changed;
+        }
+    }
+
     public int ImportLegacy(string legacyUsersFile, string machineId)
     {
         if (!File.Exists(legacyUsersFile)) { return 0; }

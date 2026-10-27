@@ -18,7 +18,7 @@ public class NotificationTests
 
     private NotificationChannels Channels => _f.App.Services.GetRequiredService<NotificationChannels>();
 
-    private sealed record Item(long Id, string Kind, string Severity, string Title, string Text, string Machine, string? Server, string? ServerName);
+    private sealed record Item(long Id, string Kind, string Severity, string Title, string Text, string Machine, string? Server, string? ServerName, bool Read = false);
     private sealed record Page(List<Item> Items, int Unread, long ReadUpTo);
     private sealed record ChannelDto(string Id, string Name, string Type, string Url, bool Enabled, List<string> Events, List<string> Scope, string? LastError);
 
@@ -53,6 +53,38 @@ public class NotificationTests
         var read = await ApiClient.Read<JsonElement>(await friend.PostAsync("/api/v2/notifications/read", new { upTo = theirs.Items.Max(i => i.Id) }));
         Assert.Equal(0, read.GetProperty("unread").GetInt32());
         Assert.True((await _f.Owner.GetJsonAsync<Page>("/api/v2/notifications")).Unread >= 1);
+    }
+
+    [Fact]
+    public async Task One_can_be_opened_without_marking_the_rest_and_another_machines_own_notices_reach_the_hub()
+    {
+        string marker = "one-" + Guid.NewGuid().ToString("N")[..6];
+        var reader = await _f.UserAsync("notifyone", Role.Admin);
+        int before = (await reader.GetJsonAsync<Page>("/api/v2/notifications")).Unread;
+        _f.Engine.Events.Publish(new ServerAlert("101", AlertKind.Crashed, $"A {marker}", "x"));
+        _f.Engine.Events.Publish(new ServerAlert("102", AlertKind.Crashed, $"B {marker}", "x"));
+        Page page = null!;
+        await EngineFixture.WaitUntil(() => (page = reader.GetJsonAsync<Page>("/api/v2/notifications").GetAwaiter().GetResult()).Items.Count(i => i.Title.Contains(marker)) == 2, "both recorded");
+        var a = page.Items.First(i => i.Title.Contains("A " + marker));
+        Assert.False(a.Read);
+
+        await reader.PostAsync("/api/v2/notifications/read", new { upTo = 0, id = a.Id });
+        page = await reader.GetJsonAsync<Page>("/api/v2/notifications");
+        Assert.True(page.Items.First(i => i.Id == a.Id).Read);
+        Assert.False(page.Items.First(i => i.Title.Contains("B " + marker)).Read);
+        Assert.Equal(before + 1, page.Unread);
+
+        // A member machine's own notice (its agent crashed) is relayed to the hub and kept; ones made from its alerts aren't taken twice.
+        var stream = _f.App.Services.GetRequiredService<WindowsGSM.Agent.Realtime.EventStream>();
+        stream.PublishRemote("m-elsewhere", "remoteNotification", "alerts", null, WindowsGSM.Agent.Realtime.Visibility.Admin,
+            new { id = 7, kind = "appCrash", title = $"Agent crashed {marker}", text = "x" }, DateTimeOffset.UtcNow);
+        stream.PublishRemote("m-elsewhere", "remoteNotification", "alerts", "5", WindowsGSM.Agent.Realtime.Visibility.Admin,
+            new { id = 8, kind = "crashed", title = $"Dup {marker}", text = "x", server = "5" }, DateTimeOffset.UtcNow);
+        await EngineFixture.WaitUntil(() => reader.GetJsonAsync<Page>("/api/v2/notifications").GetAwaiter().GetResult().Items.Any(i => i.Title == $"Agent crashed {marker}" && i.Machine == "m-elsewhere"), "the relayed notice");
+        Assert.DoesNotContain((await reader.GetJsonAsync<Page>("/api/v2/notifications")).Items, i => i.Title.Contains("Dup " + marker));
+
+        await reader.PostAsync("/api/v2/notifications/read", new { upTo = long.MaxValue });
+        Assert.Equal(0, (await reader.GetJsonAsync<Page>("/api/v2/notifications")).Unread);
     }
 
     [Fact]

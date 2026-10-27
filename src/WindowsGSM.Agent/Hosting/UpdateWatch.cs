@@ -23,7 +23,7 @@ public sealed class UpdateWatch : IDisposable
     private readonly AgentContext _ctx;
     private readonly NotificationCentre _notifications;
     private readonly ConcurrentDictionary<string, Result> _results = new();
-    private readonly ConcurrentDictionary<string, string> _announced = new(); // server → remote build we notified about
+    private readonly ConcurrentDictionary<string, string> _announced = new(); // server → installed build we said is behind
     private readonly IDisposable _subscription;
     private readonly CancellationTokenSource _stop = new();
     private readonly SemaphoreSlim _checking = new(1, 1);
@@ -82,9 +82,12 @@ public sealed class UpdateWatch : IDisposable
             {
                 _ctx.Engine.Events.Publish(new ServerConfigChanged(id, new[] { "update-available" }));
             }
-            if (result.Available && result.RemoteBuild != null && _announced.GetValueOrDefault(id) != result.RemoteBuild)
+            // Once per installed build: branches like Rust staging publish several builds a day, and "you're behind" said
+            // once is enough until the server updates.
+            string behind = result.LocalBuild ?? "";
+            if (result.Available && result.RemoteBuild != null && _announced.GetValueOrDefault(id) != behind)
             {
-                _announced[id] = result.RemoteBuild;
+                _announced[id] = behind;
                 var s = _ctx.Engine.Servers.Get(id);
                 if (s != null && !WindowsGSM.Engine.Services.UpdateService.IsHeld(s)) // rolled back on purpose: don't nag
                 {

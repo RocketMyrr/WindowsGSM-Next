@@ -277,7 +277,7 @@ select.input { appearance: none; padding-right: 32px; background-image: linear-g
 .list-item.clickable:hover { background: var(--raised); }
 
 .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 48px 20px; text-align: center; color: var(--text-2); }
-.empty .ico { width: 36px; height: 36px; color: var(--text-3); }
+.empty > .ico { width: 36px; height: 36px; color: var(--text-3); }
 .empty h2, .empty h3 { font-size: var(--fs-md); font-weight: 600; color: var(--text); }
 .empty p { max-width: 420px; font-size: var(--fs-sm); }
 

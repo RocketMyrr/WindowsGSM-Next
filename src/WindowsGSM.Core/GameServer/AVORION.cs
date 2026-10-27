@@ -101,7 +101,8 @@ namespace WindowsGSM.GameServer
             {
                 if (p.StartInfo.RedirectStandardInput)
                 {
-                    p.Kill();
+                    // NEXT: was a kill, losing everything since the last autosave. The engine has already sent /save.
+                    p.StandardInput.WriteLine("/stop");
                 }
                 else
                 {

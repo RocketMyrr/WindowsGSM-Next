@@ -62,13 +62,13 @@ namespace WindowsGSM.Engine.Services
             string rel = Relative(id, full);
 
             byte[] head = ReadChunk(full, 0, (int)Math.Min(info.Length, 8000));
-            if (head.Take(8000).Any(b => b == 0))
+            if (!TextCodec.HasUtf16Bom(head) && head.Take(8000).Any(b => b == 0))
             {
                 return new TextFile(rel, info.Name, info.Length, info.LastWriteTimeUtc, null, true, true, "Binary file — download it to view.");
             }
             if (info.Length <= MaxEditableBytes)
             {
-                return new TextFile(rel, info.Name, info.Length, info.LastWriteTimeUtc, Encoding.UTF8.GetString(ReadAll(full)), false, false, null);
+                return new TextFile(rel, info.Name, info.Length, info.LastWriteTimeUtc, TextCodec.Decode(ReadAll(full)).Text, false, false, null);
             }
 
             string text = Encoding.UTF8.GetString(ReadChunk(full, info.Length - TailViewBytes, (int)TailViewBytes));
@@ -92,8 +92,10 @@ namespace WindowsGSM.Engine.Services
                 throw new FileOperationException("The file changed on disk since you opened it. Reload it, then make your change again.", FileProblem.Conflict);
             }
 
+            // Saved as it was: the same encoding and line endings.
+            var (original, encoding) = TextCodec.Decode(ReadAll(full));
             string temp = full + ".wgsm-save";
-            await File.WriteAllTextAsync(temp, content ?? string.Empty, new UTF8Encoding(false), cancellation).ConfigureAwait(false);
+            await File.WriteAllTextAsync(temp, TextCodec.KeepLineEndings(original, content ?? string.Empty), encoding, cancellation).ConfigureAwait(false);
             File.Move(temp, full, overwrite: true);
         }
 

@@ -164,7 +164,7 @@
 .notif-day:first-child { padding-top: 6px; }
 .notif-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 20px; align-items: start; }
 .empty.compact { padding: 28px 16px; gap: 6px; }
-.empty.compact .ico { width: 26px; height: 26px; }
+.empty.compact > .ico { width: 26px; height: 26px; }
 
 .channel-row.paused { opacity: 0.65; }
 .channel-main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }

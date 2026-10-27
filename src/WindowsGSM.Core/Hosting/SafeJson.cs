@@ -85,8 +85,59 @@ namespace WindowsGSM.Hosting
         /// Writes <paramref name="value"/> atomically, keeping the file it replaces as <c>&lt;file&gt;.bak</c>.
         /// Serializes first, so a value that can't be written never touches the files.
         /// </summary>
-        public static void Write<T>(string file, T value, JsonSerializerOptions? options = null) =>
-            WriteText(file, JsonSerializer.SerializeToUtf8Bytes(value, options ?? Plain));
+        public static void Write<T>(string file, T value, JsonSerializerOptions? options = null)
+        {
+            var o = options ?? Plain;
+            WriteText(file, KeepUnknown(file, JsonSerializer.SerializeToUtf8Bytes(value, o), value?.GetType() ?? typeof(T), o));
+        }
+
+        /// <summary>
+        /// Carries over properties a newer version wrote that this one doesn't know: after Updates → Go back, saving
+        /// a setting here would otherwise drop them, and updating again would find them reset. Only names the type
+        /// doesn't have are kept — a known property this version left out, or a removed dictionary key, stays removed.
+        /// List items aren't matched up, so new fields inside them aren't kept.
+        /// </summary>
+        private static byte[] KeepUnknown(string file, byte[] written, Type type, JsonSerializerOptions o)
+        {
+            try
+            {
+                if (!File.Exists(file)) { return written; }
+                var old = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(file), null,
+                    new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+                var now = System.Text.Json.Nodes.JsonNode.Parse(written);
+                if (!Merge(old, now, o.GetTypeInfo(type), o)) { return written; }
+                return System.Text.Encoding.UTF8.GetBytes(now!.ToJsonString(new JsonSerializerOptions { WriteIndented = o.WriteIndented, Encoder = o.Encoder }));
+            }
+            catch { return written; } // an unreadable old file has nothing to keep
+        }
+
+        private static bool Merge(System.Text.Json.Nodes.JsonNode? old, System.Text.Json.Nodes.JsonNode? now,
+            System.Text.Json.Serialization.Metadata.JsonTypeInfo info, JsonSerializerOptions o)
+        {
+            if (old is not System.Text.Json.Nodes.JsonObject before || now is not System.Text.Json.Nodes.JsonObject after) { return false; }
+            bool changed = false;
+            if (info.Kind == System.Text.Json.Serialization.Metadata.JsonTypeInfoKind.Object)
+            {
+                foreach (var (name, value) in before.ToList())
+                {
+                    var prop = info.Properties.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+                    if (prop == null)
+                    {
+                        if (!after.ContainsKey(name)) { after[name] = value?.DeepClone(); changed = true; }
+                    }
+                    else if (after[prop.Name] is { } inner) { changed |= Merge(value, inner, o.GetTypeInfo(prop.PropertyType), o); }
+                }
+            }
+            else if (info.Kind == System.Text.Json.Serialization.Metadata.JsonTypeInfoKind.Dictionary && info.ElementType != null)
+            {
+                var element = o.GetTypeInfo(info.ElementType);
+                foreach (var (key, value) in before.ToList())
+                {
+                    if (after[key] is { } inner) { changed |= Merge(value, inner, element, o); }
+                }
+            }
+            return changed;
+        }
 
         /// <summary>The same for text produced some other way (Newtonsoft…).</summary>
         public static void WriteText(string file, string text) => WriteText(file, new System.Text.UTF8Encoding(false).GetBytes(text));

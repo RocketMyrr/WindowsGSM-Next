@@ -447,7 +447,7 @@ which ports to forward), and for Steam games Steam's `GetServersAtAddress` — t
   single-file temp extraction**. The app is published **self-contained** (win-x64), so no runtime needs
   installing; the plugin compiler finds its reference assemblies in the folder (`refs\`, verified by
   compiling a plugin from a published build).
-- `WindowsGSM.exe` at the top is a **.NET Framework 4.8 launcher** (part of Windows, ~0.5 MB): it starts
+- `WindowsGSM.exe` at the top is a **.NET Framework 4.6.2 launcher** (part of Windows, ~0.5 MB): it starts
   `versions\<current>\` with `--data` and tells it where the install is (`WGSM_LAUNCHER`,
   `WGSM_INSTALL_ROOT`). Startup entries (Run key, the agent's sign-in task) point at the launcher, so they
   survive version switches. Run from a fresh download, the launcher is **setup** (install folder, data

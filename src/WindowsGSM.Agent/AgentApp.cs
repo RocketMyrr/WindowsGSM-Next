@@ -176,6 +176,7 @@ public static class AgentApp
         builder.Services.AddSingleton(sp => new Notifications.NotificationChannels(context, sp.GetRequiredService<Notifications.NotificationCentre>(),
             new HttpClient { Timeout = TimeSpan.FromSeconds(20) }, options.Log));
         builder.Services.AddSingleton(_ => new RestartWarnings(context));
+        builder.Services.AddSingleton(sp => new LegacyAppWatch(context, sp.GetRequiredService<Notifications.NotificationCentre>()));
         builder.Services.AddSingleton(sp => new SelfUpdate(context, sp.GetRequiredService<Notifications.NotificationCentre>(), options.Log));
         builder.Services.AddSingleton(_ => new PortForwarding(context));
         builder.Services.AddSingleton(_ => new ServerTemplates(context));
@@ -271,7 +272,24 @@ public static class AgentApp
         _ = app.Services.GetRequiredService<MetricsHistory>();
         _ = app.Services.GetRequiredService<GamePerformance>(); // asks games for server FPS / TPS each minute
         app.Services.GetRequiredService<UpdateWatch>().Start();
-        _ = app.Services.GetRequiredService<RestartWarnings>();
+        var warnings = app.Services.GetRequiredService<RestartWarnings>();
+        // NEXT: a deleted server's permissions go (here and, on a hub, for its machines' servers), so a new server given
+        // the same number doesn't inherit who could control the old one.
+        app.Services.GetRequiredService<EventStream>().Published += e =>
+        {
+            if (e.Type != "serverList" || e.Server == null) { return; }
+            try
+            {
+                var d = e.Data is System.Text.Json.JsonElement el ? el : System.Text.Json.JsonSerializer.SerializeToElement(e.Data, EventStream.Json);
+                if (!(d.ValueKind == System.Text.Json.JsonValueKind.Object && d.TryGetProperty("removed", out var r) && r.ValueKind == System.Text.Json.JsonValueKind.True)) { return; }
+                context.Users.ForgetServer(e.Machine, e.Server);
+                app.Services.GetRequiredService<Discord.DiscordBotService>().ForgetServer(e.Machine, e.Server);
+                app.Services.GetRequiredService<Notifications.NotificationChannels>().ForgetServer(e.Machine, e.Server);
+            }
+            catch (Exception ex) { options.Log($"Couldn't remove permissions for deleted server {e.Machine}/{e.Server}: {ex.Message}"); }
+        };
+        engine.Scheduler.BeforeAutoUpdate = s => warnings.CountDownAsync(s.Id, WindowsGSM.Engine.Services.ScheduledAction.Update);
+        _ = app.Services.GetRequiredService<LegacyAppWatch>();
         // A hub tells about its other machines' updates too (when it checks, and when one connects).
         var selfUpdate = app.Services.GetRequiredService<SelfUpdate>();
         {
@@ -293,7 +311,9 @@ public static class AgentApp
             var addresses = app.Services.GetService<Microsoft.AspNetCore.Hosting.Server.IServer>()?.Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>()?.Addresses;
             string? internalAddress = addresses?.FirstOrDefault(a => a.StartsWith("http://127.0.0.1:") && !a.EndsWith(":" + settings.Port));
             if (internalAddress != null) { localBase = new Uri(internalAddress + "/"); }
-            app.Services.GetRequiredService<Hub.MemberLink>().Start();
+            var member = app.Services.GetRequiredService<Hub.MemberLink>();
+            member.Notifications = app.Services.GetRequiredService<Notifications.NotificationCentre>();
+            member.Start();
             _ = app.Services.GetRequiredService<Discord.DiscordBotService>().StartAsync();
         });
         app.Lifetime.ApplicationStopping.Register(() => app.Services.GetRequiredService<Hub.MemberLink>().StopAsync().GetAwaiter().GetResult());

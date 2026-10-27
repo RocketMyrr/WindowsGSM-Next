@@ -8,6 +8,8 @@ internal static class TestData
     private static readonly Lazy<string> _root = new(() =>
     {
         string dir = Path.Combine(Path.GetTempPath(), "wgsm-next-tests-" + Environment.ProcessId);
+        // Windows reuses process ids: an earlier run's folder with this id (its accounts, servers…) must not be picked up.
+        if (Directory.Exists(dir)) { DeleteDirectory(dir); }
         WgsmEnvironment.Initialize(dir);
         return dir;
     });

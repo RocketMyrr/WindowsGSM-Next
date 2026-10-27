@@ -10,6 +10,25 @@ namespace WindowsGSM.Agent.Api;
 /// <summary>Machines, games, installing, the server list, jobs and live questions.</summary>
 public static class MachineEndpoints
 {
+    /// <summary>
+    /// NEXT: the panel reachable from other computers: without HTTPS, passwords cross the network readable; an admin
+    /// signing in with a password alone is one guessed password from control of the PC.
+    /// </summary>
+    internal static IEnumerable<WindowsGSM.Engine.Services.ReadinessCheck> PanelSafety(AgentContext ctx)
+    {
+        var s = ctx.Settings;
+        if (!s.ExposeToNetwork && !s.AcmeEnabled) { yield break; }
+        bool https = s.UseHttps || s.AcmeEnabled;
+        yield return new("App", "Panel encryption", https ? WindowsGSM.Engine.Services.CheckStatus.Pass : WindowsGSM.Engine.Services.CheckStatus.Warning,
+            https ? "Other computers reach the panel over HTTPS." : "The panel is reachable from other computers without HTTPS — passwords and everything else cross the network readable. Turn on HTTPS in Settings (Let's Encrypt if it's on the internet).");
+        var weak = ctx.Users.All().Where(u => u.Enabled && u.IsAdmin && !u.TwoFactorEnabled && u.Passkeys.Count == 0).Select(u => u.Username).ToList();
+        if (weak.Count > 0)
+        {
+            yield return new("App", "Admin sign-in", WindowsGSM.Engine.Services.CheckStatus.Warning,
+                $"Reachable from other computers, and {string.Join(", ", weak.Take(5))}{(weak.Count > 5 ? "…" : "")} sign{(weak.Count == 1 ? "s" : "")} in as an admin with a password alone. Add two-factor sign-in or a passkey (Your account).");
+        }
+    }
+
     public static void Map(RouteGroupBuilder api)
     {
         // The machine list: just this agent for now; a hub (Phase 5) adds the machines it relays.
@@ -66,7 +85,8 @@ public static class MachineEndpoints
         machine.MapGet("/readiness", async (HttpContext http, AgentContext ctx, bool? network) =>
         {
             if (!ctx.CurrentUser(http)!.IsAdmin) { return ApiResults.Forbidden(); }
-            var checks = await ctx.Engine.Readiness.CheckMachineAsync(network ?? true);
+            var checks = (await ctx.Engine.Readiness.CheckMachineAsync(network ?? true)).ToList();
+            checks.AddRange(PanelSafety(ctx));
             return Results.Json(checks.Select(c => new ReadinessCheckDto(c.Scope, c.Name, c.Status.ToString(), c.Message)));
         });
 

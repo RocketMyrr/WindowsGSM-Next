@@ -152,7 +152,7 @@ public sealed class EventStream : IDisposable
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(http.RequestAborted);
         try
         {
-            await SendAsync(socket, Envelope("hello", new { seq = CurrentSeq, machine = _ctx.MachineId, user = user.Username }), stop.Token);
+            await SendAsync(socket, Envelope("hello", new { seq = CurrentSeq, machine = _ctx.MachineId, user = user.Username, version = WindowsGSM.Hosting.WgsmEnvironment.Version }), stop.Token);
             var sending = SendLoopAsync(socket, client, stop.Token);
             var watching = WatchSessionAsync(socket, client, stop.Token);
             await ReceiveLoopAsync(socket, client, stop.Token);

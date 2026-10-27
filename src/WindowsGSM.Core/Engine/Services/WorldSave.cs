@@ -28,6 +28,7 @@ namespace WindowsGSM.Engine.Services
             ["380870"] = ("save", 10),             // Project Zomboid
             ["105600"] = ("save", 10),             // Terraria
             ["1110390"] = ("save", 5),             // Unturned
+            ["565060"] = ("/save", 10),            // Avorion
             ["443030"] = ("", 0),                  // Conan Exiles: saves on shutdown
         };
 

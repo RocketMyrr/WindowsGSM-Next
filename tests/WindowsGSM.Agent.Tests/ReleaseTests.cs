@@ -150,6 +150,14 @@ public class ReleaseTests
             Assert.True(update.Available);
             Assert.Equal("2.0.1", update.Latest!.Version); // the pre-release is skipped when they're off
 
+            // A restore (or any job) running: the restart would cut it off, so not now.
+            var release = new TaskCompletionSource();
+            var job = _f.Context.Engine.Jobs.Start("restore", null, "Restore Test server", async _ => { await release.Task; return null; });
+            Assert.Contains("Restore Test server", await update.ApplyAsync(() => Task.CompletedTask));
+            Assert.Empty(handovers);
+            release.SetResult();
+            await job.Completion;
+
             Assert.Null(await update.ApplyAsync(() => Task.CompletedTask));
             Assert.Equal("agent 2.0.1", File.ReadAllText(Path.Combine(root, "versions", "2.0.1", "wgsm-agent.exe")));
             Assert.True(File.Exists(Path.Combine(root, "versions", "2.0.1", "refs", "System.Runtime.dll")));

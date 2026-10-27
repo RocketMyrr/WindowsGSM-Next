@@ -103,6 +103,17 @@ public sealed class NotificationChannels : IDisposable
         return null;
     }
 
+    /// <summary>A server was deleted: channels picked for just that server stop covering its number.</summary>
+    public void ForgetServer(string machine, string server)
+    {
+        lock (_gate)
+        {
+            bool changed = false;
+            foreach (var c in _channels) { changed |= c.Scope.RemoveAll(s => string.Equals(s, $"{machine}/{server}", StringComparison.OrdinalIgnoreCase)) > 0; }
+            if (changed) { SaveFile(); }
+        }
+    }
+
     public bool Remove(string id)
     {
         lock (_gate)

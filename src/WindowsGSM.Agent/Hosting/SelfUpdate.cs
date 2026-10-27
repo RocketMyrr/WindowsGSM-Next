@@ -149,12 +149,23 @@ public sealed class SelfUpdate : IDisposable
 
     // ───────────────────────────── Installing ─────────────────────────────
 
+    /// <summary>
+    /// Why the agent can't restart right now (a restore, backup, install or update would be cut off half-way), or null.
+    /// </summary>
+    public string? BusyWith()
+    {
+        var running = _ctx.Engine.Jobs.Snapshot().Where(j => j.Status == WindowsGSM.Engine.Operations.JobStatus.Running).Select(j => j.Title).ToList();
+        return running.Count == 0 ? null
+            : $"Wait for {(running.Count == 1 ? "this" : "these")} to finish first — restarting WindowsGSM now would cut {(running.Count == 1 ? "it" : "them")} off: {string.Join(", ", running.Take(5))}{(running.Count > 5 ? "…" : "")}.";
+    }
+
     /// <summary>Downloads, verifies and unpacks the latest release, then hands over to the launcher. Returns an error or null.</summary>
     public async Task<string?> ApplyAsync(Func<Task> stopAgent)
     {
         if (!Installed) { return "This copy wasn't installed with setup, so it can't update itself."; }
         if (Latest == null || !Available) { return "There's no newer version to install."; }
         if (!await _busy.WaitAsync(0)) { return "An update is already in progress."; }
+        if (BusyWith() is string busy) { _busy.Release(); return busy; }
         var release = Latest;
         try
         {
@@ -188,6 +199,7 @@ public sealed class SelfUpdate : IDisposable
     {
         if (!Installed) { return "This copy wasn't installed with setup."; }
         if (Previous == null) { return "There's no previous version to go back to."; }
+        if (BusyWith() is string busy) { return busy; }
         State = UpdateState.Restarting;
         _log($"Going back to {Previous}: restarting the agent (game servers keep running).");
         HandOver(new[] { "--rollback" }, stopAgent);

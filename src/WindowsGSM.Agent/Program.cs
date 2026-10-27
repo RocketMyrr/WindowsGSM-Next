@@ -71,6 +71,12 @@ CrashLog.Install(dataRoot, "agent");
 // can show and hide (an agent run from a terminal keeps sharing that terminal instead).
 WindowsGSM.Functions.ConsoleHost.Enable();
 
+// A captured game console is read through anonymous pipes, which Windows can't read asynchronously: each of a server's
+// two streams holds a pool thread in a blocking read. The pool adds threads only slowly past its minimum, so with a
+// few dozen servers every web request queued behind them (a 40-server test answered in 8–30 s). Let it grow at once.
+System.Threading.ThreadPool.GetMinThreads(out int minWorkers, out int minIo);
+System.Threading.ThreadPool.SetMinThreads(Math.Max(minWorkers, 2 * WgsmEnvironment.MaxServers + 64), minIo);
+
 WgsmEngine engine;
 try { engine = await WgsmEngine.StartAsync(dataRoot); }
 catch (DataRootInUseException ex) { Say(ex.Message); return 2; }
@@ -107,6 +113,7 @@ using (engine)
 
     engine.StartBackgroundServices(autoStartServers: !args.Contains("--no-autostart"));
     CrashLog.ReportPrevious(dataRoot, app.Services.GetRequiredService<WindowsGSM.Agent.Notifications.NotificationCentre>(), settings.MachineId);
+    CrashLog.ReportFallback(dataRoot, app.Services.GetRequiredService<WindowsGSM.Agent.Notifications.NotificationCentre>(), settings.MachineId);
 
     var stopping = new TaskCompletionSource();
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; stopping.TrySetResult(); };

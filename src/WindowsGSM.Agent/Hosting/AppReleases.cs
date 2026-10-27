@@ -167,8 +167,18 @@ public static class AppReleases
             }
             string old = launcher + ".old";
             if (File.Exists(old)) { old = $"{launcher}.{DateTime.UtcNow:yyyyMMddHHmmss}.old"; }
+            // Written beside it first, then swapped by renames: there's never a moment without a WindowsGSM.exe
+            // (shortcuts and start-with-Windows point at it), and a failure puts the old one back.
+            string fresh = launcher + ".new";
+            File.WriteAllBytes(fresh, newLauncher);
             File.Move(launcher, old);
-            File.WriteAllBytes(launcher, newLauncher);
+            try { File.Move(fresh, launcher); }
+            catch
+            {
+                File.Move(old, launcher);
+                try { File.Delete(fresh); } catch { /* left over; harmless */ }
+                throw;
+            }
         }
     }
 

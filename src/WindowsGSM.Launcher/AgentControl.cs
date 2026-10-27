@@ -38,6 +38,38 @@ namespace WindowsGSM.Launcher
             return IsRunning(url) ? Stop(install, url) : null;
         }
 
+        /// <summary>
+        /// After an update: whether the agent just started answers within <paramref name="limit"/>. False when it
+        /// exits, or never answers (the launcher then goes back to the version that worked).
+        /// </summary>
+        public static bool CameUp(Install install, Process agent, TimeSpan limit)
+        {
+            TrustLocalAgent();
+            Uri url = AgentUrl(install.Data);
+            var until = DateTime.UtcNow + limit;
+            while (DateTime.UtcNow < until)
+            {
+                Thread.Sleep(2000);
+                bool exited;
+                try { exited = agent.HasExited; } catch { exited = true; }
+                if (exited) { return false; }
+                if (IsRunning(url)) { return true; }
+            }
+            return false;
+        }
+
+        /// <summary>The agent says so in its notifications on its next start (it reads and removes this file).</summary>
+        public static void NoteFallback(Install install, string failed, string back)
+        {
+            try
+            {
+                string file = Path.Combine(install.Data, "logs", "update-fallback.txt");
+                Directory.CreateDirectory(Path.GetDirectoryName(file));
+                File.WriteAllText(file, DateTimeOffset.Now.ToString("o") + "\n" + failed + "\n" + back);
+            }
+            catch { /* the log still has it */ }
+        }
+
         public static int Run(Install install, string action, bool quiet, string waitPid)
         {
             TrustLocalAgent();

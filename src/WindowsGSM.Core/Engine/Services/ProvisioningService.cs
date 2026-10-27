@@ -122,7 +122,7 @@ namespace WindowsGSM.Engine.Services
                             if (p != null)
                             {
                                 Drain(p, job, output);
-                                await p.WaitForExitAsync(job.Cancellation).ConfigureAwait(false);
+                                await UpdateService.WaitOrEndAsync(p, job.Cancellation).ConfigureAwait(false);
                                 exitCode = p.ExitCode;
                             }
                         }
@@ -610,6 +610,9 @@ namespace WindowsGSM.Engine.Services
                     string id = n.ToString();
                     string dir = Path.Combine(WgsmEnvironment.DataRoot, "servers", id);
                     if (_reserved.Contains(id) || Directory.Exists(dir)) { continue; }
+                    // A deleted server's backups are kept under its number: a new server with that number would list them.
+                    string backups = Path.Combine(WgsmEnvironment.DataRoot, "backups", id);
+                    if (Directory.Exists(backups) && Directory.EnumerateFiles(backups, "*.zip", SearchOption.AllDirectories).Any()) { continue; }
                     Directory.CreateDirectory(dir);
                     _reserved.Add(id);
                     return id;

@@ -104,6 +104,35 @@ public class SafeJsonTests : IDisposable
         Assert.Equal(Colour.Green, SafeJson.Read<Settings>(F("ok.json"), Strings)!.Colour);
     }
 
+    public sealed class Holder
+    {
+        public Settings Inner { get; set; } = new();
+        public Dictionary<string, Settings> ByName { get; set; } = new();
+        public string? Optional { get; set; }
+    }
+
+    [Fact]
+    public void Saving_in_an_older_version_keeps_what_a_newer_one_wrote()
+    {
+        File.WriteAllText(F(), """
+            { "Inner": { "Name": "a", "NewInner": 5 }, "ByName": { "keep": { "Name": "k", "NewDeep": true }, "gone": { "Name": "g" } },
+              "Optional": "old", "NewTop": { "x": [1, 2] } }
+            """);
+        var h = SafeJson.Read<Holder>(F())!;
+        h.Inner.Name = "b";
+        h.ByName.Remove("gone");
+        h.Optional = null;
+        SafeJson.Write(F(), h);
+
+        var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(F()))!;
+        Assert.Equal("b", (string?)json["Inner"]!["Name"]);
+        Assert.Equal(5, (int)json["Inner"]!["NewInner"]!);                 // unknown fields survive, at any depth
+        Assert.True((bool)json["ByName"]!["keep"]!["NewDeep"]!);
+        Assert.Equal(2, json["NewTop"]!["x"]!.AsArray().Count);
+        Assert.Null(json["ByName"]!["gone"]);                               // a removed key stays removed
+        Assert.Null((string?)json["Optional"]);                             // a known value cleared stays cleared
+    }
+
     [Fact]
     public void Hand_edits_with_comments_trailing_commas_and_quoted_numbers_read()
     {

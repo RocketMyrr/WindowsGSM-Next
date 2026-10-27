@@ -56,7 +56,7 @@ export default async function settingsTab(host, { id, machine, key, server, scop
         return f;
     };
     const secret = (key, label, opts = {}) => text(key, label, { ...opts, type: "password" });
-    const onOff = (key, label, hint, help) => toggle(label, values[key] === "1", { hint, help, onChange: on => set(key, on ? "1" : "0") });
+    const onOff = (key, label, hint, help, byDefault = false) => toggle(label, values[key] === "1" || (byDefault && !values[key]), { hint, help, onChange: on => set(key, on ? "1" : "0") });
     const choice = (key, label, options, hint, help) => {
         const el = select(options, values[key] || options[0].value);
         el.addEventListener("change", () => set(key, el.value));
@@ -194,10 +194,10 @@ export default async function settingsTab(host, { id, machine, key, server, scop
                 hint: known ? `Leave empty to use “${known}”. “-” turns saving off.` : "Sent to the console (or RCON) before stopping. “-” turns it off." }),
             text("savewait", "Wait after saving (seconds)", { type: "number", placeholder: "10", help: "How long to give the game to finish writing its save before asking it to stop. Big worlds may need 30 or more." }),
             text("stoptimeout", "Wait for a clean shutdown (seconds)", { type: "number", placeholder: "30", hint: "Then the process is ended. Big worlds save on shutdown — give them time." })),
-        settings.stopsByKilling ? h("div", { class: "callout warn" }, icon("warn"), h("span", { text: "This game's plugin stops it by ending the process, which doesn't give the game a chance to save. Set a save command above, or turn on “Send Ctrl+C before the game's own stop” — most servers save and shut down properly on Ctrl+C." })) : null,
+        settings.stopsByKilling ? h("div", { class: "callout warn" }, icon("warn"), h("span", { text: "This game's plugin stops it by ending the process, which doesn't give the game a chance to save. So WindowsGSM sends it Ctrl+C first (below) — most servers save and shut down properly on Ctrl+C. A save command above helps too." })) : null,
         h("div", { class: "toggles" },
             onOff("stopctrlcfirst", "Send Ctrl+C before the game's own stop", "Waits for a clean shutdown (above) before the plugin's own way.",
-                ["Most game servers save and shut down properly when they get Ctrl+C. With this on, WindowsGSM sends it first and waits; only if the game is still running does the plugin's own stop follow.", "Worth turning on for games whose plugin just ends the process. Not for Force stop, which ends it at once."])));
+                ["Most game servers save and shut down properly when they get Ctrl+C. With this on, WindowsGSM sends it first and waits; only if the game is still running does the plugin's own stop follow.", "On by default for games whose plugin just ends the process. Not for Force stop, which ends it at once."], settings.stopsByKilling)));
 
     // The server's own scripts. Choosing one is for admins (it runs a program on this PC); .bat and .ps1 only.
     const admin = isAdmin();

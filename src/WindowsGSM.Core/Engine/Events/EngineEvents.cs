@@ -34,5 +34,5 @@ namespace WindowsGSM.Engine.Events
 
     public enum LogLevel { Info, Notice, Error }
 
-    public enum AlertKind { Crashed, AutoRestarted, CrashLoopSuspended, MemoryGuard, JoinCode, AutoStarted, ScheduledRestart, AutoUpdated, ServerIpChanged, Started, Other }
+    public enum AlertKind { Crashed, AutoRestarted, CrashLoopSuspended, MemoryGuard, JoinCode, AutoStarted, ScheduledRestart, AutoUpdated, ServerIpChanged, Started, ScheduleSkipped, Other }
 }

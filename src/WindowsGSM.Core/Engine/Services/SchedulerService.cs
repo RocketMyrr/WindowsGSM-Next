@@ -95,6 +95,22 @@ namespace WindowsGSM.Engine.Services
         /// <summary>How often running servers with auto-update are checked for a new build (legacy: 30 min).</summary>
         public TimeSpan AutoUpdateInterval { get; set; } = TimeSpan.FromMinutes(30);
 
+        /// <summary>
+        /// Before an automatic update stops a running server: the agent's player warnings ("updating in 5 minutes…"),
+        /// which finish when it's time. Null: straight away.
+        /// </summary>
+        public Func<ServerInstance, Task>? BeforeAutoUpdate { get; set; }
+        private readonly ConcurrentDictionary<string, bool> _countingDown = new ConcurrentDictionary<string, bool>();
+
+        /// <summary>A run this late (the PC slept, or WindowsGSM wasn't running) is skipped, not done hours after its time.</summary>
+        public static TimeSpan MissedAfter { get; set; } = TimeSpan.FromMinutes(2);
+
+        /// <summary>A backup, update or restart that found the server busy is tried again this often, this many times.</summary>
+        public static TimeSpan BusyRetry { get; set; } = TimeSpan.FromMinutes(3);
+        public const int BusyRetries = 3;
+        private readonly ConcurrentDictionary<string, int> _retries = new ConcurrentDictionary<string, int>();
+        private readonly ConcurrentDictionary<string, bool> _checkingUpdates = new ConcurrentDictionary<string, bool>();
+
         /// <summary>Supplies "now" — overridable so tests can move time instead of waiting for it.</summary>
         public Func<DateTime> Clock { get; set; } = () => DateTime.Now;
 
@@ -173,8 +189,12 @@ namespace WindowsGSM.Engine.Services
             foreach (var s in _servers.All.Where(s => s.State == ServerState.Stopped))
             {
                 s.ReloadConfig();
-                if (!s.Config.AutoStart) { continue; }
-                var request = _lifecycle.Start(s.Id, StartReason.AutoStart);
+                // NEXT: and ones that were running when WindowsGSM last saw them, with auto-restart on — after a Windows
+                // Update restart (or a crash while the agent was stopped) they stayed down unless auto-start was on too.
+                bool interrupted = !s.Config.AutoStart && s.Config.AutoRestart && _lifecycle.Interrupted.Contains(s.Id);
+                if (!s.Config.AutoStart && !interrupted) { continue; }
+                if (interrupted) { _log.Write(s.Id, "Auto-restart: it was running when WindowsGSM last saw it (the PC restarted?) — starting it again."); }
+                var request = _lifecycle.Start(s.Id, interrupted ? StartReason.AutoRestart : StartReason.AutoStart);
                 if (!request.Accepted) { _log.Write(s.Id, $"[NOTICE] Auto start skipped: {request.Error}"); }
             }
         }
@@ -201,11 +221,42 @@ namespace WindowsGSM.Engine.Services
                     }
                     if (now < due) { continue; }
                     _nextRun[key] = schedule.GetNextOccurrence(now);
+                    if (!Active(s, e)) { continue; }
 
-                    if (Active(s, e)) { await FireAsync(s, e).ConfigureAwait(false); }
+                    // NEXT: missed while the PC slept or the agent was down — a 6 am restart isn't done at 9 with players on.
+                    if (now - due > MissedAfter)
+                    {
+                        _log.Write(s.Id, $"[NOTICE] Scheduled {e.Action} for {due:g} was missed (the PC was asleep or WindowsGSM wasn't running) — skipped; next at {_nextRun[key]:g}.");
+                        continue;
+                    }
+
+                    bool busy = await FireAsync(s, e).ConfigureAwait(false);
+                    // NEXT: the server was busy (a restart or backup under way): try again shortly instead of losing the run.
+                    if (busy && e.Action is ScheduledAction.Backup or ScheduledAction.Update or ScheduledAction.Restart)
+                    {
+                        int tries = _retries.AddOrUpdate(key, 1, (_, n) => n + 1);
+                        if (tries <= BusyRetries) { _nextRun[key] = now + BusyRetry; }
+                        else
+                        {
+                            _retries.TryRemove(key, out _);
+                            _events.Publish(new Events.ServerAlert(s.Id, Events.AlertKind.ScheduleSkipped, $"{s.Name}: scheduled {e.Action.ToString().ToLowerInvariant()} didn't run",
+                                $"The server was busy each time it was tried (over {BusyRetries * BusyRetry.TotalMinutes:0} minutes). It runs again at its next scheduled time."));
+                        }
+                    }
+                    else { _retries.TryRemove(key, out _); }
                 }
 
-                await CheckAutoUpdateAsync(s).ConfigureAwait(false);
+                // NEXT: in the background — a slow answer from Steam held up every server's schedules.
+                if (_checkingUpdates.TryAdd(s.Id, true))
+                {
+                    var server = s;
+                    _ = Task.Run(async () =>
+                    {
+                        try { await CheckAutoUpdateAsync(server).ConfigureAwait(false); }
+                        catch (Exception ex) { _log.Write(server.Id, $"[NOTICE] Auto update check failed: {ex.Message}"); }
+                        finally { _checkingUpdates.TryRemove(server.Id, out _); }
+                    });
+                }
             }
         }
 
@@ -215,7 +266,8 @@ namespace WindowsGSM.Engine.Services
             _ => s.Config.RestartCrontab, // legacy: restart setting and .csv files only run with "restart on schedule" on
         };
 
-        private async Task FireAsync(ServerInstance s, ScheduleEntry e)
+        /// <summary>Runs one schedule. True when it was turned down because the server was busy.</summary>
+        private async Task<bool> FireAsync(ServerInstance s, ScheduleEntry e)
         {
             bool running = s.State == ServerState.Running;
             string label = e.Action is ScheduledAction.Command or ScheduledAction.Rcon or ScheduledAction.Exec ? $"{e.Action}: {e.Payload}" : e.Action.ToString();
@@ -224,18 +276,18 @@ namespace WindowsGSM.Engine.Services
             switch (e.Action)
             {
                 case ScheduledAction.Restart:
-                    if (!running) { return; }
+                    if (!running) { return false; }
                     _log.Write(s.Id, "Schedule: Restart");
                     request = _lifecycle.Restart(s.Id);
                     AlertWhenDone(request, s, Events.AlertKind.ScheduledRestart, $"{s.Name} restarted", "Scheduled restart completed.");
                     break;
                 case ScheduledAction.Start:
-                    if (s.State != ServerState.Stopped) { return; }
+                    if (s.State != ServerState.Stopped) { return false; }
                     _log.Write(s.Id, "Schedule: Start");
                     request = _lifecycle.Start(s.Id, StartReason.AutoStart);
                     break;
                 case ScheduledAction.Stop:
-                    if (!running) { return; }
+                    if (!running) { return false; }
                     _log.Write(s.Id, "Schedule: Stop");
                     request = _lifecycle.Stop(s.Id);
                     break;
@@ -244,25 +296,26 @@ namespace WindowsGSM.Engine.Services
                     request = _backups.Backup(s.Id);
                     break;
                 case ScheduledAction.Update:
-                    if (UpdateService.IsHeld(s)) { _log.Write(s.Id, "Schedule: Update skipped — updates are on hold (rolled back)."); return; }
+                    if (UpdateService.IsHeld(s)) { _log.Write(s.Id, "Schedule: Update skipped — updates are on hold (rolled back)."); return false; }
                     _log.Write(s.Id, "Schedule: Update");
                     request = UpdateAndRestart(s.Id, "Scheduled update");
                     break;
                 case ScheduledAction.Command:
                 case ScheduledAction.Rcon:
-                    if (!running) { return; }
+                    if (!running) { return false; }
                     var result = await _console.SendAsync(s.Id, e.Payload, "Schedule", preferRcon: e.Action == ScheduledAction.Rcon).ConfigureAwait(false);
                     if (!result.Sent) { _log.Write(s.Id, $"[ERROR] Scheduled {label} failed: {result.Error}"); }
                     else if (!string.IsNullOrWhiteSpace(result.Reply)) { _log.Write(s.Id, $"RCON response: {result.Reply}"); }
-                    return;
+                    return false;
                 case ScheduledAction.Exec:
-                    if (!running || e.Source == ScheduleSource.Managed) { return; } // exec only from files on disk
+                    if (!running || e.Source == ScheduleSource.Managed) { return false; } // exec only from files on disk
                     _log.Write(s.Id, $"Execute Scedules: {e.Payload}");
                     _ = Task.Run(() => RunProgram(s.Id, e.Payload, e.Arguments));
-                    return;
+                    return false;
             }
 
-            if (request is { Accepted: false }) { _log.Write(s.Id, $"[NOTICE] Scheduled {label} skipped: {request.Error}"); }
+            if (request is { Accepted: false }) { _log.Write(s.Id, $"[NOTICE] Scheduled {label} skipped: {request.Error}"); return true; }
+            return false;
         }
 
         // ─────────────────────────────── Auto update ───────────────────────────────
@@ -286,9 +339,23 @@ namespace WindowsGSM.Engine.Services
             if (!check.UpdateAvailable) { return; }
             string? remote = check.RemoteBuild;
 
-            var request = UpdateAndRestart(s.Id, "Auto update");
-            if (!request.Accepted) { _log.Write(s.Id, $"[NOTICE] Auto update skipped: {request.Error}"); }
-            AlertWhenDone(request, s, Events.AlertKind.AutoUpdated, $"{s.Name} updated", $"Auto update installed build {remote}.");
+            void Go()
+            {
+                var request = UpdateAndRestart(s.Id, "Auto update");
+                if (!request.Accepted) { _log.Write(s.Id, $"[NOTICE] Auto update skipped: {request.Error}"); }
+                AlertWhenDone(request, s, Events.AlertKind.AutoUpdated, $"{s.Name} updated", $"Auto update installed build {remote}.");
+            }
+            if (BeforeAutoUpdate == null) { Go(); return; }
+            // NEXT: players are warned first, as for a scheduled update — in the background, so other servers' schedules
+            // keep running meanwhile.
+            if (!_countingDown.TryAdd(s.Id, true)) { return; }
+            _ = Task.Run(async () =>
+            {
+                try { await BeforeAutoUpdate(s).ConfigureAwait(false); }
+                catch (Exception ex) { _log.Write(s.Id, $"[NOTICE] Warning players before the auto update failed: {ex.Message}"); }
+                finally { _countingDown.TryRemove(s.Id, out _); }
+                Go();
+            });
         }
 
         /// <summary>Publishes an alert once <paramref name="request"/>'s job succeeds (for notifications).</summary>

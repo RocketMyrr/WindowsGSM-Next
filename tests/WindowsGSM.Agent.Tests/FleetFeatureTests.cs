@@ -27,6 +27,7 @@ public class FleetFeatureTests
             await watch.CheckNowAsync("103");
             await EngineFixture.WaitUntil(() => _f.Owner.GetJsonAsync<List<ServerDto>>("/api/v2/machines/local/servers").GetAwaiter().GetResult().Single(s => s.Id == "103").UpdateAvailable, "the badge");
             await watch.CheckNowAsync("103"); // same version again: no second notification
+            remote = "300"; await watch.CheckNowAsync("103"); // a newer build while still behind: still no second one
             var items = (await _f.Owner.GetJsonAsync<JsonElement>("/api/v2/notifications")).GetProperty("items").EnumerateArray()
                 .Where(i => i.GetProperty("kind").GetString() == "updateAvailable" && i.GetProperty("server").GetString() == "103").ToList();
             Assert.Single(items);

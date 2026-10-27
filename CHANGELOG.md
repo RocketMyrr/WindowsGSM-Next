@@ -3,6 +3,39 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## 2.0.0-rc.3
+
+Fixes from a second round of reviews and a 38-hour soak test.
+
+- **Many servers on one PC:** with a few dozen servers running, the panel could take 10–60 seconds to answer (each
+  server's captured console held threads the web panel needed). A 40-server test now answers in milliseconds.
+- **Upgrading from the old WindowsGSM without stopping servers:** a game already running from a server's folder —
+  left running by the old app, or started by hand — is taken over at start instead of being started a second time.
+  One running as administrator while WindowsGSM isn't is flagged in the Health check, with what to do.
+- **Going back a version keeps your newer settings:** saving a setting in an older version no longer drops the ones
+  only the newer version knows, so updating again finds them as they were.
+- **Notifications:** *Mark all read*, and clicking a notification opens what it's about. A game update is announced
+  once while the server is behind, not again for every newer build (Rust staging publishes several a day).
+- **Stopping games safely:** Avorion saves and stops instead of being ended; games whose own stop just ends the process
+  (Eco, Mordhau, Squad, Insurgency: Sandstorm, Post Scriptum, Unturned and others) get Ctrl+C first so they can save —
+  a toggle under Settings.
+- **Add-ons:** Oxide, Carbon, SourceMod and AMX Mod X install only on a stopped server — over a running one they were
+  left half-installed.
+- **Sign-in:** wrong passwords lock that account only from the address they came from (someone guessing can't lock
+  you out); resetting a password clears it everywhere.
+- **Scheduler:** a run missed while the PC slept is skipped rather than fired late; one that finds the server busy
+  retries, and tells you if it gave up. Interrupted servers with auto-restart come back after a reboot.
+- **Crash restarts** wait for another operation to finish instead of giving up; **updates** check free disk space first
+  and stop cleanly when cancelled.
+- **Text files** keep their encoding and line endings when edited in the file manager or Configs.
+- **Self-update:** refused while a backup, install or update is running; a failed switch to the new version goes back
+  and says so; *Go back to the previous WindowsGSM version* in the Start menu.
+- **A backup that fails always says why.** Server logs older than 90 days are cleaned up.
+- **A game whose program is missing** says so plainly when it won't start, instead of a Windows error.
+- **The panel offers a reload after WindowsGSM updates** in another tab or on its own. Buttons on empty pages
+  ("Back to overview"…) no longer show an oversized icon.
+- **Runs on Windows Server 2016 and 2019** without installing .NET Framework 4.8 first.
+
 ## 2.0.0-rc.2
 
 Fixes from the release-candidate review: several machines, backups, and a few rough edges.

@@ -136,6 +136,9 @@ namespace WindowsGSM.Engine.Services
         {
             GameServer.ARKSE.FullName, GameServer.BW.FullName, GameServer.DAYZ.FullName,
             GameServer.ONSET.FullName, GameServer.SW.FullName, GameServer.TF.FullName,
+            // these end the process when their console is captured (the default)
+            GameServer.ECO.FullName, GameServer.INSS.FullName, GameServer.MORDHAU.FullName, GameServer.PS.FullName,
+            GameServer.SQ.FullName, GameServer.UNT.FullName,
         };
 
         /// <summary>

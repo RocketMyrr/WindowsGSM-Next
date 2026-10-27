@@ -55,6 +55,9 @@ public sealed class MemberLink : IAsyncDisposable
         _machineId = machineIdOverride ?? ctx.MachineId;
     }
 
+    /// <summary>This machine's own notifications, sent up so the hub shows them too (set by the app).</summary>
+    public global::WindowsGSM.Agent.Notifications.NotificationCentre? Notifications { get; set; }
+
     public LinkState State { get; private set; } = LinkState.NotJoined;
     public string? LastError { get; private set; }
     public DateTimeOffset? ConnectedSince { get; private set; }
@@ -204,6 +207,13 @@ public sealed class MemberLink : IAsyncDisposable
             if (m == null || (m.IsConsole && !_watched.Contains(m.Server ?? ""))) { return; }
             outbox.Writer.TryWrite(new { t = "event", type = m.Type, topic = m.Topic, server = m.Server, at = e.At, data = m.Data, vis = m.Visibility });
         });
+
+        // Ones this agent raises itself (not from engine events, which go up above): its crashes, update and
+        // automation notices. Sent as "remoteNotification" so the hub records them without looping.
+        void OnNote(global::WindowsGSM.Agent.Notifications.NotificationEntry n) =>
+            outbox.Writer.TryWrite(new { t = "event", type = "remoteNotification", topic = "alerts", server = n.Server, at = n.At, data = global::WindowsGSM.Agent.Notifications.NotificationCentre.ToDto(n), vis = n.Visibility });
+        if (Notifications != null) { Notifications.Added += OnNote; }
+        using var unsubscribe = new Disposer(() => { if (Notifications != null) { Notifications.Added -= OnNote; } });
 
         var sender = Task.Run(async () =>
         {
@@ -369,4 +379,6 @@ public sealed class MemberLink : IAsyncDisposable
     }
 
     public async ValueTask DisposeAsync() => await StopAsync();
+
+    private sealed class Disposer(Action action) : IDisposable { public void Dispose() => action(); }
 }

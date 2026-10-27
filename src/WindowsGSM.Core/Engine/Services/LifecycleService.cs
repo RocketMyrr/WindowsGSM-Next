@@ -151,21 +151,34 @@ namespace WindowsGSM.Engine.Services
         /// </summary>
         public void ReattachRunningServers()
         {
+            List<(int Pid, string Path)>? running = null; // every process's program file, looked up once if needed
             foreach (var s in _servers.All)
             {
+                if (s.Process != null) { continue; }
                 int pid = ServerCache.GetPID(s.Id);
-                if (pid <= 0 || s.Process != null) { continue; }
-
-                Process p;
-                try { p = Process.GetProcessById(pid); } catch { continue; }
-
-                string cachedName;
-                try { cachedName = ServerCache.GetProcessName(s.Id); } catch { continue; }
-                if (string.IsNullOrWhiteSpace(cachedName) || !string.Equals(p.ProcessName, cachedName, StringComparison.OrdinalIgnoreCase)) { continue; }
-                // NEXT: and it must be the same process, not a newer one that got the PID after a reboot — for java
-                // (Minecraft) that could be any Java program, which Stop would then kill. The server's own process
-                // was already running when its PID was saved; a later one with the same PID started after that.
-                if (!SameProcess(p, ServerCache.GetPIDSavedAt(s.Id))) { continue; }
+                Process? p = pid > 0 ? Cached(s, pid) : null;
+                if (p == null && pid > 0) { Interrupted.Add(s.Id); }
+                // NEXT: no record of it (started by hand from its folder, or the record's gone): a game running from
+                // the server's own folder is taken over too — Java (Minecraft) runs from elsewhere, so not that one.
+                if (p == null)
+                {
+                    running ??= ProgramFiles();
+                    p = FromServerFolder(s, running);
+                    if (p == null) { continue; }
+                    Interrupted.Remove(s.Id);
+                    try { ServerCache.SavePID(s.Id, p.Id); ServerCache.SaveProcessName(s.Id, p.ProcessName); } catch { /* best effort */ }
+                    _log.Write(s.Id, $"Found the game running from this server's folder (PID {p.Id}), started outside WindowsGSM — taking it over.");
+                }
+                pid = p.Id;
+                // NEXT: one running as administrator while WindowsGSM isn't (the old WindowsGSM always did) can only be
+                // looked at: adopted, every check on it would read as a crash, and Stop couldn't end it.
+                if (!global::WindowsGSM.Hosting.DataRootLock.CanControl(pid))
+                {
+                    AdminOwned[s.Id] = pid;
+                    _log.Write(s.Id, $"[NOTICE] {s.Name} is running (PID {pid}) as administrator — started by the old WindowsGSM, or from an administrator window — " +
+                        "and WindowsGSM isn't, so Windows won't let it control it. Stop it there (or close its window), then start it from here; or run WindowsGSM as administrator.");
+                    continue;
+                }
 
                 // NEXT: legacy re-adopted the process but never enabled Exited events on it (they're off for
                 // processes obtained by PID), so after a WindowsGSM restart crash detection and auto-restart
@@ -366,6 +379,14 @@ namespace WindowsGSM.Engine.Services
 
             // Anything left over from a previous run of this server (a crashed wrapper, an orphaned child).
             await EndLeftoverProcessesAsync(s.Id).ConfigureAwait(false);
+            if (FromServerFolder(s, ProgramFiles()) is Process still)
+            {
+                int pid = still.Id;
+                still.Dispose();
+                return $"The game is already running from this server's folder (PID {pid}), as administrator — started by the old WindowsGSM, or from an " +
+                    "administrator window — so WindowsGSM can't end it. Stop it there (or close its window) and start again; or run WindowsGSM as administrator.";
+            }
+            AdminOwned.TryRemove(s.Id, out _);
             await Task.Delay(500).ConfigureAwait(false);
 
             // NEXT: a taken port stops the start with a clear reason, instead of the game failing vaguely.
@@ -443,6 +464,11 @@ namespace WindowsGSM.Engine.Services
             {
                 if (capture) { p = await game.Start(); }
                 else { (p, ownWindow) = await ConsoleHost.StartInOwnConsoleAsync<Process?>(async () => (Process?)await game.Start()).ConfigureAwait(false); }
+            }
+            // Several games (and plugins) start their program without checking it's there first.
+            catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode is 2 or 3)
+            {
+                return "The game's program wasn't found — its files are missing or incomplete. Update it with Validate files on (Updates), or reinstall it.";
             }
             catch (Exception ex) { return "The game plugin failed to start the server: " + ex.Message; }
             if (p == null)
@@ -580,7 +606,7 @@ namespace WindowsGSM.Engine.Services
 
             // NEXT: "Send Ctrl+C before the game's own stop" — for games whose plugin just ends the process (no save):
             // most servers shut down properly on Ctrl+C. If it worked, the plugin's stop isn't needed.
-            if (StopWithCtrlCFirst(s.Config))
+            if (StopWithCtrlCFirst(s.Config, StopsByKilling(s)))
             {
                 sentCtrlC = true;
                 bool sent = false;
@@ -690,11 +716,22 @@ namespace WindowsGSM.Engine.Services
 
             // NEXT: auto-restart goes through the gate like every other operation (legacy didn't, so it
             // could collide with a user action), and runs as a job so the backoff wait is visible.
-            if (!_gate.TryBegin(s.Id, OperationKind.Restart, "Auto-restart", out var lease, out var blockedBy))
+            // NEXT: something else under way for it (a live backup…): wait for that, then restart — it was skipped for good.
+            IDisposable? lease;
+            string? blockedBy;
+            var waitUntil = DateTime.UtcNow + CrashRestartWait;
+            bool said = false;
+            while (!_gate.TryBegin(s.Id, OperationKind.Restart, "Auto-restart", out lease, out blockedBy))
             {
-                s.SetState(ServerState.Stopped);
-                _log.Write(s.Id, $"[NOTICE] Auto-restart skipped: {blockedBy} is running.");
-                return;
+                if (s.State != ServerState.Restarting) { return; } // someone started or stopped it meanwhile
+                if (DateTime.UtcNow > waitUntil)
+                {
+                    s.SetState(ServerState.Stopped);
+                    _log.Write(s.Id, $"[NOTICE] Auto-restart skipped: {blockedBy} was still running after {CrashRestartWait.TotalMinutes:0} minutes.");
+                    return;
+                }
+                if (!said) { _log.Write(s.Id, $"Auto-restart waits for {blockedBy} to finish."); said = true; }
+                await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
             }
 
             var job = _jobs.Start("auto-restart", s.Id, $"Auto-restart {s.Name}", async ctx =>
@@ -749,6 +786,64 @@ namespace WindowsGSM.Engine.Services
             return null;
         }
 
+        /// <summary>Servers whose game runs as administrator while WindowsGSM doesn't (server id → PID): seen, not controllable.</summary>
+        public System.Collections.Concurrent.ConcurrentDictionary<string, int> AdminOwned { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>The process the server's record names, if it's still that one.</summary>
+        private static Process? Cached(ServerInstance s, int pid)
+        {
+            Process p;
+            try { p = Process.GetProcessById(pid); } catch { return null; }
+            string cachedName;
+            try { cachedName = ServerCache.GetProcessName(s.Id); } catch { return null; }
+            if (string.IsNullOrWhiteSpace(cachedName) || !string.Equals(p.ProcessName, cachedName, StringComparison.OrdinalIgnoreCase)) { return null; }
+            // NEXT: and it must be the same process, not a newer one that got the PID after a reboot — for java
+            // (Minecraft) that could be any Java program, which Stop would then kill. The server's own process
+            // was already running when its PID was saved; a later one with the same PID started after that.
+            return SameProcess(p, ServerCache.GetPIDSavedAt(s.Id)) ? p : null;
+        }
+
+        /// <summary>Every process's program file — readable even for ones running as administrator.</summary>
+        private static List<(int Pid, string Path)> ProgramFiles()
+        {
+            var list = new List<(int, string)>();
+            foreach (var p in Process.GetProcesses())
+            {
+                try { if (global::WindowsGSM.Hosting.DataRootLock.ImagePath(p.Id) is string path) { list.Add((p.Id, path)); } }
+                catch { /* gone */ }
+                finally { p.Dispose(); }
+            }
+            return list;
+        }
+
+        /// <summary>The game started first from the server's folder (a launcher's children come later), or null.</summary>
+        private static Process? FromServerFolder(ServerInstance s, List<(int Pid, string Path)> running)
+        {
+            string prefix = Path.Combine(WgsmEnvironment.DataRoot, "servers", s.Id) + Path.DirectorySeparatorChar;
+            string elsewhere = ServerLocation.ProcessFolder(s.Id);
+            Process? first = null;
+            DateTime firstAt = DateTime.MaxValue;
+            foreach (var (pid, path) in running)
+            {
+                if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && !path.StartsWith(elsewhere, StringComparison.OrdinalIgnoreCase)) { continue; }
+                Process p;
+                try { p = Process.GetProcessById(pid); } catch { continue; }
+                DateTime at;
+                try { at = p.StartTime; } catch { at = DateTime.MaxValue - TimeSpan.FromDays(1); }
+                if (at < firstAt) { first?.Dispose(); first = p; firstAt = at; } else { p.Dispose(); }
+            }
+            return first;
+        }
+
+        /// <summary>How long auto-restart waits for another operation on a crashed server before giving up.</summary>
+        public static TimeSpan CrashRestartWait { get; set; } = TimeSpan.FromMinutes(15);
+
+        /// <summary>
+        /// Servers that were running when WindowsGSM last saw them but aren't any more (the PC restarted, or the game
+        /// ended while the agent was stopped) — found by <see cref="ReattachRunningServers"/>.
+        /// </summary>
+        public HashSet<string> Interrupted { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>How long a fresh start may stay silent before the Console tab falls back to the game's log file.</summary>
         public static TimeSpan QuietConsoleWait { get; set; } = TimeSpan.FromSeconds(15);
 
@@ -763,8 +858,8 @@ namespace WindowsGSM.Engine.Services
             {
                 try
                 {
-                    string? file = p.MainModule?.FileName;
-                    if (file != null && (file.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || file.StartsWith(elsewhere, StringComparison.OrdinalIgnoreCase))) { p.Kill(entireProcessTree: true); }
+                    string? file = global::WindowsGSM.Hosting.DataRootLock.ImagePath(p.Id);
+                    if (file != null && (file.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || file.StartsWith(elsewhere, StringComparison.OrdinalIgnoreCase))) { p.Kill(entireProcessTree: true); p.WaitForExit(5000); }
                 }
                 catch { /* no access / already gone */ }
                 finally { p.Dispose(); }
@@ -809,7 +904,12 @@ namespace WindowsGSM.Engine.Services
         /// <summary>The "Send Ctrl+C before the game's own stop" setting.</summary>
         public const string CtrlCFirstKey = "stopctrlcfirst";
 
-        private static bool StopWithCtrlCFirst(ServerConfig cfg) => cfg.GetCustomSetting(CtrlCFirstKey, string.Empty) == "1";
+        /// <summary>On when set; unset, on for games whose own stop just ends the process (Ctrl+C lets them save).</summary>
+        internal static bool StopWithCtrlCFirst(ServerConfig cfg, bool stopsByKilling) =>
+            cfg.GetCustomSetting(CtrlCFirstKey, string.Empty) switch { "1" => true, "0" => false, _ => stopsByKilling };
+
+        private bool StopsByKilling(ServerInstance s) =>
+            GameCatalog.StopsByKilling(s.Game, _plugins.Plugins.FirstOrDefault(p => p.IsLoaded && p.FullName == s.Game));
 
         /// <summary>Whether <paramref name="p"/> was already running when its PID was saved at <paramref name="savedAt"/>.</summary>
         internal static bool SameProcess(Process p, DateTime? savedAt)

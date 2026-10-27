@@ -32,7 +32,9 @@ public static class AuthEndpoints
         api.MapPost("/setup", async (HttpContext http, AgentContext ctx, SetupTokens tokens, SetupRequest body) =>
         {
             if (ctx.Users.Count > 0) { return ApiResults.Conflict("Setup is already done. Sign in instead."); }
-            bool local = http.Connection.RemoteIpAddress is { } ip && System.Net.IPAddress.IsLoopback(ip);
+            // A reverse proxy on this PC makes every visitor look local: a forwarded request isn't.
+            bool local = http.Connection.RemoteIpAddress is { } ip && System.Net.IPAddress.IsLoopback(ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip)
+                && !http.Request.Headers.ContainsKey("X-Forwarded-For") && !http.Request.Headers.ContainsKey("Forwarded");
             if (!local && !tokens.Matches(body.Token))
             {
                 return ApiResults.Forbidden("Finish setup on the machine itself, or enter the setup code shown in the agent's window/log.");
@@ -54,7 +56,7 @@ public static class AuthEndpoints
         api.MapPost("/auth/login", async (HttpContext http, AgentContext ctx, LoginRequest body) =>
         {
             string? ip = AgentContext.Ip(http);
-            var outcome = ctx.Users.Validate(body.Username?.Trim() ?? string.Empty, body.Password, body.Code, out var user);
+            var outcome = ctx.Users.Validate(body.Username?.Trim() ?? string.Empty, body.Password, body.Code, out var user, AgentContext.Ip(http));
             switch (outcome)
             {
                 case LoginOutcome.TwoFactorRequired:

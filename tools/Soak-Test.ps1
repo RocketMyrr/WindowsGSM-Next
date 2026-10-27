@@ -26,7 +26,7 @@ param(
     [Parameter(ParameterSetName = "Report", Mandatory = $true)] [string]$Report,
     [Parameter(ParameterSetName = "Sandbox")] [Parameter(ParameterSetName = "Watch")] [ValidateRange(0.05, 2000)] [double]$Hours = 48,
     [Parameter(ParameterSetName = "Sandbox")] [Parameter(ParameterSetName = "Watch")] [ValidateRange(0.1, 240)] [double]$SampleMinutes = 10,
-    [Parameter(ParameterSetName = "Sandbox")] [ValidateRange(1, 20)] [int]$Servers = 4,
+    [Parameter(ParameterSetName = "Sandbox")] [ValidateRange(1, 60)] [int]$Servers = 4,
     [Parameter(ParameterSetName = "Sandbox")] [ValidateRange(1024, 65535)] [int]$Port = 8979,
     [Parameter(ParameterSetName = "Watch")] [int]$ProcessId,
     [Parameter(ParameterSetName = "Watch")] [string]$DataFolder,

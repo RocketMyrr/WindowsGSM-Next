@@ -20,7 +20,7 @@ export default async function notifications(host, { scope }) {
     let filter = "all";
     let machine = "";
     let items = [];
-    const readAtOpen = store.readUpTo;
+    const markAll = h("button", { class: "btn sm", hidden: true, onclick: () => { store.markNotificationsRead(); for (const n of items) n.read = true; paintList(); } }, icon("check"), "Mark all read");
 
     const list = h("div", { class: "notif-list page" });
     const filterBar = segmented([{ value: "all", label: "All" }, { value: "problems", label: "Problems" }, { value: "unread", label: "New" }], filter, v => { filter = v; paintList(); });
@@ -33,7 +33,7 @@ export default async function notifications(host, { scope }) {
             h("div", {}, h("h1", { text: "Notifications" }), h("p", { text: "What happened while you weren't looking — and where else to send it." }))),
         h("div", { class: "notif-layout" },
             h("section", { class: "panel" },
-                h("div", { class: "panel-head wrap" }, h("h2", { class: "grow", text: "History" }), picker, filterBar),
+                h("div", { class: "panel-head wrap" }, h("h2", { class: "grow", text: "History" }), markAll, picker, filterBar),
                 list),
             h("div", { class: "stack loose" },
                 devicePanel(),
@@ -49,12 +49,12 @@ export default async function notifications(host, { scope }) {
         try { items = (await get("/notifications?limit=500")).items; }
         catch (e) { clear(list).append(empty("warn", "Couldn't load notifications", e.message)); return; }
         paintList();
-        store.markNotificationsRead();
     }
 
     function paintList() {
         const shown = items.filter(n => (filter !== "problems" || n.severity === "bad" || n.severity === "warn")
-            && (filter !== "unread" || n.id > readAtOpen) && (!machine || n.machine === machine));
+            && (filter !== "unread" || !n.read) && (!machine || n.machine === machine));
+        markAll.hidden = !items.some(n => !n.read);
         clear(list);
         if (!shown.length) {
             list.append(items.length
@@ -66,7 +66,7 @@ export default async function notifications(host, { scope }) {
         for (const n of shown) {
             const d = new Date(n.at).toDateString();
             if (d !== day) { day = d; list.append(h("div", { class: "notif-day", text: dayLabel(n.at) })); }
-            list.append(notificationItem(n, { unread: n.id > readAtOpen }));
+            list.append(notificationItem(n));
         }
     }
 
@@ -75,7 +75,6 @@ export default async function notifications(host, { scope }) {
         if (items.some(x => x.id === n.id)) return;
         items.unshift(n);
         paintList();
-        store.markNotificationsRead();
     }));
 
     // ── This device ──

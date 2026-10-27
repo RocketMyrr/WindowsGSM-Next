@@ -138,7 +138,7 @@ namespace WindowsGSM.Engine.Services
                     {
                         var run = RollbackRunner ?? (async (sid, app, depots, anonymousLogin) => await DepotDownloader.RollbackEx(sid, app, depots, anonymousLogin, validate).ConfigureAwait(false));
                         (p, error) = await run(id, appId, build.Depots, anonymous).ConfigureAwait(false);
-                        if (p != null) { await p.WaitForExitAsync(ctx.Cancellation).ConfigureAwait(false); }
+                        if (p != null) { await WaitOrEndAsync(p, ctx.Cancellation).ConfigureAwait(false); }
                     }
                     if (error == null && p != null && p.ExitCode != 0) { error = $"DepotDownloader exited with code {p.ExitCode}"; }
                     var now = DepotHistory.Installed(id).Where(d => build.Depots.ContainsKey(d.Key)).ToDictionary(d => d.Key, d => d.Value);
@@ -211,6 +211,9 @@ namespace WindowsGSM.Engine.Services
             bool steam = !string.IsNullOrWhiteSpace(appId);
             string branch = steam ? BranchName(s.Id) : string.Empty;
 
+            // NEXT: a download that runs out of disk half-way leaves a mix of old and new files the game won't start with.
+            if (FreeSpaceProblem(s.Id) is string full) { _log.Write(s.Id, "[ERROR] " + full); return full; }
+
             string before = steam ? BuildCache.Read(s.Id) : string.Empty;
             if (steam) { DepotHistory.Record(s.Id, before); } // name the build we're leaving, for roll back
             s.SetState(ServerState.Updating);
@@ -241,7 +244,7 @@ namespace WindowsGSM.Engine.Services
                             // Older plugins only have Update() without (validate, custom).
                             p = await game.Update();
                         }
-                        if (p != null) { await p.WaitForExitAsync(job.Cancellation).ConfigureAwait(false); }
+                        if (p != null) { await WaitOrEndAsync(p, job.Cancellation).ConfigureAwait(false); }
                     }
 
                     // Same success rules as legacy: no process and no error = a non-Steam plugin that updated
@@ -284,6 +287,37 @@ namespace WindowsGSM.Engine.Services
             finally
             {
                 s.SetState(ServerState.Stopped);
+            }
+        }
+
+        /// <summary>Free space an update needs on the server's drive before it starts.</summary>
+        // shortcut: a fixed floor, not the update's real size (Steam doesn't say it up front); raise it if big games still run out.
+        public static long MinFreeBytes { get; set; } = 2L << 30;
+
+        internal static string? FreeSpaceProblem(string serverId)
+        {
+            try
+            {
+                string? root = System.IO.Path.GetPathRoot(ServerLocation.RealPath(serverId));
+                if (string.IsNullOrEmpty(root)) { return null; }
+                long free = new System.IO.DriveInfo(root).AvailableFreeSpace;
+                return free >= MinFreeBytes ? null
+                    : $"Only {free / (double)(1L << 30):0.0} GB is free on {root.TrimEnd('\\')} — an update needs at least {MinFreeBytes >> 30} GB to download into, so it wasn't started (the server is as it was). Free some space and try again.";
+            }
+            catch { return null; } // a network share or similar: don't block on what can't be measured
+        }
+
+        /// <summary>
+        /// Waits for an updater; when the job is cancelled, ends it (and what it started) — NEXT: it used to keep running
+        /// and writing into the server's folder after the job said "cancelled".
+        /// </summary>
+        internal static async Task WaitOrEndAsync(System.Diagnostics.Process p, System.Threading.CancellationToken token)
+        {
+            try { await p.WaitForExitAsync(token).ConfigureAwait(false); }
+            catch (OperationCanceledException)
+            {
+                try { p.Kill(entireProcessTree: true); p.WaitForExit(10000); } catch { /* already gone */ }
+                throw;
             }
         }
 

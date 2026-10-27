@@ -29,6 +29,14 @@ onUnauthorized(() => {
     const back = currentPath();
     endSession("/login?next=" + encodeURIComponent(back), "You've been signed out. Sign in again to continue.");
 });
+// WindowsGSM was updated while this page stayed open (another tab, the tray, auto-update): its code is the old
+// version's, talking to the new one. Offer a reload rather than doing it — there may be unsaved edits on the page.
+live.on("reconnected", msg => {
+    const now = msg.data && msg.data.version, was = store.info && store.info.version;
+    if (!now || !was || now === was) return;
+    store.info.version = now;
+    toast(`WindowsGSM was updated to ${now}`, { text: "Reload to use the new version.", timeout: 600000, action: { label: "Reload", onClick: () => location.reload() } });
+});
 live.on("signedOut", () => endSession("/login", "Your session ended — it was signed out elsewhere or the account changed."));
 
 /** Is anyone signed in? Also tells us if first-run setup is still needed. */

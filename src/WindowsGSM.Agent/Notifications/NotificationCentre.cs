@@ -23,11 +23,14 @@ public static class NotificationKinds
         new("memoryGuard", "warn", "Restarted for using too much memory", "Problems"),
         new("jobFailed", "bad", "An install, update, backup or restore failed", "Problems"),
         new("appCrash", "bad", "The WindowsGSM agent crashed (and restarted)", "Problems"),
+        new("appUpdateFailed", "bad", "A WindowsGSM update didn't start (it went back by itself)", "Problems"),
+        new("legacyApp", "bad", "The old WindowsGSM app is running on the same folder", "Problems"),
         new("machineOffline", "bad", "A machine went offline", "Machines"),
         new("machineOnline", "good", "A machine came back online", "Machines"),
         new("autoRestarted", "info", "Auto-restart brought a server back", "Activity"),
         new("autoStarted", "info", "A server started with the agent", "Activity"),
         new("scheduledRestart", "info", "Scheduled restart", "Activity"),
+        new("scheduleSkipped", "warn", "A scheduled backup, update or restart couldn't run (server busy)", "Problems"),
         new("updateAvailable", "info", "A game update is available", "Activity"),
         new("appUpdate", "info", "A new version of WindowsGSM is available", "Machines"),
         new("autoUpdated", "good", "Auto-update installed a new version", "Activity"),
@@ -47,6 +50,7 @@ public static class NotificationKinds
         "AutoRestarted" => "autoRestarted",
         "AutoStarted" => "autoStarted",
         "ScheduledRestart" => "scheduledRestart",
+        "ScheduleSkipped" => "scheduleSkipped",
         "AutoUpdated" => "autoUpdated",
         "ServerIpChanged" => "ipChanged",
         "JoinCode" => "joinCode",
@@ -73,6 +77,8 @@ public sealed class NotificationCentre : IDisposable
         public long NextId { get; set; } = 1;
         public List<NotificationEntry> Entries { get; set; } = new();
         public Dictionary<string, long> ReadUpTo { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Ones opened one at a time, newer than <see cref="ReadUpTo"/>.</summary>
+        public Dictionary<string, HashSet<long>> ReadIds { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     private readonly AgentContext _ctx;
@@ -115,19 +121,37 @@ public sealed class NotificationCentre : IDisposable
 
     public int Unread(AgentUser user)
     {
-        lock (_gate)
-        {
-            long read = _state.ReadUpTo.GetValueOrDefault(user.Username);
-            return _state.Entries.Count(e => e.Id > read && Visible(e, user));
-        }
+        lock (_gate) { return _state.Entries.Count(e => !IsReadLocked(user, e.Id) && Visible(e, user)); }
     }
 
+    public bool IsRead(AgentUser user, long id) { lock (_gate) { return IsReadLocked(user, id); } }
+
+    private bool IsReadLocked(AgentUser user, long id) =>
+        id <= _state.ReadUpTo.GetValueOrDefault(user.Username) || (_state.ReadIds.TryGetValue(user.Username, out var ids) && ids.Contains(id));
+
+    /// <summary>Everything up to <paramref name="upTo"/> is read ("Mark all read").</summary>
     public void MarkRead(AgentUser user, long upTo)
     {
         lock (_gate)
         {
             long max = _state.NextId - 1;
-            _state.ReadUpTo[user.Username] = Math.Clamp(upTo, _state.ReadUpTo.GetValueOrDefault(user.Username), max);
+            long now = Math.Clamp(upTo, _state.ReadUpTo.GetValueOrDefault(user.Username), max);
+            _state.ReadUpTo[user.Username] = now;
+            if (_state.ReadIds.TryGetValue(user.Username, out var ids)) { ids.RemoveWhere(i => i <= now); if (ids.Count == 0) { _state.ReadIds.Remove(user.Username); } }
+            _dirty = true;
+        }
+    }
+
+    /// <summary>One notification is read (it was opened).</summary>
+    public void MarkOneRead(AgentUser user, long id)
+    {
+        lock (_gate)
+        {
+            if (id <= 0 || id >= _state.NextId || IsReadLocked(user, id)) { return; }
+            if (!_state.ReadIds.TryGetValue(user.Username, out var ids)) { _state.ReadIds[user.Username] = ids = new HashSet<long>(); }
+            ids.Add(id);
+            long oldest = _state.Entries.Count > 0 ? _state.Entries[0].Id : 0;
+            ids.RemoveWhere(i => i < oldest); // gone from the list: no need to remember them
             _dirty = true;
         }
     }
@@ -166,6 +190,18 @@ public sealed class NotificationCentre : IDisposable
                     e.Machine, server, ServerName(e.Machine, server), Visibility.Job);
                 break;
             }
+            case "remoteNotification":
+            {
+                // NEXT: one the machine itself raised (its agent crashed, a game update is waiting, an automation ran…).
+                // They never reached the hub before. Ones made from its alerts, jobs and connection come here anyway.
+                if (_ctx.IsThisMachine(e.Machine)) { return; }
+                var d = Element(e.Data);
+                string kind = Str(d, "kind") ?? "";
+                if (NotificationKinds.Get(kind) == null || Derived.Contains(kind)) { return; }
+                string? server = Str(d, "server");
+                Record(kind, Str(d, "title") ?? kind, Str(d, "text") ?? "", e.Machine, server, Str(d, "serverName") ?? ServerName(e.Machine, server), e.Visibility);
+                break;
+            }
             case "machine":
             {
                 var d = Element(e.Data);
@@ -175,6 +211,13 @@ public sealed class NotificationCentre : IDisposable
             }
         }
     }
+
+    /// <summary>Kinds a hub records itself from a machine's relayed alerts, jobs and connection (not taken twice).</summary>
+    private static readonly HashSet<string> Derived = new()
+    {
+        "jobFailed", "machineOffline", "machineOnline",
+        "crashed", "crashLoop", "memoryGuard", "autoRestarted", "autoStarted", "scheduledRestart", "scheduleSkipped", "autoUpdated", "ipChanged", "joinCode",
+    };
 
     private void OnMachine(string machine, bool online)
     {
@@ -230,6 +273,13 @@ public sealed class NotificationCentre : IDisposable
     {
         id = e.Id, at = e.At, kind = e.Kind, severity = e.Severity, title = e.Title, text = e.Text,
         machine = e.Machine, server = e.Server, serverName = e.ServerName,
+    };
+
+    /// <summary>For one person: with whether they've read it.</summary>
+    public static object ToDto(NotificationEntry e, bool read) => new
+    {
+        id = e.Id, at = e.At, kind = e.Kind, severity = e.Severity, title = e.Title, text = e.Text,
+        machine = e.Machine, server = e.Server, serverName = e.ServerName, read,
     };
 
     public string MachineName(string machine) =>

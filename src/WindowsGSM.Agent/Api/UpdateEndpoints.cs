@@ -19,6 +19,7 @@ public static class UpdateEndpoints
         {
             if (!ctx.CurrentUser(http)!.IsOwner) { return ApiResults.Forbidden("Only owners can restart WindowsGSM."); }
             if (update.Launcher == null || !File.Exists(update.Launcher)) { return ApiResults.BadRequest("This copy wasn't installed with setup, so it can't restart itself — restart it on that computer."); }
+            if (update.BusyWith() is string busy) { return ApiResults.BadRequest(busy); }
             ctx.Record(http, "agent-restart", null, true, null);
             ctx.Engine.Log.Write("Agent", "Restarting the agent (from the panel). Game servers keep running.");
             var psi = new System.Diagnostics.ProcessStartInfo(update.Launcher) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(update.Launcher)! };
@@ -45,6 +46,7 @@ public static class UpdateEndpoints
             if (!ctx.CurrentUser(http)!.IsOwner) { return ApiResults.Forbidden("Only owners can update WindowsGSM."); }
             if (!update.Installed) { return ApiResults.BadRequest("This copy wasn't installed with setup, so it can't update itself."); }
             if (!update.Available) { return ApiResults.BadRequest("There's no newer version to install."); }
+            if (update.BusyWith() is string busy) { return ApiResults.BadRequest(busy); }
             ctx.Record(http, "app-update", null, true, $"{update.Current} → {update.Latest!.Version}");
             // Downloading takes a while: carry on in the background; the page polls the status.
             _ = Task.Run(() => update.ApplyAsync(() => { life.StopApplication(); return Task.CompletedTask; }));

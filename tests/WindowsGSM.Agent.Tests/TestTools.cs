@@ -46,6 +46,29 @@ internal static class TestTools
         finally { foreach (var l in listeners) { l.Stop(); } }
     }
 
+    /// <summary>The first of <paramref name="count"/> consecutive loopback ports, all free, between <paramref name="from"/> and <paramref name="to"/>.</summary>
+    public static int FreeRange(int count, int from, int to)
+    {
+        for (int attempt = 0; attempt < 50; attempt++)
+        {
+            int start = Random.Shared.Next(from, to - count);
+            var listeners = new List<TcpListener>();
+            try
+            {
+                for (int port = start; port < start + count; port++)
+                {
+                    var l = new TcpListener(IPAddress.Loopback, port);
+                    l.Start();
+                    listeners.Add(l);
+                }
+                return start;
+            }
+            catch (SocketException) { /* one's taken: another range */ }
+            finally { foreach (var l in listeners) { l.Stop(); } }
+        }
+        throw new InvalidOperationException($"No {count} free ports in a row between {from} and {to}.");
+    }
+
     /// <summary>Starts a tool hidden, with its output kept for the failure message.</summary>
     public static Process Start(string exe, IEnumerable<string> args, string workDir, IDictionary<string, string>? env = null)
     {

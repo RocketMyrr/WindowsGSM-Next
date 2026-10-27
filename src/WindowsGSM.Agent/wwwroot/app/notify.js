@@ -8,15 +8,14 @@ import { navigate, serverPath } from "./router.js";
 export const SEVERITY_ICON = { bad: "xCircle", warn: "warn", good: "checkCircle", info: "info" };
 const KIND_ICON = { machineOffline: "machine", machineOnline: "machine", joinCode: "key", jobFailed: "jobs", autoUpdated: "update", autoRestarted: "restart", scheduledRestart: "restart", autoStarted: "play" };
 
-/** Where a notification leads: its server, or its machine's servers. */
+/** Opens a notification: it's read now, and you go where it's about (pathOf). */
 export function openNotification(n) {
-    if (n.server && store.server(n.machine, n.server)) navigate(serverPath(n.machine, n.server));
-    else if (n.kind === "jobFailed") navigate("/");
-    else navigate(store.multiMachine ? "/?machine=" + encodeURIComponent(n.machine) : "/");
+    if (!n.read) store.markOneRead(n);
+    navigate(pathOf(n));
 }
 
-/** One notification as a clickable row. unread: highlight it. */
-export function notificationItem(n, { unread = false, onOpen } = {}) {
+/** One notification as a clickable row; an unread one is highlighted until it's opened (or all are marked read). */
+export function notificationItem(n, { unread = !n.read, onOpen } = {}) {
     const where = [n.serverName || (n.server ? "#" + n.server : null), store.multiMachine ? store.machineName(n.machine) : null].filter(Boolean).join(" · ");
     return h("button", { class: ["notif", n.severity, unread && "unread"], onclick: () => { openNotification(n); if (onOpen) onOpen(n); } },
         h("span", { class: "notif-icon" }, icon(KIND_ICON[n.kind] || SEVERITY_ICON[n.severity] || "info")),
@@ -32,7 +31,12 @@ export function notificationItem(n, { unread = false, onOpen } = {}) {
 /** Running inside the WindowsGSM desktop app (WebView2): it shows notifications itself, from the tray. */
 export const inDesktopApp = !!(window.chrome && window.chrome.webview);
 
+/** Pages some kinds are about (admins'; everyone else goes to the machine's servers). */
+const KIND_PAGE = { appUpdate: "/settings", appUpdateFailed: "/settings", appCrash: "/logs", legacyApp: "/logs", machineOffline: "/machines", machineOnline: "/machines", automation: "/automations" };
+
+/** Where a notification leads: its server; else the page it's about; else its machine's servers. */
 const pathOf = n => n.server && store.server(n.machine, n.server) ? serverPath(n.machine, n.server)
+    : KIND_PAGE[n.kind] && store.me?.canManageUsers ? KIND_PAGE[n.kind]
     : store.multiMachine ? "/?machine=" + encodeURIComponent(n.machine) : "/";
 
 const DESKTOP_KEY = "wgsm-desktop-notifications";
