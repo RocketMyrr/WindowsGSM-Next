@@ -134,4 +134,18 @@ public class ServerScriptsTests
         Assert.InRange(watch.Elapsed.TotalSeconds, 4, 20);
         Assert.Contains(engine.Log.Tail("218", 20), l => l.Contains("was still running after 5 s"));
     }
+
+    [Fact]
+    public async Task A_chatty_script_logs_its_first_lines_and_saves_the_rest()
+    {
+        string chatty = Script("chatty.bat", "@echo off\r\nfor /l %%i in (1,1,50) do echo line %%i\r\n");
+        EngineFixture.CreateServer("235", extraSettings: new[] { $"batchfile=\"{chatty}\"" });
+        using var engine = await EngineFixture.StartEngineAsync();
+        Assert.True(await ServerScripts.RunAsync(engine.Servers.Get("235")!, chatty, "before start", engine.Log));
+        var log = engine.Log.Tail("235", 100);
+        Assert.Equal(20, log.Count(l => l.Contains("[Script] line ")));
+        Assert.Contains(log, l => l.Contains("30 more lines in"));
+        var saved = File.ReadAllLines(Path.Combine(WindowsGSM.Hosting.WgsmEnvironment.DataRoot, "logs", "servers", "235", "script-before-start.log"));
+        Assert.Equal(50, saved.Length);
+    }
 }

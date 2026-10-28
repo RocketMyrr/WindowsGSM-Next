@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using WindowsGSM.Engine.Servers;
 using WindowsGSM.Functions;
+using WindowsGSM.Hosting;
 
 namespace WindowsGSM.Engine.Services
 {
@@ -30,8 +31,8 @@ namespace WindowsGSM.Engine.Services
         /// <summary>The kinds of script that can be run — nothing else (no .exe, .cmd, .vbs…).</summary>
         public static readonly IReadOnlyList<string> Extensions = new[] { ".bat", ".ps1" };
 
-        /// <summary>Most lines of a script's output written to the server's log.</summary>
-        private const int MaxLoggedLines = 200;
+        /// <summary>Most lines of a script's output written to the server's log; the whole of it goes to a file.</summary>
+        private const int MaxLoggedLines = 20;
 
         /// <summary>Why <paramref name="path"/> can't be used as a script, or null when it can (blank means none).</summary>
         public static string? Validate(string? path)
@@ -90,13 +91,28 @@ namespace WindowsGSM.Engine.Services
             psi.Environment["WGSM_SERVER_FILES"] = folder;
             psi.Environment["WGSM_SCRIPT_WHEN"] = when == "after stop" ? "stop" : "start";
 
-            int lines = 0;
+            // NEXT: robocopy or a "set" in a script put hundreds of lines into the server log; now only the first few.
+            var output = new List<string>();
             void Output(object _, DataReceivedEventArgs e)
             {
                 if (e.Data == null || e.Data.Length == 0) { return; }
-                int n = Interlocked.Increment(ref lines);
+                int n;
+                lock (output) { output.Add(e.Data); n = output.Count; }
                 if (n <= MaxLoggedLines) { log.Write(s.Id, $"[Script] {e.Data}"); }
-                else if (n == MaxLoggedLines + 1) { log.Write(s.Id, "[Script] … (more output not logged)"); }
+            }
+            void SaveOutput()
+            {
+                string[] all;
+                lock (output) { all = output.ToArray(); }
+                if (all.Length <= MaxLoggedLines) { return; }
+                string file = Path.Combine(WgsmEnvironment.DataRoot, "logs", "servers", s.Id, $"script-{(when == "after stop" ? "after-stop" : "before-start")}.log");
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+                    File.WriteAllLines(file, all);
+                    log.Write(s.Id, $"[Script] … {all.Length - MaxLoggedLines} more lines in {Path.GetRelativePath(WgsmEnvironment.DataRoot, file)}");
+                }
+                catch (Exception ex) { log.Write(s.Id, $"[Script] … {all.Length - MaxLoggedLines} more lines not saved: {ex.Message}"); }
             }
 
             var started = Stopwatch.StartNew();
@@ -114,10 +130,12 @@ namespace WindowsGSM.Engine.Services
                 catch (OperationCanceledException)
                 {
                     try { p.Kill(entireProcessTree: true); } catch { /* already gone */ }
+                    SaveOutput();
                     log.Write(s.Id, $"[NOTICE] Script ({when}): {name} was still running after {timeout} s, so it was stopped (Settings → Scripts → time limit).");
                     return false;
                 }
                 p.WaitForExit(); // the last output lines
+                SaveOutput();
                 if (p.ExitCode != 0)
                 {
                     log.Write(s.Id, $"[NOTICE] Script ({when}): {name} finished with exit code {p.ExitCode} after {started.Elapsed.TotalSeconds:0.#} s.");

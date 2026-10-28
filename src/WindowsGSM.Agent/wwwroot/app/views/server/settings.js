@@ -264,7 +264,7 @@ export default async function settingsTab(host, { id, machine, key, server, scop
         setLeaveGuard(null);
         const { default: again } = await import("./settings.js");
         clear(host);
-        await again(host, { id, server, scope });
+        await again(host, { id, machine, key, server, scope });
     }
 
     scope.add(() => setLeaveGuard(null));

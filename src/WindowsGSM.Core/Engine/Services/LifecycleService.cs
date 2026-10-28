@@ -197,7 +197,7 @@ namespace WindowsGSM.Engine.Services
                 s.SetState(ServerState.Running);
                 _log.Write(s.Id, $"Server: Reattached (PID {pid})");
                 // Its console output went to the previous agent; when the game also writes it to a log file, follow that.
-                if (s.ConsoleWindow == IntPtr.Zero && ConsoleLogTail.LogFileFor(s) is string logFile) { ConsoleLogTail.Follow(s, p, logFile); }
+                if (ConsoleLogTail.LogFileFor(s) is string logFile) { ConsoleLogTail.Follow(s, p, logFile); }
             }
         }
 
@@ -489,7 +489,8 @@ namespace WindowsGSM.Engine.Services
             _ = Task.Run(async () =>
             {
                 await Task.Delay(QuietConsoleWait).ConfigureAwait(false);
-                if (s.Process != p || SafeHasExited(p) || s.ConsoleWindow != IntPtr.Zero || s.Console.Count > 0) { return; }
+                // Not captured (Rust opens its own, often empty, -noconsole window): its output only reaches the log file.
+                if (s.Process != p || SafeHasExited(p) || (capture && s.Console.Count > 0)) { return; }
                 if (ConsoleLogTail.LogFileFor(s) is string logFile)
                 {
                     ConsoleLogTail.Follow(s, p, logFile, recentLines: 0,
