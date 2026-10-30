@@ -74,7 +74,7 @@ export function updatesPanel(machine, scope) {
 
     function feedSettings(u) {
         const repo = input({ class: "input mono", value: u.repo, placeholder: "owner/repository" });
-        const pre = toggle("Include pre-releases (alpha, beta)", u.prerelease);
+        const pre = toggle("Include pre-releases (alpha, beta, rc — for testing)", u.prerelease);
         const save = h("button", { class: "btn sm", onclick: () => busy(save, async () => { paint(await put(base(machine) + "/settings", { repo: repo.value.trim(), prerelease: pre.input.checked })); toast("Update feed saved", { type: "good", timeout: 2000 }); }, "Couldn't save") }, icon("save"), "Save");
         return h("details", { class: "update-feed" }, h("summary", { text: "Where updates come from" }),
             h("div", { class: "stack" }, field("GitHub repository", repo, { hint: "Releases with WindowsGSM-<version>.zip and a .sha256 beside it. Or the address of your own JSON feed." }), pre, h("div", { class: "row" }, h("span", { class: "spacer" }), save)));

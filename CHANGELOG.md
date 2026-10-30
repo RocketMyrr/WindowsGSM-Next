@@ -3,6 +3,18 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## 2.0.0-rc.4
+
+Fixes from running rc.3 on real servers, and a 10-hour, 40-server soak test with no leaks.
+
+- **Rust's console:** with `-noconsole -logfile …` the Console tab stayed on "No output yet", because Rust opens a
+  window of its own. It now shows the log file live, also after WindowsGSM restarts while the game keeps running.
+- **Settings → Discard** blanked the tab with "Unknown machine." until you reloaded the page.
+- **Server scripts:** only the first 20 lines of a before-start or after-stop script's output go to the server's log;
+  the rest is saved to `logs\servers\<id>\script-before-start.log` (or `script-after-stop.log`).
+- **Updates:** pre-releases (alpha, beta, rc) are now opt-in, off for new installs — Updates → *Include
+  pre-releases*. Installs that already have it on keep it on.
+
 ## 2.0.0-rc.3
 
 Fixes from a second round of reviews and a 38-hour soak test.

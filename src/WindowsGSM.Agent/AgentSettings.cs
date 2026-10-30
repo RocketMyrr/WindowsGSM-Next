@@ -62,8 +62,8 @@ public sealed class AgentSettings
     /// <summary>Where releases used to be published (alpha.1 – alpha.2): moved to the new repository on load.</summary>
     private const string FormerUpdateRepo = "RocketMyrr/WindowsGSM-Remaster";
 
-    /// <summary>Also offer pre-releases (alpha/beta).</summary>
-    public bool UpdatePrerelease { get; set; } = true;
+    /// <summary>Also offer pre-releases (alpha, beta, rc): opt in, off by default.</summary>
+    public bool UpdatePrerelease { get; set; }
 
     [JsonIgnore] public string FilePath { get; private set; } = string.Empty;
 

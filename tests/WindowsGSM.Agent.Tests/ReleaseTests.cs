@@ -166,7 +166,7 @@ public class ReleaseTests
             Assert.Equal("old launcher", File.ReadAllText(Path.Combine(root, "WindowsGSM.exe.old")));
             Assert.Equal(new[] { "--switch 2.0.1" }, handovers); // passed as separate arguments, never one built string
         }
-        finally { _f.Context.Settings.UpdatePrerelease = true; WindowsGSM.Core.Tests.TestData.DeleteDirectory(root); }
+        finally { _f.Context.Settings.UpdatePrerelease = false; WindowsGSM.Core.Tests.TestData.DeleteDirectory(root); }
     }
 
     [Fact]
