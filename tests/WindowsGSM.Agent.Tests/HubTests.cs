@@ -56,7 +56,12 @@ public class HubTests
         var viewer = await _f.UserAsync("hubviewer", Role.Viewer);
         Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PostAsync("/api/v2/hub/pairing-codes")).StatusCode);
 
-        var code = (await ApiClient.Read<JsonElement>(await _f.Owner.PostAsync("/api/v2/hub/pairing-codes"))).GetProperty("code").GetString();
+        var created = await ApiClient.Read<JsonElement>(await _f.Owner.PostAsync("/api/v2/hub/pairing-codes"));
+        var code = created.GetProperty("code").GetString();
+        Assert.True(created.TryGetProperty("firewallOpen", out _)); // the Add a machine window warns when it's blocked
+        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.GetAsync("/api/v2/agent/firewall")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PostAsync("/api/v2/agent/firewall")).StatusCode);
+        Assert.Equal(_f.Context.Settings.Port, (await ApiClient.Read<JsonElement>(await _f.Owner.GetAsync("/api/v2/agent/firewall"))).GetProperty("port").GetInt32());
         var wrong = await _f.NewClient().PostAsync("/api/v2/hub/pair", new { code = "ZZZZ-ZZZZ", machineId = "m-x", machineName = "x" });
         Assert.Equal(HttpStatusCode.Forbidden, wrong.StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await _f.NewClient().PostAsync("/api/v2/hub/pair", new { code, machineId = "m-once", machineName = "Once" })).StatusCode);

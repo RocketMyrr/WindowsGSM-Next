@@ -59,6 +59,41 @@ public class SchedulerAndMonitorTests
         Assert.Contains(engine.Scheduler.GetSchedules("201"), e => e.Source == ScheduleSource.Managed && e.Action == ScheduledAction.Backup);
     }
 
+    [Fact]
+    public async Task An_unreadable_Crontab_folder_is_skipped_and_the_other_schedules_stay()
+    {
+        EngineFixture.CreateServer("240", extraSettings: new[] { "restartcrontab=\"1\"", "crontabformat=\"0 6 * * *\"" });
+        // A folder that's there but can't be listed. (A deny-read ACL would be closer to the real case, but an
+        // elevated test run reads straight through it.) Here: a junction to a folder that's gone.
+        string gone = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "wgsm-gone-" + Guid.NewGuid().ToString("N"))).FullName;
+        string crontab = ServerPath.GetServersConfigs("240", "Crontab");
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c mklink /J \"{crontab}\" \"{gone}\"") { CreateNoWindow = true })!.WaitForExit();
+        Directory.Delete(gone);
+        Assert.ThrowsAny<IOException>(() => Directory.GetFiles(crontab, "*.csv", SearchOption.AllDirectories));
+
+        using var engine = await EngineFixture.StartEngineAsync();
+        Assert.Contains(engine.Scheduler.GetSchedules("240"), e => e.Source == ScheduleSource.RestartSetting);
+        await engine.Scheduler.TickAsync(); // doesn't throw, so the other servers' schedules still run
+        Assert.Contains(engine.Log.Tail("240", 20), l => l.Contains("Crontab skipped"));
+    }
+
+    [Fact]
+    public async Task Query_port_discovery_never_borrows_a_port_another_server_here_uses()
+    {
+        EngineFixture.CreateServer("105");
+        EngineFixture.CreateServer("106");
+        using var engine = await EngineFixture.StartEngineAsync();
+        var s = engine.Servers.Get("105")!;
+        int game = int.Parse(s.Config.ServerPort), query = int.Parse(s.Config.ServerQueryPort);
+        var neighbour = engine.Servers.Get("106")!;
+        neighbour.Config.ServerQueryPort = (game + 2).ToString(); // the next server's query port is this one's game port + 2
+
+        var candidates = MonitorService.Candidates(s, query, engine.Servers.All).ToList();
+        Assert.Equal(query, candidates[0]);                // its own setting comes first
+        Assert.DoesNotContain(game + 2, candidates);       // the neighbour's answer isn't taken for this server's
+        Assert.Contains(game, candidates);
+    }
+
     // ── Firing (time is moved with the scheduler's clock, not waited for) ──
 
     [Fact]
@@ -189,6 +224,7 @@ public class SchedulerAndMonitorTests
         ServerConfig.SetSetting("212", ServerConfig.SettingName.ServerQueryPort, wrong.ToString());
         using var engine = await EngineFixture.StartEngineAsync();
         var s = engine.Servers.Get("212")!;
+        MonitorService.StartupGrace = TimeSpan.Zero; // no waiting for a game that's loading
         try
         {
             await Run(engine.Lifecycle.Start("212"));
@@ -204,7 +240,7 @@ public class SchedulerAndMonitorTests
             Assert.True(state.Answering);
             Assert.Contains($"port {game.Port}", state.Note);
         }
-        finally { EngineFixture.KillQuietly(s.Process); }
+        finally { MonitorService.StartupGrace = TimeSpan.FromMinutes(5); EngineFixture.KillQuietly(s.Process); }
     }
 
     [Fact]

@@ -206,6 +206,7 @@ public static class AgentApp
         app.UseRateLimiter();
         app.Use(SecurityHeaders(() => https && certs?.Trusted == true));
         app.Use(CsrfGuard);
+        app.Use(DomainRedirect(settings, () => certs?.Trusted == true));
         app.UseWebSockets();
 
         // The web UI, read straight out of this assembly (never a temp folder). For UI development only,
@@ -369,6 +370,36 @@ public static class AgentApp
     /// Defensive headers. HSTS only with a CA-trusted certificate: sent with a self-signed one it permanently
     /// blocks the browser's "proceed anyway" and can't be undone from the server.
     /// </summary>
+    /// <summary>
+    /// With a Let's Encrypt certificate, a browser from outside this network that came by IP (or another name) is
+    /// sent to the domain, where the padlock is valid — instead of learning to click through a name-mismatch
+    /// warning. This PC and the local network keep any address (the domain often doesn't resolve from inside), and
+    /// the API isn't redirected: hub members and the desktop app may connect by IP with a pinned certificate.
+    /// </summary>
+    private static Func<HttpContext, RequestDelegate, Task> DomainRedirect(AgentSettings settings, Func<bool> trusted) => async (ctx, next) =>
+    {
+        string domain = settings.AcmeDomain?.Trim() ?? "";
+        if (settings.AcmeEnabled && domain.Length > 0 && trusted() && (HttpMethods.IsGet(ctx.Request.Method) || HttpMethods.IsHead(ctx.Request.Method))
+            && !ctx.Request.Path.StartsWithSegments("/api") && !string.Equals(ctx.Request.Host.Host, domain, StringComparison.OrdinalIgnoreCase)
+            && ctx.Connection.RemoteIpAddress is { } ip && !IsLocalNetwork(ip))
+        {
+            string port = settings.Port == 443 ? "" : ":" + settings.Port;
+            ctx.Response.Redirect($"https://{domain}{port}{ctx.Request.PathBase}{ctx.Request.Path}{ctx.Request.QueryString}", permanent: false);
+            return;
+        }
+        await next(ctx);
+    };
+
+    /// <summary>This PC, a private network (10/8, 172.16/12, 192.168/16, fc00::/7), link-local, or CGNAT/Tailscale (100.64/10).</summary>
+    internal static bool IsLocalNetwork(System.Net.IPAddress ip)
+    {
+        if (ip.IsIPv4MappedToIPv6) { ip = ip.MapToIPv4(); }
+        if (System.Net.IPAddress.IsLoopback(ip)) { return true; }
+        if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6) { return ip.IsIPv6LinkLocal || ip.IsIPv6UniqueLocal || ip.IsIPv6SiteLocal; }
+        byte[] b = ip.GetAddressBytes();
+        return b[0] == 10 || (b[0] == 172 && b[1] >= 16 && b[1] <= 31) || (b[0] == 192 && b[1] == 168) || (b[0] == 169 && b[1] == 254) || (b[0] == 100 && b[1] >= 64 && b[1] <= 127);
+    }
+
     private static Func<HttpContext, RequestDelegate, Task> SecurityHeaders(Func<bool> trustedHttps) => async (ctx, next) =>
     {
         var h = ctx.Response.Headers;

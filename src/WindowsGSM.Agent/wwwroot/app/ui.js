@@ -267,8 +267,9 @@ export function sparkline(values, kind = "cpu", max = null) {
  * optionally disk % and players (on their own scale). points: [{at (ms), cpu, ram, disk?, players?, maxPlayers?}]
  * oldest first. Long gaps (the server was off) break the lines instead of drawing across them.
  */
-export function metricsChart(points, { height = 180, ramPercent = false, disk = false, players = false, empty = "Collecting samples…" } = {}) {
-    const W = 720, H = height, padL = 34, padR = 52, padT = 10, padB = 22;
+// width: the box it goes in, so one unit is one pixel — a fixed 720 wide shrank to a thin strip with tiny labels on a phone.
+export function metricsChart(points, { height = 180, width = 720, ramPercent = false, disk = false, players = false, empty = "Collecting samples…" } = {}) {
+    const W = Math.max(300, Math.round(width)), H = height, padL = 34, padR = 52, padT = 10, padB = 22;
     const root = svg("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Performance over time" });
     const iw = W - padL - padR, ih = H - padT - padB;
     for (let i = 0; i <= 4; i++) {

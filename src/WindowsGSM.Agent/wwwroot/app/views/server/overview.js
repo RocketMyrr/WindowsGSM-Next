@@ -48,7 +48,7 @@ export default async function overviewTab(host, { id, machine, key, server, scop
         const live = range === "1h";
         const points = live ? store.historyOf(key) : longPoints || [];
         const withPlayers = points.some(p => p.players != null);
-        clear(chartBox).append(metricsChart(points, { players: withPlayers, empty: live ? "Collecting samples…" : !longPoints ? "Loading…" : longPoints.length ? "Recording started — more shows up every few minutes" : "No history for this period yet" }));
+        clear(chartBox).append(metricsChart(points, { width: chartBox.clientWidth || 720, players: withPlayers, empty: live ? "Collecting samples…" : !longPoints ? "Loading…" : longPoints.length ? "Recording started — more shows up every few minutes" : "No history for this period yet" }));
         if (live) {
             const last = points[points.length - 1];
             append(clear(legend), [

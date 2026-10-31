@@ -249,7 +249,10 @@ namespace WindowsGSM.Engine.Services
 
             // Nothing on the port we used: look for the one that answers — in the background (each try waits for a
             // timeout), at most once a minute, with its own query object so it never trips over the regular one.
-            if (result == null && !w.Discovering && now >= w.NextDiscovery && (w.QueryFailures + 1 >= 2 || port == null))
+            // Not while the game is still loading (Rust takes minutes): its own port is silent then, and guessing
+            // only finds some other answer.
+            bool loading = s.StartedAt is { } started && now - started < StartupGrace;
+            if (result == null && !loading && !w.Discovering && now >= w.NextDiscovery && (w.QueryFailures + 1 >= 2 || port == null))
             {
                 w.NextDiscovery = now.AddMinutes(1);
                 StartDiscovery(s, w, host, configured, port);
@@ -292,7 +295,7 @@ namespace WindowsGSM.Engine.Services
             {
                 try
                 {
-                    foreach (int candidate in Candidates(s, configured).Where(c => c != current))
+                    foreach (int candidate in Candidates(s, configured, _servers.All).Where(c => c != current))
                     {
                         if (await AskAsync((object)probe, host, candidate).ConfigureAwait(false) == null) { continue; }
                         if (candidate != configured)
@@ -324,11 +327,23 @@ namespace WindowsGSM.Engine.Services
             catch { return null; }
         }
 
-        /// <summary>Where else games usually answer: the game port, the port after it, the Source default.</summary>
-        private static IEnumerable<int> Candidates(ServerInstance s, int? configured)
+        /// <summary>
+        /// Where else games usually answer: the game port, the ports after it, the Source default. NEXT: never a port
+        /// another server here is set to use — with several servers on one PC, the neighbour's answer was taken as
+        /// this server's ("using 28017") and its player count shown.
+        /// </summary>
+        /// <summary>How long after a start the query port is left alone before looking for another one.</summary>
+        public static TimeSpan StartupGrace { get; set; } = TimeSpan.FromMinutes(5);
+
+        internal static IEnumerable<int> Candidates(ServerInstance s, int? configured, IEnumerable<ServerInstance> all)
         {
+            var taken = new HashSet<int>();
+            foreach (var o in all.Where(o => o.Id != s.Id))
+            {
+                foreach (string? v in new[] { o.Config.ServerPort, o.Config.ServerQueryPort, o.Config.RconPort }) { if (int.TryParse(v, out int n)) { taken.Add(n); } }
+            }
             var list = new List<int>();
-            void Add(int p) { if (p is > 0 and < 65536 && !list.Contains(p)) { list.Add(p); } }
+            void Add(int p) { if (p is > 0 and < 65536 && !list.Contains(p) && (list.Count == 0 || !taken.Contains(p))) { list.Add(p); } }
             if (configured != null) { Add(configured.Value); }
             if (int.TryParse(s.Config.ServerQueryPort, out int q)) { Add(q); }
             if (int.TryParse(s.Config.ServerPort, out int g)) { Add(g); Add(g + 1); Add(g + 2); Add(g + 15); }

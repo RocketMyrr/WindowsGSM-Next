@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using WindowsGSM.Agent.Hosting;
 using WindowsGSM.Agent.Hub;
 using WindowsGSM.Contracts;
 using WindowsGSM.Hosting;
@@ -29,7 +30,33 @@ public static class HubEndpoints
             if (member.Joined) { return ApiResults.Conflict($"This machine reports to the hub {ctx.Settings.HubName}. Add machines on that hub instead."); }
             var (code, expires) = codes.Create();
             ctx.Record(http, "pairing-code", null, true);
-            return Results.Json(new { code, expiresAt = expires, hubUrls = HubAddresses(ctx), reachable = ctx.Settings.ExposeToNetwork || ctx.Settings.AcmeEnabled });
+            return Results.Json(new { code, expiresAt = expires, hubUrls = HubAddresses(ctx), reachable = ctx.Settings.ExposeToNetwork || ctx.Settings.AcmeEnabled,
+                port = ctx.Settings.Port, firewallOpen = Reachability.FirewallAllows(Environment.ProcessPath, ctx.Settings.Port) });
+        });
+
+        // NEXT: Windows Firewall blocking the panel's port kept machines from joining, with the fix only in the log.
+        // The panel's port, and port 80 while Let's Encrypt is on (it validates there).
+        static List<(string Rule, int Port)> Needed(AgentContext ctx) => ctx.Settings.AcmeEnabled
+            ? new() { (Firewall.AgentRule, ctx.Settings.Port), (Firewall.AcmeRule, 80) } : new() { (Firewall.AgentRule, ctx.Settings.Port) };
+        api.MapGet("/agent/firewall", (HttpContext http, AgentContext ctx) =>
+            ctx.CurrentUser(http) is not { IsAdmin: true } ? ApiResults.Forbidden()
+                : Results.Json(new
+                {
+                    port = ctx.Settings.Port,
+                    allowed = Reachability.FirewallAllows(Environment.ProcessPath, ctx.Settings.Port),
+                    ports = Needed(ctx).Select(r => new { port = r.Port, purpose = r.Rule == Firewall.AcmeRule ? "Let's Encrypt" : "panel",
+                        allowed = Reachability.FirewallAllows(Environment.ProcessPath, r.Port) }),
+                }));
+        api.MapPost("/agent/firewall", async (HttpContext http, AgentContext ctx) =>
+        {
+            var user = ctx.CurrentUser(http);
+            if (user == null) { return ApiResults.Unauthorized(); }
+            if (!user.IsOwner) { return ApiResults.Forbidden("Only owners can change Windows Firewall."); }
+            var needed = Needed(ctx).Where(r => Reachability.FirewallAllows(Environment.ProcessPath, r.Port) != true).ToList();
+            string? error = await Firewall.EnsureAsync(needed, elevateIfNeeded: true);
+            ctx.Record(http, "firewall", null, error == null, error ?? $"allowed port {string.Join(" and ", needed.Select(r => r.Port))}");
+            return error == null ? Results.Json(new { ok = true })
+                : ApiResults.BadRequest(error + " Windows asks on this PC's screen — if nobody's there to answer, allow it in an administrator command prompt there.");
         });
 
         // Called by the machine being added (it has no account here — the one-time code is its proof).
@@ -86,6 +113,7 @@ public static class HubEndpoints
                 joined = member.Joined,
                 state = member.State.ToString(),
                 hubUrl = ctx.Settings.HubUrl,
+                hubFallbackUrl = ctx.Settings.HubFallbackUrl,
                 hubName = ctx.Settings.HubName,
                 pinnedCertificate = ctx.Settings.HubCertThumbprint,
                 connectedSince = member.ConnectedSince,

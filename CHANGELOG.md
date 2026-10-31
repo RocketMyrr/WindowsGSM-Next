@@ -3,6 +3,31 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## 2.0.0-rc.5
+
+Fixes from running rc.4 on real servers, several of them on one machine.
+
+- **Schedules and restarts:** a server's `configs\Crontab` folder that Windows wouldn't let WindowsGSM read (made
+  by the old app as another user) stopped every server's schedules and restarts. It's now skipped with a notice
+  saying how to fix it; the server's other schedules run. Setup's dry run warns about it before you switch.
+- **Player counts with several servers on one PC:** while a game was still loading, WindowsGSM looked for its
+  query port elsewhere and could take a neighbouring server's answer (and its player count). It now waits 5
+  minutes after a start, and never uses a port another server here is set to.
+- **Windows Firewall:** Agent settings → Network shows whether the panel's port (and port 80 for Let's Encrypt) is
+  allowed, with an *Allow through firewall* button. Machines → Add a machine warns when it's blocked, and a machine
+  that can't reach its hub says to check the firewall.
+- **Let's Encrypt:** browsers from outside your network that open the panel by IP are sent to the domain, where
+  the padlock is valid (this PC, your network and the API are unchanged). Machines linked to the hub move to the
+  domain once they've checked it's the same hub, and fall back to their old address if it can't be reached.
+- **Linking machines:** the panel rechecks its machine list after reconnecting, when the window comes back and
+  every minute — a newly linked machine no longer needs the app reopened to show up.
+- **Restarting the agent** from Agent settings waits until it's back and reloads (at its new address if HTTPS or
+  the port changed) — no more "can't reach localhost" from reloading too early.
+- **Console:** the banner says when the tab is showing the server's log file.
+- **Logs → Diagnostics** shows each entry on its own line with the stack trace underneath, instead of raw JSON.
+- **Phones:** performance charts fill their box; a browser extension's "Script error." no longer shows the
+  "Something went wrong" banner.
+
 ## 2.0.0-rc.4
 
 Fixes from running rc.3 on real servers, and a 10-hour, 40-server soak test with no leaks.

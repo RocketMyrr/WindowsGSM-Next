@@ -199,9 +199,21 @@ function refreshSoon(machine, id) {
 let unsubs = [];
 function unwire() { unsubs.forEach(u => u()); unsubs = []; }
 
+/** Reloads the machine list and loads any machine that's new or came back online since the last look. */
+async function syncMachines() {
+    const before = new Map([...store.machines.values()].map(m => [m.id, m.online]));
+    const ms = await store.refreshMachines().catch(() => null);
+    if (!ms) return;
+    await Promise.all([...ms.values()].filter(m => !before.has(m.id) || before.get(m.id) !== m.online).map(m => store.loadMachine(m.id).catch(() => { })));
+}
+
 function wireLive() {
     unwire();
+    const visible = () => { if (!document.hidden) syncMachines(); };
+    document.addEventListener("visibilitychange", visible);
+    const timer = setInterval(() => { if (!document.hidden) syncMachines(); }, 60000);
     unsubs = [
+        () => { document.removeEventListener("visibilitychange", visible); clearInterval(timer); },
         live.on("serverState", e => {
             const s = store.server(e.machine, e.server);
             if (s) { s.state = e.data.to; store.emit("server:" + key(e.machine, e.server), s); store.emit("servers"); }
@@ -268,6 +280,9 @@ function wireLive() {
         live.on("machine", e => {
             store.refreshMachines().then(() => store.loadMachine(e.machine)).catch(() => { });
         }),
+        // A missed "machine" event (asleep, reconnecting, a hidden window) left a newly linked machine out until
+        // the app was reopened: look again after a reconnect, when the window comes back, and every minute.
+        live.on("reconnected", () => syncMachines()),
         live.on("reset", () => {
             store.refreshMachines().then(ms => Promise.all([...ms.keys()].map(m => store.loadMachine(m)))).catch(() => { });
             store.loadNotifications().catch(() => { });

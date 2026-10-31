@@ -122,6 +122,12 @@ public sealed class HubLinks
                 _registry.Seen(link.MachineId, (string?)m["name"], link.Version, null, null);
                 _stream.PublishMachine(link.MachineId, new { online = true, version = link.Version });
                 await SendWatchAsync(link);
+                // With a Let's Encrypt domain, members joined by IP move to it (they check it's really this hub first).
+                if (_ctx.Settings.AcmeEnabled && !string.IsNullOrWhiteSpace(_ctx.Settings.AcmeDomain))
+                {
+                    string port = _ctx.Settings.Port == 443 ? "" : ":" + _ctx.Settings.Port;
+                    await SafeSend(link, new { t = "address", url = $"https://{_ctx.Settings.AcmeDomain.Trim()}{port}", id = _ctx.MachineId });
+                }
                 try { Connected?.Invoke(link.MachineId); } catch (Exception ex) { _log($"After {link.MachineId} connected: {ex.Message}"); }
                 break;
             case "snapshot":

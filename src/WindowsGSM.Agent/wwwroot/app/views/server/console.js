@@ -36,11 +36,16 @@ export default async function consoleTab(host, { id, machine, key, server, scope
         windowBtn.hidden = !w.hasWindow;
         reattached.hidden = !(w.reattached && w.captured);
         windowed.hidden = !w.running || w.captured;
-        windowedText.textContent = w.hasWindow
+        windowedText.textContent = w.logFile
+            ? `This server doesn't send its output to WindowsGSM, so this shows its log file (${w.logFile}) as the game writes it. `
+                + (w.rcon ? "Commands go over RCON." : "Set up RCON in Settings to send commands.")
+            : w.hasWindow
             ? "This server runs in its own console window on the server PC, so its output shows there rather than here. Commands you send from here are typed into that window — Show window puts it on the server's screen."
             : "This server's output isn't captured here, and it has no console window WindowsGSM can show. Restarting the server gives it one — or turn on \"Capture the console here\" in Settings to see its output in this tab.";
         if (!reattached.hidden) {
-            reattachedText.textContent = "This server kept running while WindowsGSM restarted (e.g. for an update), so its new output can't be shown here until the server's next restart. "
+            reattachedText.textContent = w.logFile
+                ? `This server kept running while WindowsGSM restarted (e.g. for an update), so this shows its log file (${w.logFile}) until the server's next restart. `
+                : "This server kept running while WindowsGSM restarted (e.g. for an update), so its new output can't be shown here until the server's next restart. "
                 + (w.rcon ? "Commands go over RCON meanwhile." : "Set up RCON in Settings to send commands meanwhile.");
             if (w.rcon && route !== "rcon") { route = "rcon"; routeToggle.set("rcon"); }
         }

@@ -121,6 +121,8 @@ public static class ServerEndpoints
                 // Kept running through an agent restart: a captured console can't be reconnected until it restarts.
                 reattached = s.Reattached && s.Process != null,
                 rcon = WindowsGSM.Engine.Services.ConsoleService.RconConfigured(s.Config, out _, out _),
+                // The log file shown in this tab instead, when the console itself can't be (see ConsoleLogTail).
+                logFile = p != null && WindowsGSM.Functions.ConsoleLogTail.LogFileFor(s) is string log ? Path.GetFileName(log) : null,
             });
         }).Needs(Capability.Console);
 

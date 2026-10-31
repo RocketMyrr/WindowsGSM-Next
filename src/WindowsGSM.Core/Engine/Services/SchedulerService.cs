@@ -205,7 +205,10 @@ namespace WindowsGSM.Engine.Services
             DateTime now = Clock();
             foreach (var s in _servers.All)
             {
-                var entries = Load(s.Id);
+                List<ScheduleEntry> entries;
+                try { entries = Load(s.Id); }
+                catch (Exception ex) { _log.Write(s.Id, $"[ERROR] Couldn't read this server's schedules: {ex.Message}"); continue; } // never every server's
+
                 for (int i = 0; i < entries.Count; i++)
                 {
                     var e = entries[i];
@@ -420,13 +423,19 @@ namespace WindowsGSM.Engine.Services
 
             // Cheap change detection: re-read only when a source file or the server's config changed.
             string cfgFile = ServerPath.GetServersConfigs(id, "WindowsGSM.cfg");
-            var files = Directory.Exists(crontabDir) ? Directory.GetFiles(crontabDir, "*.csv", SearchOption.AllDirectories) : Array.Empty<string>();
-            string signature = string.Join("|", files.Select(f => f + "@" + File.GetLastWriteTimeUtc(f).Ticks))
+            // NEXT: a Crontab folder Windows won't let us read (legacy created it as another user) threw here, which
+            // stopped every server's schedules; now it's skipped with a notice and the server's other schedules run.
+            string? unreadable = null;
+            string[] files;
+            try { files = Directory.Exists(crontabDir) ? Directory.GetFiles(crontabDir, "*.csv", SearchOption.AllDirectories) : Array.Empty<string>(); }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { files = Array.Empty<string>(); unreadable = ex.Message; }
+            string signature = unreadable + "|" + string.Join("|", files.Select(f => f + "@" + File.GetLastWriteTimeUtc(f).Ticks))
                                + "|" + (File.Exists(managed) ? File.GetLastWriteTimeUtc(managed).Ticks : 0)
                                + "|" + (File.Exists(cfgFile) ? File.GetLastWriteTimeUtc(cfgFile).Ticks : 0);
             if (_cache.TryGetValue(id, out var cached) && cached.signature == signature) { return cached.entries; }
 
             s.ReloadConfig(); // settings such as "restart on schedule" may have been edited
+            if (unreadable != null) { _log.Write(id, $"[NOTICE] Schedules in configs\\Crontab skipped: {unreadable} Give this PC's WindowsGSM user access to that folder (Properties → Security), or delete it if it's empty."); }
             var entries = new List<ScheduleEntry>();
             // Legacy filled crontabformat in for every server with the switch off; Enabled shows whether it (and the
             // .csv files, which follow the same switch) will actually run.

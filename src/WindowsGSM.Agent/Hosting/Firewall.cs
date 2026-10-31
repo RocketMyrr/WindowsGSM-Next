@@ -23,18 +23,24 @@ public static class Firewall
     }
 
     /// <summary>Makes sure an inbound TCP rule named <paramref name="rule"/> allows <paramref name="port"/>. Returns a hint on failure.</summary>
-    public static async Task<string?> EnsureAsync(string rule, int port, bool elevateIfNeeded = false)
+    public static Task<string?> EnsureAsync(string rule, int port, bool elevateIfNeeded = false) => EnsureAsync(new[] { (rule, port) }, elevateIfNeeded);
+
+    /// <summary>The same for several rules, with at most one Windows prompt.</summary>
+    public static async Task<string?> EnsureAsync(IEnumerable<(string Rule, int Port)> rules, bool elevateIfNeeded = false)
     {
-        if (await QueryPortAsync(rule) == port) { return null; }
-        string command = $"netsh advfirewall firewall delete rule name=\"{rule}\" >nul 2>&1 & " +
-                         $"netsh advfirewall firewall add rule name=\"{rule}\" dir=in action=allow protocol=TCP localport={port}";
+        var todo = new List<(string Rule, int Port)>();
+        foreach (var r in rules) { if (await QueryPortAsync(r.Rule) != r.Port) { todo.Add(r); } }
+        if (todo.Count == 0) { return null; }
+        string ports = string.Join(" and ", todo.Select(r => r.Port));
+        string command = string.Join(" & ", todo.Select(r => $"netsh advfirewall firewall delete rule name=\"{r.Rule}\" >nul 2>&1 & " +
+                         $"netsh advfirewall firewall add rule name=\"{r.Rule}\" dir=in action=allow protocol=TCP localport={r.Port}"));
         bool elevated = IsElevated;
         if (!elevated && !elevateIfNeeded)
         {
-            return $"Windows Firewall may block port {port}. To allow it, run this in an administrator command prompt:  " +
-                   $"netsh advfirewall firewall add rule name=\"{rule}\" dir=in action=allow protocol=TCP localport={port}";
+            return $"Windows Firewall may block port {ports}. Allow it in Agent settings → Network, or run this in an administrator command prompt:  " +
+                   string.Join(" & ", todo.Select(r => $"netsh advfirewall firewall add rule name=\"{r.Rule}\" dir=in action=allow protocol=TCP localport={r.Port}"));
         }
-        return await RunAsync(command, elevate: !elevated) ? null : $"Couldn't add the firewall rule for port {port}.";
+        return await RunAsync(command, elevate: !elevated) ? null : $"Couldn't add the firewall rule for port {ports}.";
     }
 
     private static async Task<int?> QueryPortAsync(string rule)

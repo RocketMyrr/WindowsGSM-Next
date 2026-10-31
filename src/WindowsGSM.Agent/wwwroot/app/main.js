@@ -93,7 +93,12 @@ function crashed(error) {
         h("button", { class: "btn sm", onclick: () => location.reload() }, "Reload"));
     (root.querySelector("#content") || root).prepend(box);
 }
-window.addEventListener("error", e => crashed(e.error || e.message));
+window.addEventListener("error", e => {
+    // A bare "Script error." with no details comes from a script that isn't the panel's: a browser extension,
+    // content blocker or translator injected into the page (iOS Safari showed it). The panel's own errors carry their message.
+    if (!e.error && (e.message === "Script error." || (e.filename && !e.filename.startsWith(location.origin)))) return;
+    crashed(e.error || e.message);
+});
 window.addEventListener("unhandledrejection", e => { if (!(e.reason && e.reason.name === "AbortError")) crashed(e.reason); });
 
 // The desktop app's tray menu and notifications ask for a page without reloading this one.

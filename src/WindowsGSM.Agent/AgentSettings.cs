@@ -53,6 +53,11 @@ public sealed class AgentSettings
     /// <summary>The hub's certificate, pinned at pairing when it isn't CA-trusted (self-signed).</summary>
     public string? HubCertThumbprint { get; set; }
 
+    /// <summary>The address joined with (and its pinned certificate), kept after moving to the hub's domain: tried
+    /// in turn while the domain can't be reached (e.g. its DNS or public IP changed).</summary>
+    public string? HubFallbackUrl { get; set; }
+    public string? HubFallbackThumbprint { get; set; }
+
     // ── Updates ──
 
     /// <summary>The GitHub repository whose releases carry WindowsGSM-&lt;version&gt;.zip (+ .sha256).</summary>

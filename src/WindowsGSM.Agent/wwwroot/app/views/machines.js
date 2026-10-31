@@ -38,7 +38,7 @@ export function machineHistoryDialog(m) {
         catch (e) { clear(box).append(h("div", { class: "small faint", text: e.message })); return; }
         if (asked !== range) return;
         const points = list.map(p => ({ at: Date.parse(p.at), cpu: p.cpu, ram: p.ram, disk: p.disk }));
-        clear(box).append(metricsChart(points, { ramPercent: true, disk: true, height: 220, empty: points.length ? "Recording started — more shows up every few minutes" : "No history for this period yet" }));
+        clear(box).append(metricsChart(points, { width: box.clientWidth || 720, ramPercent: true, disk: true, height: 220, empty: points.length ? "Recording started — more shows up every few minutes" : "No history for this period yet" }));
         const avg = k => { const v = points.map(p => p[k]).filter(n => n != null); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) + "%" : "—"; };
         const peak = k => { const v = points.map(p => p[k]).filter(n => n != null); return v.length ? Math.round(Math.max(...v)) + "%" : "—"; };
         clear(legend).append(
@@ -98,6 +98,7 @@ export default async function machines(host, { scope }) {
                     h("div", { class: ["callout", state[0]] }, icon(state[1]), h("div", { class: "grow" },
                         h("b", { text: `${state[2]} · ${link.hubName || "Hub"}` }),
                         h("div", { class: "small muted mono", text: link.hubUrl }),
+                        link.hubFallbackUrl ? h("div", { class: "tiny faint", text: `Its trusted domain address — falls back to ${link.hubFallbackUrl} if that can't be reached.` }) : null,
                         link.state === "Connected" && link.connectedSince ? h("div", { class: "tiny faint", text: "Since " + timeAgo(link.connectedSince) }) : null,
                         link.state !== "Connected" && link.lastError ? h("div", { class: "small", text: link.lastError }) : null)),
                     h("p", { class: "small muted", text: "People signed in to the hub can see and control this machine's servers, with the permissions the hub gives them. You can still sign in here directly." }),
@@ -216,6 +217,7 @@ export default async function machines(host, { scope }) {
                 res.reachable ? null : h("div", { class: "callout warn" }, icon("warn"), h("div", {},
                     h("b", { text: "Other computers can't reach this one yet." }),
                     h("div", { class: "small" }, "The agent only listens on this computer. Turn on ", h("a", { href: "/settings" }, "Reachable from other computers"), " in Agent settings, then restart the agent."))),
+                res.reachable && res.firewallOpen === false ? firewallCallout(res.port) : null,
                 h("ol", { class: "pair-steps" },
                     h("li", {}, h("b", { text: "Install WindowsGSM on the other machine" }), h("span", { class: "small muted", text: "Set it up and sign in to its panel." })),
                     h("li", {}, h("b", { text: "Open Machines → Join a hub" }), h("span", { class: "small muted", text: "Enter one of this machine's addresses:" }), h("div", { class: "pair-addresses" }, ...addresses)),
@@ -227,6 +229,20 @@ export default async function machines(host, { scope }) {
                 h("p", { class: "tiny faint", text: "The other machine connects out to this one, so only this machine needs to be reachable. Game servers keep running on their own machine." })),
             footer: close => [h("button", { class: "btn primary", onclick: () => close(true) }, "Done")],
         });
+    }
+
+    // Windows Firewall blocking the panel's port: other machines time out with nothing said on this side.
+    function firewallCallout(port) {
+        const box = h("div", { class: "callout warn" }, icon("warn"), h("div", { class: "grow" },
+            h("b", { text: `Windows Firewall is blocking port ${port}.` }),
+            h("div", { class: "small", text: "Other machines can't connect until it's allowed. Windows asks once to confirm." })));
+        const allow = h("button", { class: "btn sm", onclick: () => busy(allow, async () => {
+            await post("/agent/firewall");
+            clear(box).append(icon("checkCircle"), h("div", { class: "small", text: `Port ${port} is allowed through Windows Firewall.` }));
+            box.className = "callout info";
+        }, "Couldn't allow the port") }, icon("shield"), "Allow through firewall");
+        box.append(allow);
+        return box;
     }
 
     // ── Joining a hub (member side) ──

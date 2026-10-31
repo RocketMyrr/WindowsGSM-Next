@@ -106,7 +106,8 @@ public sealed class MemberLink : IAsyncDisposable
         {
             res = await http.PostAsJsonAsync("/api/v2/hub/pair", new { code, machineId = _machineId, machineName = _settings.MachineName, version = WgsmEnvironment.Version });
         }
-        catch (Exception ex) { return $"Couldn't reach the hub at {hub}: {ex.Message}"; }
+        // NEXT: the usual cause is the hub's Windows Firewall, which only showed in the hub's logs.
+        catch (Exception ex) { return $"Couldn't reach the hub at {hub}: {ex.Message} Check the address, and that the hub allows its port through Windows Firewall (the hub's Add a machine window offers it)."; }
         var body = await res.Content.ReadFromJsonAsync<JsonObject>();
         if (!res.IsSuccessStatusCode) { return (string?)body?["error"] ?? $"The hub refused ({(int)res.StatusCode})."; }
 
@@ -116,6 +117,7 @@ public sealed class MemberLink : IAsyncDisposable
         s.HubCredential = (string?)body?["credential"];
         s.HubName = (string?)body?["hubName"];
         s.HubCertThumbprint = hub.Scheme == "https" ? thumbprint : null;
+        s.HubFallbackUrl = s.HubFallbackThumbprint = null;
         s.Save();
         _log($"Joined the hub {s.HubName} at {s.HubUrl}.");
         Start();
@@ -128,7 +130,7 @@ public sealed class MemberLink : IAsyncDisposable
         if (_channel is { IsOpen: true } live) { try { await live.SendAsync(new { t = "leave" }); } catch { /* leaving anyway */ } }
         await StopAsync();
         var s = _settings;
-        s.HubUrl = s.HubCredential = s.HubName = s.HubCertThumbprint = null;
+        s.HubUrl = s.HubCredential = s.HubName = s.HubCertThumbprint = s.HubFallbackUrl = s.HubFallbackThumbprint = null;
         s.Save();
         State = LinkState.NotJoined;
         LastError = null;
@@ -145,8 +147,9 @@ public sealed class MemberLink : IAsyncDisposable
             WebSocketCloseStatus? closed = null;
             try
             {
-                var uri = new Uri(Regex.Replace(_settings.HubUrl!, "^http", "ws") + "/api/v2/hub/link");
-                using var socket = await _connect(uri, $"WGSM-Machine {_machineId}:{_settings.HubCredential}", _settings.HubCertThumbprint, token);
+                var (url, pinned) = PickAddress(_settings, attempt);
+                var uri = new Uri(Regex.Replace(url, "^http", "ws") + "/api/v2/hub/link");
+                using var socket = await _connect(uri, $"WGSM-Machine {_machineId}:{_settings.HubCredential}", pinned, token);
                 await using var channel = new LinkChannel(socket);
                 _channel = channel;
                 attempt = 0;
@@ -170,7 +173,7 @@ public sealed class MemberLink : IAsyncDisposable
             {
                 _log("The hub removed this machine; no longer linked.");
                 var s = _settings;
-                s.HubUrl = s.HubCredential = s.HubCertThumbprint = null;
+                s.HubUrl = s.HubCredential = s.HubCertThumbprint = s.HubFallbackUrl = s.HubFallbackThumbprint = null;
                 s.Save();
                 State = LinkState.Removed;
                 return;
@@ -271,11 +274,43 @@ public sealed class MemberLink : IAsyncDisposable
             case "ack":
                 if (_credits.TryGetValue((int?)m["id"] ?? 0, out var credit)) { credit.Release(); }
                 break;
+            case "address":
+                if ((string?)m["url"] is { } url && (string?)m["id"] is { } hubId) { _ = Task.Run(() => AdoptAddressAsync(url, hubId)); }
+                break;
             case "watch":
                 _watched = new HashSet<string>(m["servers"]?.AsArray().Select(x => (string?)x ?? "") ?? Enumerable.Empty<string>());
                 break;
         }
         return Task.CompletedTask;
+    }
+
+    /// <summary>The hub's address for this attempt: after a failure, the one joined with takes turns with the domain.</summary>
+    internal static (string Url, string? Pinned) PickAddress(AgentSettings s, int attempt) =>
+        s.HubFallbackUrl != null && attempt % 2 == 1 ? (s.HubFallbackUrl, s.HubFallbackThumbprint) : (s.HubUrl!, s.HubCertThumbprint);
+
+    /// <summary>
+    /// The hub has a Let's Encrypt domain: use it from the next connection on, if this machine reaches it with a
+    /// certificate Windows trusts and it answers as the same hub. (Inside the hub's own network the domain often
+    /// doesn't resolve; then nothing changes.)
+    /// </summary>
+    private async Task AdoptAddressAsync(string url, string hubId)
+    {
+        var s = _settings;
+        if (string.Equals(url, s.HubUrl, StringComparison.OrdinalIgnoreCase) || !Uri.TryCreate(url, UriKind.Absolute, out var u) || u.Scheme != "https") { return; }
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) }; // normal certificate checks: no pinning
+            var health = await http.GetFromJsonAsync<JsonObject>(new Uri(u, "/api/v2/health"));
+            if (!string.Equals((string?)health?["machine"], hubId, StringComparison.OrdinalIgnoreCase)) { return; }
+        }
+        catch { return; } // not reachable from here, or not a trusted certificate
+        if (s.HubUrl == null) { return; } // left meanwhile
+        s.HubFallbackUrl = s.HubUrl;
+        s.HubFallbackThumbprint = s.HubCertThumbprint;
+        s.HubUrl = url;
+        s.HubCertThumbprint = null;
+        s.Save();
+        _log($"The hub {s.HubName} has a trusted address, {url}: using it from the next connection on (falls back to {s.HubFallbackUrl} if it can't be reached).");
     }
 
     private async Task OnChunkAsync(byte kind, int id, ReadOnlyMemory<byte> payload)

@@ -5,7 +5,7 @@ import { h, icon, clear } from "../dom.js";
 import { get, post, put } from "../api.js";
 import { store } from "../store.js";
 import { setCrumbs } from "../shell.js";
-import { field, input, toggle, toast, toastError, busy, segmented, confirm, helpButton } from "../ui.js";
+import { field, input, toggle, toast, toastError, busy, segmented, confirm, helpButton, modal } from "../ui.js";
 import { updatesPanel } from "./updates.js";
 import { steamPanel } from "./steam.js";
 import { offsitePanel } from "./offsite.js";
@@ -17,7 +17,7 @@ export default async function settings(host, { scope }) {
         host.append(h("div", { class: "callout warn" }, icon("lock"), h("span", { text: "Only owners can change the agent's settings." })));
         return;
     }
-    const [cfg, startup, cert] = await Promise.all([get("/agent/settings"), get("/agent/startup"), get("/agent/certificate").catch(() => null)]);
+    const [cfg, startup, cert, fw] = await Promise.all([get("/agent/settings"), get("/agent/startup"), get("/agent/certificate").catch(() => null), get("/agent/firewall").catch(() => null)]);
 
     const machineName = input({ value: cfg.machineName });
     const port = input({ type: "number", min: 1, max: 65535, value: cfg.port, class: "input num" });
@@ -91,7 +91,7 @@ export default async function settings(host, { scope }) {
             h("section", { class: "panel settings-section" }, h("div", { class: "panel-head" }, icon("machine"), h("h2", { text: "This machine" })),
                 h("div", { class: "panel-body stack" }, field("Name", machineName, { hint: "How it appears in the panel.", help: "Shown in the machine picker, on the overview and in notifications — handy once you connect several PCs." }), startupToggle)),
             h("section", { class: "panel settings-section" }, h("div", { class: "panel-head" }, icon("globe"), h("h2", { text: "Network" })),
-                h("div", { class: "panel-body stack" }, network, h("div", { class: "form-grid" }, field("Port", port, { hint: "Default 8971.", help: ["The port the panel listens on. Change it only if something else uses 8971.", "If you forward it on your router or allowed it through a firewall, change those too. Restart the agent afterwards."] }), field("Stay signed in for", sessionHours, { hint: "hours without activity", help: "How long a browser stays signed in without being used. Shorter is safer on shared or public computers; the desktop app on this PC can stay signed in regardless (its tray menu)." })))),
+                h("div", { class: "panel-body stack" }, network, cfg.exposeToNetwork || cfg.acmeEnabled ? firewallRow(fw) : null, h("div", { class: "form-grid" }, field("Port", port, { hint: "Default 8971.", help: ["The port the panel listens on. Change it only if something else uses 8971.", "If you forward it on your router or allowed it through a firewall, change those too. Restart the agent afterwards."] }), field("Stay signed in for", sessionHours, { hint: "hours without activity", help: "How long a browser stays signed in without being used. Shorter is safer on shared or public computers; the desktop app on this PC can stay signed in regardless (its tray menu)." })))),
             h("section", { class: "panel settings-section" }, h("div", { class: "panel-head" }, icon("lock"), h("h2", { text: "HTTPS" }), httpsHelp),
                 h("div", { class: "panel-body stack" }, httpsHelp.helpBox, modes, httpsDetails, certInfo)),
             steamPanel(store.localId),
@@ -107,9 +107,66 @@ function restartButton() {
     const b = h("button", { class: "btn", title: "Game servers keep running", onclick: async () => {
         if (!(await confirm({ title: "Restart the agent?", message: "The panel goes away for a few seconds and comes back on its own. Game servers keep running.", confirmLabel: "Restart", iconName: "restart" }))) return;
         await busy(b, async () => {
+            const saved = await get("/agent/settings");
+            const before = await fetch("/api/v2/health", { cache: "no-store" }).then(r => r.json()).catch(() => null);
             await post(`/machines/${encodeURIComponent(store.localId)}/agent/restart`);
-            toast("Restarting the agent", { type: "info", text: "Back in a few seconds — your game servers keep running.", timeout: 8000 });
+            waitForRestart(saved, before?.uptimeSeconds);
         }, "Couldn't restart the agent");
     } }, icon("restart"), "Restart agent");
     return b;
+}
+
+// NEXT: after a restart nothing said when the panel was back, and reloading too soon showed the browser's "can't
+// reach localhost" page. Now: wait until the new agent answers, then reload — at its new address if HTTPS or the
+// port changed (a self-signed certificate can't be checked from here, so that one just waits a little).
+function waitForRestart(saved, uptimeBefore) {
+    const proto = saved.useHttps || saved.acmeEnabled ? "https:" : "http:";
+    const target = `${proto}//${location.hostname}:${saved.port}${location.pathname}`;
+    const moving = proto !== location.protocol || String(saved.port) !== (location.port || (location.protocol === "https:" ? "443" : "80"));
+    const status = h("span", { text: "Waiting for the agent to come back…" });
+    modal({ title: "Restarting the agent", iconName: "restart",
+        body: h("div", { class: "stack" }, h("div", { class: "pair-wait" }, h("span", { class: "spinner" }), status),
+            h("p", { class: "small muted", text: "Game servers keep running. This page reloads by itself when the panel is back." }),
+            moving ? h("p", { class: "small" }, "It moves to ", h("a", { href: target }, target), ".") : null),
+        footer: () => [] });
+    const started = Date.now();
+    const poll = async () => {
+        if (moving) {
+            try { await fetch(`${proto}//${location.hostname}:${saved.port}/api/v2/health`, { mode: "no-cors", cache: "no-store" }); location.href = target; return; }
+            catch { if (Date.now() - started > 20000) { location.href = target; return; } }
+        } else {
+            const now = await fetch("/api/v2/health", { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null);
+            if (now && (uptimeBefore == null || now.uptimeSeconds < uptimeBefore)) { location.reload(); return; }
+        }
+        if (Date.now() - started > 90000) status.textContent = "Still waiting — if it doesn't come back, check the agent on this PC (tray icon → Open).";
+        setTimeout(poll, 1000);
+    };
+    setTimeout(poll, 1500);
+}
+
+// Whether Windows Firewall lets other computers reach the panel's port (and port 80 for Let's Encrypt), with a
+// one-click allow (one Windows prompt).
+function firewallRow(fw) {
+    const ports = (fw?.ports || []).filter(p => p.allowed != null);
+    if (!ports.length) return null;
+    const row = h("div", { class: "row" });
+    const what = p => p.purpose === "panel" ? `port ${p.port}` : `port ${p.port} (${p.purpose})`;
+    const paint = () => {
+        const blocked = ports.filter(p => !p.allowed);
+        clear(row).append(icon(blocked.length ? "warn" : "checkCircle"),
+            h("span", { class: "grow small", text: blocked.length
+                ? `Windows Firewall blocks ${blocked.map(what).join(" and ")} — other computers can't connect${blocked.some(p => p.purpose !== "panel") ? " and certificates can't be issued" : ""}.`
+                : `Windows Firewall allows ${ports.map(what).join(" and ")}.` }));
+        if (blocked.length) {
+            const allow = h("button", { class: "btn sm", onclick: () => busy(allow, async () => {
+                await post("/agent/firewall");
+                ports.forEach(p => p.allowed = true);
+                paint();
+                toast("Allowed through Windows Firewall", { type: "good", text: blocked.map(what).join(" and "), timeout: 3000 });
+            }, "Couldn't allow the port") }, icon("shield"), "Allow through firewall");
+            row.append(allow);
+        }
+    };
+    paint();
+    return row;
 }

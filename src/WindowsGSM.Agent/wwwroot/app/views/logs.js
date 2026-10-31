@@ -112,11 +112,27 @@ export default async function logs(host, { query, scope }) {
             side.append(b);
         }
 
+        // The diagnostics are one JSON object per line, with an exception's stack squeezed onto it: shown as
+        // "time  level  source  message" with the stack on its own indented lines.
+        function readable(line) {
+            let e;
+            try { e = JSON.parse(line); } catch { return line; }
+            if (!e || typeof e !== "object") return line;
+            const t = e.t ? new Date(e.t) : null;
+            const time = t && !isNaN(t) ? t.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
+            const level = { Error: "[ERROR]", Critical: "[ERROR]", Warning: "[WARN]" }[e.level] || (e.level || "");
+            const rest = Object.entries(e).filter(([k]) => !["t", "level", "category", "message", "exception"].includes(k)).map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : v}`);
+            let out = [time, level, e.category, e.message, ...rest].filter(Boolean).join("  ");
+            if (e.exception) out += "\n    " + String(e.exception).split(/\r?\n/).map(x => x.trim()).filter(Boolean).join("\n    ");
+            return out;
+        }
+
         const PROBLEM = /\b(error|exception|fail(ed|ure)?|crash(ed)?|fatal|unhandled|refused|denied)\b|\[(ERROR|NOTICE|WARN)/i;
         function paintText() {
             const q = search.value.trim().toLowerCase();
             let lines = text.split(/\r?\n/);
             if (lines.length && lines[lines.length - 1] === "") lines.pop();
+            if (current?.path?.endsWith(".jsonl")) lines = lines.map(readable);
             const total = lines.length;
             if (problems.checked) lines = lines.filter(l => PROBLEM.test(l));
             if (q) lines = lines.filter(l => l.toLowerCase().includes(q));

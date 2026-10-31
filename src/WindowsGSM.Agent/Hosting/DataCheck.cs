@@ -102,9 +102,18 @@ public static class DataCheck
                 {
                     if (cfg.TryGetValue(key, out string? p) && p.Length > 0) { (ports.TryGetValue(p, out var l) ? l : ports[p] = new()).Add($"#{id}"); }
                 }
-                if (Directory.Exists(Path.Combine(dir, "configs", "Crontab")) && Directory.EnumerateFiles(Path.Combine(dir, "configs", "Crontab"), "*.csv").Any())
+                string crontab = Path.Combine(dir, "configs", "Crontab");
+                try
                 {
-                    f.Add(new("Schedules", "ok", $"#{id} {name}: its Crontab schedules carry over as they are."));
+                    if (Directory.Exists(crontab) && Directory.EnumerateFiles(crontab, "*.csv").Any())
+                    {
+                        f.Add(new("Schedules", "ok", $"#{id} {name}: its Crontab schedules carry over as they are."));
+                    }
+                }
+                catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+                {
+                    f.Add(new("Schedules", "warn", $"#{id} {name}: its configs\\Crontab folder can't be read ({ex.Message.TrimEnd('.')}).",
+                        "Give this user access to it (Properties → Security), or delete it if it's empty; until then its other schedules still run."));
                 }
                 if (IsOn(cfg, "autostart")) { f.Add(new("Servers", "info", $"#{id} {name} starts automatically when the agent starts.")); }
             }

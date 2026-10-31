@@ -148,7 +148,7 @@ public sealed class Reachability
     }
 
     /// <summary>true: an enabled inbound allow rule covers the program or the port; false: none does; null: couldn't tell.</summary>
-    private static bool? FirewallAllows(string? exe, int port)
+    internal static bool? FirewallAllows(string? exe, int port)
     {
         try
         {
