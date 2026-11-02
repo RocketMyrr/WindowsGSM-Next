@@ -66,12 +66,26 @@ namespace WindowsGSM.Engine.Services
                 : $"{s.Name} has no console WindowsGSM can type into, and RCON isn't set up for it.");
         }
 
-        /// <summary>True when RCON details are saved for the server (port set).</summary>
+        /// <summary>True when RCON details are saved for the server (port set), here or in Extra start parameters.</summary>
         public static bool RconConfigured(ServerConfig cfg, out string ip, out int port)
         {
-            ip = string.IsNullOrWhiteSpace(cfg.RconIp) ? (cfg.ServerIP ?? "127.0.0.1") : cfg.RconIp;
+            string? own = StartLineRcon(cfg, "ip");
+            ip = !string.IsNullOrWhiteSpace(own) ? own : string.IsNullOrWhiteSpace(cfg.RconIp) ? (cfg.ServerIP ?? "127.0.0.1") : cfg.RconIp;
             if (ip == "0.0.0.0") { ip = "127.0.0.1"; }
-            return int.TryParse(cfg.RconPort, out port) && port > 0;
+            return int.TryParse(StartLineRcon(cfg, "port") ?? cfg.RconPort, out port) && port > 0;
+        }
+
+        /// <summary>The RCON password the server runs with: Extra start parameters' when set there.</summary>
+        public static string RconPassword(ServerConfig cfg) => StartLineRcon(cfg, "password") ?? cfg.RconPassword ?? string.Empty;
+
+        /// <summary>
+        /// A Rust <c>+rcon.&lt;name&gt; value</c> typed into Extra start parameters, or null. What you type there wins over
+        /// the RCON settings — on the start line (Rust keeps the first value it's given) and when WindowsGSM signs in.
+        /// </summary>
+        public static string? StartLineRcon(ServerConfig cfg, string name)
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(cfg.ServerParam ?? string.Empty, $@"(?:^|\s)\+rcon\.{name}\s+(?:""([^""]*)""|(\S+))", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            return !m.Success ? null : m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
         }
 
         /// <summary>
@@ -82,7 +96,7 @@ namespace WindowsGSM.Engine.Services
         {
             var s = _servers.Get(id);
             if (s == null || !RconConfigured(s.Config, out string ip, out int port)) { return null; }
-            string password = s.Config.RconPassword ?? string.Empty;
+            string password = RconPassword(s.Config);
             try
             {
                 var ask = UsesRustRcon(s.Game) ? RustOneShotAsync(ip, port, password, command) : RconClient.SendCommandAsync(ip, port, password, command);
@@ -98,7 +112,7 @@ namespace WindowsGSM.Engine.Services
         private async Task<CommandResult> ViaRconAsync(ServerInstance s, string command, string? sentBy)
         {
             RconConfigured(s.Config, out string ip, out int port);
-            string password = s.Config.RconPassword ?? string.Empty;
+            string password = RconPassword(s.Config);
             string reply;
             try
             {

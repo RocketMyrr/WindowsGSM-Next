@@ -400,7 +400,7 @@ namespace WindowsGSM.Engine.Services
                 if (now >= w.NextRconPlayers)
                 {
                     w.NextRconPlayers = now + TimeSpan.FromSeconds(30);
-                    try { w.RconPlayers = ParseRustPlayerList(await ConsoleService.RustOneShotAsync(ip, port, s.Config.RconPassword ?? "", "playerlist").ConfigureAwait(false)); }
+                    try { w.RconPlayers = ParseRustPlayerList(await ConsoleService.RustOneShotAsync(ip, port, ConsoleService.RconPassword(s.Config), "playerlist").ConfigureAwait(false)); }
                     catch { /* RCON not answering: keep the last list */ }
                 }
                 list = w.RconPlayers ?? list;

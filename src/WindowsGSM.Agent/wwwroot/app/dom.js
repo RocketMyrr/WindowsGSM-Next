@@ -207,21 +207,28 @@ export function gameInitials(name) {
 // every tile on every page would otherwise repeat the request (and its 404).
 const missingImages = new Set();
 const missing = url => !url || missingImages.has(url);
+// Images already shown once (url → natural width): a repaint shows them straight away. Hidden until they "load"
+// again, every redraw of a card or the server header blinked its pictures.
+const shownImages = new Map();
+const loadAttrs = url => shownImages.has(url) ? { decoding: "sync" } : { loading: "lazy", decoding: "async" };
 
 export function gameTile(game, iconUrl, size = "", artUrl = null) {
     const tile = h("span", { class: ["game-tile", size], style: { "--h": String(gameHue(game)) }, "aria-hidden": "true" }, h("span", { class: "initials", text: gameInitials(game) }));
     if (!missing(iconUrl)) {
-        const img = h("img", { class: "icon-full", src: iconUrl, alt: "", loading: "lazy", decoding: "async" });
-        img.addEventListener("load", () => {
+        const img = h("img", { class: "icon-full", src: iconUrl, alt: "", ...loadAttrs(iconUrl) });
+        const shown = width => {
             tile.classList.add("has-icon");
-            if (img.naturalWidth && img.naturalWidth <= 48) img.classList.add("pixel");
-        });
+            if (width && width <= 48) img.classList.add("pixel");
+        };
+        if (shownImages.has(iconUrl)) shown(shownImages.get(iconUrl));
+        img.addEventListener("load", () => { shownImages.set(iconUrl, img.naturalWidth); shown(img.naturalWidth); });
         img.addEventListener("error", () => { missingImages.add(iconUrl); img.remove(); });
         tile.append(img);
     }
     if (!missing(artUrl)) {
-        const art = h("img", { class: "art", src: artUrl, alt: "", loading: "lazy", decoding: "async" });
-        art.addEventListener("load", () => tile.classList.add("has-art"));
+        const art = h("img", { class: "art", src: artUrl, alt: "", ...loadAttrs(artUrl) });
+        if (shownImages.has(artUrl)) tile.classList.add("has-art");
+        art.addEventListener("load", () => { shownImages.set(artUrl, art.naturalWidth); tile.classList.add("has-art"); });
         art.addEventListener("error", () => { missingImages.add(artUrl); art.remove(); });
         tile.append(art);
     }
@@ -231,8 +238,9 @@ export function gameTile(game, iconUrl, size = "", artUrl = null) {
 /** A wide banner image (the game's header art), removed quietly if there isn't one. */
 export function gameBanner(url, cls) {
     if (missing(url)) return null;
-    const img = h("img", { class: cls, src: url, alt: "", loading: "lazy", decoding: "async", "aria-hidden": "true" });
-    img.addEventListener("load", () => img.classList.add("loaded"));
+    const img = h("img", { class: cls, src: url, alt: "", ...loadAttrs(url), "aria-hidden": "true" });
+    if (shownImages.has(url)) img.classList.add("loaded");
+    img.addEventListener("load", () => { shownImages.set(url, img.naturalWidth); img.classList.add("loaded"); });
     img.addEventListener("error", () => { missingImages.add(url); img.remove(); });
     return img;
 }

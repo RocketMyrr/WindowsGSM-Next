@@ -3,6 +3,21 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## 2.0.0-rc.6
+
+- **Only on this PC:** a new switch per account (Users & access → edit). That account then signs in only on the
+  machine itself — the app there, or a browser at localhost, e.g. over Remote Desktop. From anywhere else its
+  sign-in is refused with the usual "wrong username or password", and its sessions and API tokens stop working.
+  You can only switch it on for yourself while you're on the machine, so it can't lock you out.
+- **Rust RCON:** `+rcon.port`, `+rcon.password` or `+rcon.ip` typed into Extra start parameters now win. Before,
+  WindowsGSM's own RCON settings went first on the start line and Rust kept those, so your password didn't work —
+  and every open panel kept failing to sign in. The panel now signs in with what the server really runs with.
+- **Switching from the old app (Rust):** the first start keeps the RCON password from the old `server.cfg` —
+  what the server actually ran with — instead of the RCON settings the old app never used for Rust.
+- **No more flicker:** server cards and the server header no longer blink their pictures every time they redraw.
+- **Windows Server:** when the WebView2 Runtime is missing (Windows Server doesn't include it), the app says so,
+  with *Get WebView2* and *Open in browser* buttons.
+
 ## 2.0.0-rc.5
 
 Fixes from running rc.4 on real servers, several of them on one machine.

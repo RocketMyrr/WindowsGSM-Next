@@ -173,10 +173,10 @@ public sealed record ApiTokenRequest(string? Name, int? Days);
 public sealed record SessionDto(string Id, bool Current, DateTimeOffset CreatedAt, DateTimeOffset LastSeenAt, string? Ip, string? Device);
 
 public sealed record UserDto(string Username, Role Role, bool Enabled, IReadOnlyDictionary<string, Capability> Grants,
-    bool TwoFactorEnabled, DateTimeOffset CreatedAt, DateTimeOffset? LastLoginAt, string? LastLoginIp);
+    bool TwoFactorEnabled, DateTimeOffset CreatedAt, DateTimeOffset? LastLoginAt, string? LastLoginIp, bool LocalOnly = false);
 
-/// <summary>Create or update. On update, a blank password leaves it unchanged.</summary>
-public sealed record UserRequest(string Username, Role Role, bool Enabled, IReadOnlyDictionary<string, Capability>? Grants, string? Password);
+/// <summary>Create or update. On update, a blank password leaves it unchanged, and so does a missing LocalOnly.</summary>
+public sealed record UserRequest(string Username, Role Role, bool Enabled, IReadOnlyDictionary<string, Capability>? Grants, string? Password, bool? LocalOnly = null);
 
 public sealed record AuditDto(DateTimeOffset At, string? User, string? Ip, string Action, string? Machine, string? Server, bool Ok, string? Detail);
 

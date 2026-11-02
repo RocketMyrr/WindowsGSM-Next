@@ -119,11 +119,13 @@ namespace WindowsGSM.GameServer
             if (!custom && int.TryParse(cfg.GetCustomSetting(WorldSizeKey, ""), out int size) && size >= 1000 && size <= 6000) { param += $" +server.worldsize {size}"; }
             param += string.IsNullOrWhiteSpace(cfg.ServerMaxPlayer) ? string.Empty : $" +server.maxplayers {cfg.ServerMaxPlayer}";
 
-            // RCON from the server's RCON settings (WindowsGSM's console uses the same), when a port is set.
+            // RCON from the server's RCON settings (WindowsGSM's console uses the same), when a port is set. Each one
+            // typed into Extra start parameters is left out here: Rust keeps the first value it's given, so ours hid yours.
             if (int.TryParse(cfg.RconPort, out int rconPort) && rconPort > 0)
             {
-                param += string.IsNullOrWhiteSpace(cfg.RconIp) ? string.Empty : $" +rcon.ip {cfg.RconIp}";
-                param += $" +rcon.port {rconPort} +rcon.password {Q(cfg.RconPassword)} +rcon.web 1";
+                string Own(string name, string value) => WindowsGSM.Engine.Services.ConsoleService.StartLineRcon(cfg, name) != null ? string.Empty : $" +rcon.{name} {value}";
+                param += string.IsNullOrWhiteSpace(cfg.RconIp) ? string.Empty : Own("ip", cfg.RconIp);
+                param += Own("port", rconPort.ToString()) + Own("password", Q(cfg.RconPassword)) + Own("web", "1");
             }
 
             // Then only what you set yourself.
@@ -152,8 +154,9 @@ namespace WindowsGSM.GameServer
                 .Where(x => x.Ok && !FormSettings.Contains(x.Name, StringComparer.OrdinalIgnoreCase)).ToList();
             string Value(string name) => lines.Where(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).Select(x => x.Value.Trim('"')).LastOrDefault();
 
-            // RCON: what the server actually ran with, if WindowsGSM's own RCON settings weren't in use.
-            if (!(int.TryParse(cfg.RconPort, out int p) && p > 0) && int.TryParse(Value("rcon.port"), out int rconPort) && rconPort > 0)
+            // RCON: what the server actually ran with. Legacy never put its own RCON settings on the start line (only
+            // this file's lines), so this file wins over them — keeping theirs changed the password on the first start.
+            if (int.TryParse(Value("rcon.port"), out int rconPort) && rconPort > 0)
             {
                 Functions.ServerConfig.SetSetting(id, Functions.ServerConfig.SettingName.RconPort, rconPort.ToString());
                 Functions.ServerConfig.SetSetting(id, Functions.ServerConfig.SettingName.RconPassword, Value("rcon.password") ?? string.Empty);
@@ -205,7 +208,7 @@ namespace WindowsGSM.GameServer
             {
                 try
                 {
-                    var quit = WindowsGSM.Engine.Services.ConsoleService.RustOneShotAsync(ip, port, _serverData.RconPassword ?? string.Empty, "quit");
+                    var quit = WindowsGSM.Engine.Services.ConsoleService.RustOneShotAsync(ip, port, WindowsGSM.Engine.Services.ConsoleService.RconPassword(_serverData), "quit");
                     if (await Task.WhenAny(quit, Task.Delay(System.TimeSpan.FromSeconds(8))) == quit && !quit.IsFaulted) { return; }
                 }
                 catch { /* RCON not answering: the console window below */ }

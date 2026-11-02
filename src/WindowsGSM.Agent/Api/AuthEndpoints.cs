@@ -56,6 +56,13 @@ public static class AuthEndpoints
         api.MapPost("/auth/login", async (HttpContext http, AgentContext ctx, LoginRequest body) =>
         {
             string? ip = AgentContext.Ip(http);
+            // Refused before the password is checked, with the usual answer: from outside, this never confirms a
+            // password (it may be the Windows one too).
+            if (ctx.Users.Get(body.Username?.Trim() ?? string.Empty) is { LocalOnly: true } only && !AgentContext.FromThisPc(http))
+            {
+                ctx.Audit.Write(only.Username, ip, "login", null, false, "refused: this account signs in only on the machine itself");
+                return ApiResults.Error(401, "bad_credentials", "Wrong username or password.");
+            }
             var outcome = ctx.Users.Validate(body.Username?.Trim() ?? string.Empty, body.Password, body.Code, out var user, AgentContext.Ip(http));
             switch (outcome)
             {
@@ -83,7 +90,7 @@ public static class AuthEndpoints
             string? ip = AgentContext.Ip(http);
             var key = ctx.Sessions.UseAppKey(body.Key, ip);
             var user = key == null ? null : ctx.Users.Get(key.Username);
-            if (key == null || user is not { Enabled: true })
+            if (key == null || user is not { Enabled: true } || (user.LocalOnly && !AgentContext.FromThisPc(http)))
             {
                 ctx.Audit.Write(key?.Username ?? "?", ip, "login", null, false, "WindowsGSM app: key not valid (removed, expired or the account changed)");
                 return ApiResults.Error(401, "bad_key", "This app has to sign in again.");

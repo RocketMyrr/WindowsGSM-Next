@@ -96,6 +96,33 @@ public class RustArgumentsTests
 
         Assert.Null(RUST.MoveOldDefaults(saved)); // done once
     }
+
+    [Fact]
+    public void Rcon_typed_into_extra_start_parameters_wins_on_the_start_line_and_when_signing_in()
+    {
+        string id = RustServer("392", "rconport=\"28016\"", "rconpassword=\"Generated\"", "serverparam=\"-noconsole +rcon.port 28020 +rcon.password \"Mine 1\"\"");
+        var cfg = new ServerConfig(id);
+
+        string args = RUST.Arguments(cfg);
+        Assert.DoesNotContain("Generated", args);
+        Assert.DoesNotContain("28016", args.Replace("+server.queryport 28016", ""));
+        Assert.Contains("+rcon.web 1", args); // not typed: still ours
+
+        Assert.True(WindowsGSM.Engine.Services.ConsoleService.RconConfigured(cfg, out _, out int port));
+        Assert.Equal((28020, "Mine 1"), (port, WindowsGSM.Engine.Services.ConsoleService.RconPassword(cfg)));
+    }
+
+    [Fact]
+    public void An_old_servercfg_password_beats_the_rcon_settings_legacy_never_used()
+    {
+        string id = RustServer("391", "rconport=\"28016\"", "rconpassword=\"Generated\"");
+        File.WriteAllLines(ServerPath.GetServersServerFiles(id, "server.cfg"), new[] { "+rcon.port 28015", "+rcon.password \"Mine\"" });
+
+        Assert.NotNull(RUST.MoveOldDefaults(new ServerConfig(id)));
+
+        var saved = new ServerConfig(id);
+        Assert.Equal(("28015", "Mine"), (saved.RconPort, saved.RconPassword));
+    }
 }
 
 /// <summary>The settings form offers Rust's World size box, and keeps the usual boxes.</summary>

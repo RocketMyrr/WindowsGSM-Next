@@ -14,7 +14,7 @@ WindowsGSM Next is the rebuild of [WindowsGSM](https://github.com/WindowsGSM/Win
 whether or not any window is open, every existing game plugin keeps working, and your current WindowsGSM folder —
 servers, backups, accounts, schedules, Discord bot — carries straight over.
 
-> **Status: 2.0.0-rc.5 (release candidate).** Everything planned for 2.0 is in; from here on it's fixes. Settings files
+> **Status: 2.0.0-rc.6 (release candidate).** Everything planned for 2.0 is in; from here on it's fixes. Settings files
 > are stable: later versions read them as they are. Keep backups, and try it on a copy of your WindowsGSM folder
 > first if you're switching from the old app. What changed in each version: [CHANGELOG.md](CHANGELOG.md). Problems
 > we already know about, with ways around them: [Known issues](docs/KNOWN-ISSUES.md).
@@ -60,7 +60,9 @@ servers, backups, accounts, schedules, Discord bot — carries straight over.
 
 - **Windows 10 or 11, 64-bit.** Windows Server works too.
 - **No .NET install needed**: WindowsGSM brings its own runtime.
-- The desktop app uses the Microsoft Edge **WebView2 Runtime**, part of Windows 11 and current Windows 10.
+- The desktop app uses the Microsoft Edge **WebView2 Runtime**, part of Windows 11 and current Windows 10. On Windows
+  Server, install it from [Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/) (the panel also works in
+  any browser).
 - **No administrator rights** to install or run. Windows asks once, if you want, to let a game through the
   firewall.
 

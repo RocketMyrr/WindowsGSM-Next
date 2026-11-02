@@ -25,7 +25,7 @@ public static class AdminEndpoints
         {
             var me = ctx.CurrentUser(http)!;
             if (!me.CanManage(body.Role)) { return ApiResults.Forbidden("Only owners can create admins and owners."); }
-            string? problem = ValidateGrants(body.Grants) ?? ctx.Users.Create(body.Username, body.Password ?? string.Empty, body.Role, body.Enabled, body.Grants);
+            string? problem = ValidateGrants(body.Grants) ?? ctx.Users.Create(body.Username, body.Password ?? string.Empty, body.Role, body.Enabled, body.Grants, body.LocalOnly == true);
             ctx.Record(http, "user-create", null, problem == null, problem ?? $"{body.Username} ({body.Role})");
             return problem == null ? Results.Json(ToDto(ctx.Users.Get(body.Username)!), statusCode: 201) : ApiResults.BadRequest(problem);
         });
@@ -37,15 +37,20 @@ public static class AdminEndpoints
             if (target == null) { return ApiResults.NotFound("No such user."); }
             // Must be allowed to manage the account both as it is now and as it would become.
             if (!me.CanManage(target.Role) || !me.CanManage(body.Role)) { return ApiResults.Forbidden("Only owners can change admins and owners."); }
+            // Switching it on for yourself from elsewhere would end this very session: only from the machine itself.
+            if (body.LocalOnly == true && !target.LocalOnly && string.Equals(me.Username, target.Username, StringComparison.OrdinalIgnoreCase) && !AgentContext.FromThisPc(http))
+            {
+                return ApiResults.BadRequest("You're not on this machine, so that would sign you out here and keep you out. Turn it on from the machine itself: the app there, or a browser at localhost.");
+            }
 
-            string? problem = ValidateGrants(body.Grants) ?? ctx.Users.Update(username, body.Role, body.Enabled, body.Grants, body.Password);
+            string? problem = ValidateGrants(body.Grants) ?? ctx.Users.Update(username, body.Role, body.Enabled, body.Grants, body.Password, body.LocalOnly);
             if (problem == null && (!body.Enabled || !string.IsNullOrEmpty(body.Password)))
             {
                 ctx.Sessions.RemoveAllForUser(username); // disabled, or password reset: signed out everywhere
                 ctx.Tokens.RemoveAllForUser(username);   // …and their API tokens go too (a compromised account's would survive)
             }
             ctx.Record(http, "user-update", null, problem == null,
-                problem ?? $"{username}: {body.Role}, {(body.Enabled ? "enabled" : "disabled")}{(string.IsNullOrEmpty(body.Password) ? "" : ", password reset")}");
+                problem ?? $"{username}: {body.Role}, {(body.Enabled ? "enabled" : "disabled")}{(body.LocalOnly is bool lo ? (lo ? ", only on this PC" : ", from anywhere") : "")}{(string.IsNullOrEmpty(body.Password) ? "" : ", password reset")}");
             return problem == null ? Results.Json(ToDto(ctx.Users.Get(username)!)) : ApiResults.BadRequest(problem);
         });
 
@@ -137,7 +142,7 @@ public static class AdminEndpoints
     }
 
     private static UserDto ToDto(AgentUser u) =>
-        new(u.Username, u.Role, u.Enabled, u.Grants, u.TwoFactorEnabled, u.CreatedAt, u.LastLoginAt, u.LastLoginIp);
+        new(u.Username, u.Role, u.Enabled, u.Grants, u.TwoFactorEnabled, u.CreatedAt, u.LastLoginAt, u.LastLoginIp, u.LocalOnly);
 
     private static AgentSettingsDto ToDto(AgentSettings s) =>
         new(s.MachineId, s.MachineName, s.Port, s.ExposeToNetwork, s.UseHttps, s.CertPath, s.KeyPath, null,

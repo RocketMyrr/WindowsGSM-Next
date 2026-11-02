@@ -64,9 +64,20 @@ public sealed class AgentContext
             var u = Users.Get(name);
             if (u is { Enabled: true } && Sessions.IsValid(http.User.FindFirstValue(SessionClaim), name)) { user = u; }
         }
+        // An "only on this PC" account's cookie or API token is worth nothing from anywhere else. (A hub-relayed
+        // request is the hub's user, not one of these accounts.)
+        if (user is { LocalOnly: true, Via: null } && !FromThisPc(http)) { user = null; }
         http.Items[UserItem] = user;
         return user;
     }
+
+    /// <summary>
+    /// The request comes from this machine itself. A reverse proxy here makes every visitor look local, so a
+    /// forwarded request never counts.
+    /// </summary>
+    public static bool FromThisPc(HttpContext http) =>
+        http.Connection.RemoteIpAddress is { } ip && System.Net.IPAddress.IsLoopback(ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip)
+        && !http.Request.Headers.ContainsKey("X-Forwarded-For") && !http.Request.Headers.ContainsKey("Forwarded");
 
     public static string? SessionId(HttpContext http) => http.User.FindFirstValue(SessionClaim);
 

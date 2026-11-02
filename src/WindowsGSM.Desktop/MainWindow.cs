@@ -282,7 +282,7 @@ internal sealed class MainWindow : Form
         string.Equals(a.Scheme, b.Scheme, StringComparison.OrdinalIgnoreCase) && a.Port == b.Port &&
         (string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase) || (AgentLocator.IsLocal(a) && AgentLocator.IsLocal(b)));
 
-    private static void OpenExternal(string uri)
+    internal static void OpenExternal(string uri)
     {
         if (!Uri.TryCreate(uri, UriKind.Absolute, out var u) || (u.Scheme != Uri.UriSchemeHttps && u.Scheme != Uri.UriSchemeHttp)) { return; }
         try { Process.Start(new ProcessStartInfo(u.ToString()) { UseShellExecute = true }); } catch { /* no browser */ }

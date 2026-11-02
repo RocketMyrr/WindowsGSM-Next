@@ -12,6 +12,9 @@ public sealed class AgentUser
     public Role Role { get; set; } = Role.Member;
     public bool Enabled { get; set; } = true;
 
+    /// <summary>Signs in and works only on this machine itself (an RDP session, the app or a browser at localhost).</summary>
+    public bool LocalOnly { get; set; }
+
     /// <summary>Extra capabilities by scope: "machine/server", "machine/*" or "*/*".</summary>
     public Dictionary<string, Capability> Grants { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -66,7 +69,7 @@ public sealed class AgentUser
 
     internal AgentUser Clone() => new()
     {
-        Username = Username, PasswordHash = PasswordHash, Role = Role, Enabled = Enabled,
+        Username = Username, PasswordHash = PasswordHash, Role = Role, Enabled = Enabled, LocalOnly = LocalOnly,
         Grants = new Dictionary<string, Capability>(Grants, StringComparer.OrdinalIgnoreCase),
         TwoFactorEnabled = TwoFactorEnabled, TotpSecret = TotpSecret, LastTotpStep = LastTotpStep,
         CreatedAt = CreatedAt, LastLoginAt = LastLoginAt, LastLoginIp = LastLoginIp,
@@ -197,7 +200,7 @@ public sealed class UserStore
         _lockouts[username] = fails >= MaxFails ? (0, now + LockFor) : (fails, DateTimeOffset.MinValue);
     }
 
-    public string? Create(string username, string password, Role role, bool enabled, IReadOnlyDictionary<string, Capability>? grants)
+    public string? Create(string username, string password, Role role, bool enabled, IReadOnlyDictionary<string, Capability>? grants, bool localOnly = false)
     {
         username = username?.Trim() ?? string.Empty;
         string? problem = CheckUsername(username) ?? CheckPassword(password);
@@ -211,6 +214,7 @@ public sealed class UserStore
                 PasswordHash = PasswordHasher.Hash(password),
                 Role = role,
                 Enabled = enabled,
+                LocalOnly = localOnly,
                 Grants = new Dictionary<string, Capability>(grants ?? new Dictionary<string, Capability>(), StringComparer.OrdinalIgnoreCase),
             });
             Save();
@@ -218,7 +222,7 @@ public sealed class UserStore
         }
     }
 
-    public string? Update(string username, Role role, bool enabled, IReadOnlyDictionary<string, Capability>? grants, string? newPassword)
+    public string? Update(string username, Role role, bool enabled, IReadOnlyDictionary<string, Capability>? grants, string? newPassword, bool? localOnly = null)
     {
         if (!string.IsNullOrEmpty(newPassword) && CheckPassword(newPassword) is string bad) { return bad; }
         lock (_gate)
@@ -230,6 +234,7 @@ public sealed class UserStore
 
             u.Role = role;
             u.Enabled = enabled;
+            if (localOnly is bool l) { u.LocalOnly = l; }
             if (grants != null) { u.Grants = new Dictionary<string, Capability>(grants, StringComparer.OrdinalIgnoreCase); }
             if (!string.IsNullOrEmpty(newPassword)) { u.PasswordHash = PasswordHasher.Hash(newPassword); }
             Save();

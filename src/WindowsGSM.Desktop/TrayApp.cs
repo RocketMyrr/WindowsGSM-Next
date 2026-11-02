@@ -187,9 +187,16 @@ internal sealed class TrayApp : ApplicationContext
         try { await _window.OpenAsync(pc.BaseUri); }
         catch (Microsoft.Web.WebView2.Core.WebView2RuntimeNotFoundException)
         {
-            _window.ShowStatus("This app needs the Microsoft Edge WebView2 Runtime (built into Windows 11). Install it from microsoft.com/edge/webview2, or open the panel in your browser: " + pc.Url);
+            NoWebView2(pc.Url);
         }
     }
+
+    // Windows Server and older Windows 10 don't include WebView2; the panel works in any browser meanwhile.
+    private void NoWebView2(string panel) =>
+        _window.ShowStatus("This app needs the Microsoft Edge WebView2 Runtime. Windows 11 includes it; Windows Server and older Windows 10 don't. " +
+            "Install it (the Evergreen Bootstrapper from Microsoft), then open WindowsGSM again. Until then, the panel works in your browser: " + panel,
+            ("Get WebView2", () => MainWindow.OpenExternal("https://developer.microsoft.com/microsoft-edge/webview2/")),
+            ("Open in browser", () => MainWindow.OpenExternal(panel)));
 
     private void Unreachable(SavedPc pc, string? why)
     {
@@ -247,7 +254,7 @@ internal sealed class TrayApp : ApplicationContext
         try { await _window.OpenAsync(url); }
         catch (Microsoft.Web.WebView2.Core.WebView2RuntimeNotFoundException)
         {
-            _window.ShowStatus("This app needs the Microsoft Edge WebView2 Runtime (built into Windows 11). Install it from microsoft.com/edge/webview2, or open the panel in your browser: " + url);
+            NoWebView2(url.ToString());
         }
     }
 

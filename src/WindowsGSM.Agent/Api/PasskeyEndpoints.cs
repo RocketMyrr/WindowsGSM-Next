@@ -139,6 +139,11 @@ public static class PasskeyEndpoints
                 ctx.Audit.Write(f.User.Username, ip, "login", null, false, "passkey refused: " + ex.Message);
                 return ApiResults.Error(401, "bad_passkey", "The passkey wasn't accepted.");
             }
+            if (f.User.LocalOnly && !AgentContext.FromThisPc(http))
+            {
+                ctx.Audit.Write(f.User.Username, ip, "login", null, false, "refused: this account signs in only on the machine itself");
+                return ApiResults.Error(401, "bad_passkey", "The passkey wasn't accepted.");
+            }
             await AuthEndpoints.SignInAsync(http, ctx, f.User);
             DesktopSignIn.Remember(http, f.User.Username);
             ctx.Users.RecordLogin(f.User.Username, ip);

@@ -52,7 +52,8 @@ export default async function users(host, { scope }) {
                 h("td", {}, h("span", { class: "row" }, h("span", { class: "avatar", text: u.username.slice(0, 1) }),
                     h("span", {}, h("b", { text: u.username }), u.username === store.me.username ? h("span", { class: "tag accent", text: "You" }) : null,
                         !u.enabled ? h("span", { class: "tag rose", text: "Disabled" }) : null,
-                        u.twoFactorEnabled ? h("span", { class: "tag", title: "Two-factor sign-in is on" }, icon("shield"), "2FA") : null))),
+                        u.twoFactorEnabled ? h("span", { class: "tag", title: "Two-factor sign-in is on" }, icon("shield"), "2FA") : null,
+                        u.localOnly ? h("span", { class: "tag", title: "Signs in only on this machine itself" }, icon("machine"), "This PC only") : null))),
                 h("td", {}, h("span", { class: ["role-badge", u.role.toLowerCase()], text: u.role })),
                 h("td", { class: "small muted", text: accessSummary(u) }),
                 h("td", { class: "small muted", text: u.lastLoginAt ? `${timeAgo(u.lastLoginAt)}${u.lastLoginIp ? " · " + u.lastLoginIp : ""}` : "Never" }),
@@ -87,6 +88,7 @@ export default async function users(host, { scope }) {
         const roles = ROLES.filter(r => canManage(r.value));
         const role = select(roles.map(r => ({ value: r.value, label: r.label })), user?.role || "Member");
         const roleHint = h("div", { class: "hint" });
+        const localOnly = toggle("Only on this PC", !!user?.localOnly, { help: "Signs in only on this machine itself: the app here, or a browser at localhost (for example over Remote Desktop). From anywhere else it's refused, and any session or API token it has stops working there. Turn it on for yourself only while you're on this machine." });
         const enabled = toggle("Can sign in", user ? user.enabled : true, { help: "Off locks the account without deleting it — they're signed out everywhere, and their settings stay for when you turn it back on." });
         const grants = new Map(Object.entries(user?.grants || {}).map(([k, v]) => [k, new Set(String(v).split(",").map(s => s.trim()).filter(Boolean))]));
         const grid = h("div", { class: "grant-grid" });
@@ -153,6 +155,7 @@ export default async function users(host, { scope }) {
             body: h("div", { class: "stack" },
                 h("div", { class: "form-grid" }, nameField, pwField),
                 h("div", { class: "form-grid" }, field("Role", role, { help: ["Owner: everything, including agent settings and other owners.", "Admin: every server, users, plugins and machines.", "Operator: start, stop, restart, console and settings — on the servers you give them.", "Viewer: can look at the servers you give them, but not change anything.", "Member: only what you grant per server below."] }), enabled),
+                localOnly,
                 roleHint,
                 grantsSection),
             footer: close => {
@@ -171,7 +174,7 @@ export default async function users(host, { scope }) {
                         // Keep machine-wide grants for machines this list doesn't show (removed, or not loaded).
                         for (const [k, set] of grants) if (k.endsWith("/*") && !installBoxes.has(k.slice(0, -2)) && set.size) out[k] = [...set].join(", ");
                     }
-                    const body = { username: name.value.trim(), role: role.value, enabled: enabled.input.checked, grants: out, password: pw.value || null };
+                    const body = { username: name.value.trim(), role: role.value, enabled: enabled.input.checked, grants: out, password: pw.value || null, localOnly: localOnly.input.checked };
                     if (isNew) await post("/users", body);
                     else await put(`/users/${encodeURIComponent(user.username)}`, body);
                     close(true);
