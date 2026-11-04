@@ -34,16 +34,52 @@ public class MaintenanceTests
         await _f.Owner.PostAsync(_f.ServerUrl("102", "/kill"));
         await EngineFixture.WaitUntil(() => _f.Engine.Servers.Get("102")!.State == WindowsGSM.Engine.Servers.ServerState.Stopped, "102 stopped");
         var before = PortCheck.Listening;
+        var holderBefore = PortCheck.Holder;
         PortCheck.Listening = () => new[] { new System.Net.IPEndPoint(System.Net.IPAddress.Any, EngineFixture.Port("102")) };
+        // This server's own game, left running from before.
+        string leftover = System.IO.Path.Combine(WindowsGSM.Functions.ServerPath.GetServersServerFiles("102"), "RustDedicated.exe");
+        PortCheck.Holder = _ => (4321, "RustDedicated.exe", leftover);
         try
         {
             var res = await _f.Owner.PostAsync(_f.ServerUrl("102", "/start"));
             var job = await Finished((await ApiClient.Read<JobAccepted>(res)).JobId);
             Assert.Equal("Failed", job.Status);
-            Assert.Contains("already in use", job.Error);
+            Assert.Contains("already in use by RustDedicated.exe (PID 4321", job.Error);
+            Assert.Contains("this server's own game", job.Error);
             Assert.Equal(WindowsGSM.Engine.Servers.ServerState.Stopped, _f.Engine.Servers.Get("102")!.State);
+
+            // Another of WindowsGSM's servers holds it: named, so you know which one to change.
+            PortCheck.Holder = _ => (4322, "RustDedicated.exe", System.IO.Path.Combine(WindowsGSM.Functions.ServerPath.GetServersServerFiles("101"), "RustDedicated.exe"));
+            job = await Finished((await ApiClient.Read<JobAccepted>(await _f.Owner.PostAsync(_f.ServerUrl("102", "/start")))).JobId);
+            Assert.Contains("the game of #101", job.Error);
         }
-        finally { PortCheck.Listening = before; }
+        finally { PortCheck.Listening = before; PortCheck.Holder = holderBefore; }
+    }
+
+    [Fact]
+    public async Task A_running_servers_rcon_port_and_extra_start_parameter_ports_count_as_taken()
+    {
+        await _f.Owner.PostAsync(_f.ServerUrl("102", "/kill"));
+        await EngineFixture.WaitUntil(() => _f.Engine.Servers.Get("102")!.State == WindowsGSM.Engine.Servers.ServerState.Stopped, "102 stopped");
+        var running = _f.Engine.Servers.Get("101")!;
+        if (running.State == WindowsGSM.Engine.Servers.ServerState.Stopped) { await _f.Owner.PostAsync(_f.ServerUrl("101", "/start")); }
+        await EngineFixture.WaitUntil(() => running.State == WindowsGSM.Engine.Servers.ServerState.Running, "101 running");
+        string? rconBefore = running.Config.RconPort, extraBefore = running.Config.ServerParam;
+        string taken = EngineFixture.Port("102").ToString();
+        try
+        {
+            running.Config.RconPort = taken;
+            var job = await Finished((await ApiClient.Read<JobAccepted>(await _f.Owner.PostAsync(_f.ServerUrl("102", "/start")))).JobId);
+            Assert.Equal("Failed", job.Status);
+            Assert.Contains("is used by #101", job.Error);
+
+            running.Config.RconPort = rconBefore;
+            running.Config.ServerParam = $"{extraBefore} +app.port {taken}".Trim();
+            job = await Finished((await ApiClient.Read<JobAccepted>(await _f.Owner.PostAsync(_f.ServerUrl("102", "/start")))).JobId);
+            Assert.Equal("Failed", job.Status);
+            Assert.Contains("is used by #101", job.Error);
+        }
+        finally { running.Config.RconPort = rconBefore; running.Config.ServerParam = extraBefore; }
     }
 
     [Fact]

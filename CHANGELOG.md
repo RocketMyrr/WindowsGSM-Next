@@ -3,6 +3,17 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## 2.0.0-rc.7
+
+- **"Port already in use" says by what:** a start blocked by a busy port now names the program holding it, with
+  its PID and path. When that's one of your servers it names the server; when it's this server's own game left
+  running from before, it says so and which PID to end. No more digging with netstat.
+- **Port clashes between your servers are caught before the start:** another running server's RCON port, and
+  any port set in its Extra start parameters (`+app.port`, `+rcon.port`, `-QueryPort=`…), now count.
+- **Let's Encrypt redirect:** outside visitors who open the panel by IP go to the domain's front page (not the
+  same page), so nothing from the request goes into the redirect. Closes a code-scanning alert.
+- Dependency updates: AWSSDK.S3 4.0.104.8, Fido2 4.3.2.
+
 ## 2.0.0-rc.6
 
 - **Only on this PC:** a new switch per account (Users & access → edit). That account then signs in only on the

@@ -384,7 +384,8 @@ public static class AgentApp
             && ctx.Connection.RemoteIpAddress is { } ip && !IsLocalNetwork(ip))
         {
             string port = settings.Port == 443 ? "" : ":" + settings.Port;
-            ctx.Response.Redirect($"https://{domain}{port}{ctx.Request.PathBase}{ctx.Request.Path}{ctx.Request.QueryString}", permanent: false);
+            // The domain's front page, not the page asked for: nothing from the request goes into the redirect.
+            ctx.Response.Redirect($"https://{domain}{port}/", permanent: false);
             return;
         }
         await next(ctx);
