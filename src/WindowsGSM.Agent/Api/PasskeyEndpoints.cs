@@ -15,7 +15,7 @@ namespace WindowsGSM.Agent.Api;
 public static class PasskeyEndpoints
 {
     public sealed record AddPasskeyRequest(string? Name, AuthenticatorAttestationRawResponse Response);
-    public sealed record PasskeyLoginRequest(string Token, AuthenticatorAssertionRawResponse Response);
+    public sealed record PasskeyLoginRequest(string Token, AuthenticatorAssertionRawResponse Response, bool Remember = false);
     public sealed record PasskeyDto(string Id, string Name, string RpId, DateTimeOffset CreatedAt, DateTimeOffset? LastUsedAt);
 
     // Challenges waiting for an answer: registration by session, sign-in by a one-time token. A few minutes each.
@@ -144,7 +144,7 @@ public static class PasskeyEndpoints
                 ctx.Audit.Write(f.User.Username, ip, "login", null, false, "refused: this account signs in only on the machine itself");
                 return ApiResults.Error(401, "bad_passkey", "The passkey wasn't accepted.");
             }
-            await AuthEndpoints.SignInAsync(http, ctx, f.User);
+            await AuthEndpoints.SignInAsync(http, ctx, f.User, remember: body.Remember);
             DesktopSignIn.Remember(http, f.User.Username);
             ctx.Users.RecordLogin(f.User.Username, ip);
             ctx.Audit.Write(f.User.Username, ip, "login", null, true, $"passkey \"{f.Key.Name}\" · {AuthEndpoints.Device(http.Request.Headers.UserAgent.ToString())}");

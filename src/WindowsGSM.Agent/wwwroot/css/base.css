@@ -269,6 +269,18 @@ select.input { appearance: none; padding-right: 32px; background-image: linear-g
 .table tbody tr:hover td { background: var(--raised); }
 .table .actions { text-align: right; white-space: nowrap; }
 .table-wrap { overflow: auto; }
+/* On a phone, a .cards-sm table shows each row as a small card: first cell on top, the short facts on one line,
+   the buttons underneath — instead of columns that run off the screen. */
+@media (max-width: 600px) {
+    .table.cards-sm thead { display: none; }
+    .table.cards-sm, .table.cards-sm tbody, .table.cards-sm tr, .table.cards-sm td { display: block; width: 100%; }
+    .table.cards-sm tr { padding: 10px 14px; border-bottom: 1px solid var(--line-soft); }
+    .table.cards-sm tr:last-child { border-bottom: 0; }
+    .table.cards-sm td { padding: 2px 0; border: 0; }
+    .table.cards-sm td:not(:first-child):not(.actions) { display: inline-block; width: auto; margin-right: 12px; }
+    .table.cards-sm td.actions { text-align: left; white-space: normal; padding-top: 6px; }
+    .table.cards-sm tbody tr:hover td { background: none; }
+}
 
 .list { display: flex; flex-direction: column; }
 .list-item { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--line-soft); min-width: 0; }

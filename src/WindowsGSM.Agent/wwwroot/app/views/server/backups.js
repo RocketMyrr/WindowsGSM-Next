@@ -18,7 +18,7 @@ export default async function backupsTab(host, { id, machine, key, server, scope
         onchange: () => { offsiteFrom = offsiteSource.value; loadOffsite(); } });
     const offsitePanel = h("section", { class: "panel", hidden: true },
         h("div", { class: "panel-head wrap" }, icon("upload"), h("h2", { text: "Off-site" }), h("span", { class: "sub grow", text: "Copies in this machine's off-site storage" }), offsiteSource),
-        h("div", { class: "panel-body flush" }, offsiteList));
+        h("div", { class: "panel-body flush table-wrap" }, offsiteList));
     const canRestore = can(server(), "Restore");
     let offsiteReady = false;
 
@@ -27,7 +27,7 @@ export default async function backupsTab(host, { id, machine, key, server, scope
             h("div", { class: "panel-head" }, h("h2", { text: "Backups" }), h("span", { class: "spacer" }),
                 h("button", { class: "btn sm", title: "Also includes the server's settings and configs", onclick: e => backup(e.currentTarget, true) }, "Full backup"),
                 h("button", { class: "btn primary sm", onclick: e => backup(e.currentTarget, false) }, icon("backup"), "Back up now")),
-            h("div", { class: "panel-body flush" }, list)),
+            h("div", { class: "panel-body flush table-wrap" }, list)),
         h("section", { class: "panel" },
             h("div", { class: "panel-head" }, h("h2", { text: "Backup settings" })),
             h("div", { class: "panel-body" }, settingsBody))),
@@ -46,7 +46,7 @@ export default async function backupsTab(host, { id, machine, key, server, scope
         clear(list);
         if (!backups.length) { list.append(empty("backup", "No backups yet", "Take one now, or turn on backups before each start.")); return; }
         const newest = backups.reduce((a, b) => (Date.parse(a.created) > Date.parse(b.created) ? a : b));
-        list.append(h("table", { class: "table" },
+        list.append(h("table", { class: "table cards-sm" },
             h("thead", {}, h("tr", {}, h("th", { text: "Backup" }), h("th", { text: "Size" }), h("th", { text: "Taken" }), h("th", { class: "actions" }))),
             h("tbody", {}, ...backups.sort((a, b) => Date.parse(b.created) - Date.parse(a.created)).map(b => h("tr", {},
                 h("td", {}, h("div", { class: "row" }, icon("backup"), h("span", { class: "mono small truncate", text: b.name }),
@@ -117,7 +117,7 @@ export default async function backupsTab(host, { id, machine, key, server, scope
             offsiteList.append(empty("upload", "Nothing off-site yet", res.upload ? "The next backup is uploaded automatically — or use the upload button on a backup above." : "Turn on “Also upload each backup off-site” in Backup settings, or upload one with its button above."));
             return;
         }
-        offsiteList.append(h("table", { class: "table" },
+        offsiteList.append(h("table", { class: "table cards-sm" },
             h("thead", {}, h("tr", {}, h("th", { text: "Backup" }), h("th", { text: "Size" }), h("th", { text: "Uploaded" }), h("th", { class: "actions" }))),
             h("tbody", {}, ...res.backups.map(b => h("tr", {},
                 h("td", {}, h("div", { class: "row" }, icon("upload"), h("span", { class: "mono small truncate", text: b.name }))),

@@ -76,7 +76,7 @@ public static class AuthEndpoints
                     return ApiResults.Error(401, "bad_credentials", "Wrong username or password.");
             }
 
-            await SignInAsync(http, ctx, user!);
+            await SignInAsync(http, ctx, user!, remember: body.Remember);
             DesktopSignIn.Remember(http, user!.Username);
             ctx.Users.RecordLogin(user!.Username, ip);
             ctx.Audit.Write(user.Username, ip, "login", null, true, Device(http.Request.Headers.UserAgent.ToString()));
@@ -248,7 +248,7 @@ public static class AuthEndpoints
     public sealed record AppKeyRequest(string? Key);
     public sealed record AppKeyCreateRequest(string? Device);
 
-    internal static async Task SignInAsync(HttpContext http, AgentContext ctx, AgentUser user, string? appKey = null)
+    internal static async Task SignInAsync(HttpContext http, AgentContext ctx, AgentUser user, string? appKey = null, bool remember = false)
     {
         var session = ctx.Sessions.Create(user.Username, AgentContext.Ip(http), http.Request.Headers.UserAgent.ToString(), appKey);
         var identity = new ClaimsIdentity(new[]
@@ -256,11 +256,12 @@ public static class AuthEndpoints
             new Claim(ClaimTypes.Name, user.Username),
             new Claim(AgentContext.SessionClaim, session.Id),
         }, CookieAuthenticationDefaults.AuthenticationScheme);
-        // The WindowsGSM app (here or on another PC) keeps its sign-in when it's closed and opened again, within the
-        // usual "stay signed in for" time; a browser's ends with the browser.
+        // The WindowsGSM app (here or on another PC), and a browser where "Keep me signed in" was ticked, keep the
+        // sign-in when closed and opened again, within the usual "stay signed in for" time. Otherwise it ends with
+        // the browser — which on a phone means whenever you switch apps (it drops cookies without an expiry date).
         bool app = http.Request.Headers.UserAgent.ToString().Contains(DesktopSignIn.UserAgentMark, StringComparison.Ordinal);
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity),
-            new Microsoft.AspNetCore.Authentication.AuthenticationProperties { IsPersistent = app });
+            new Microsoft.AspNetCore.Authentication.AuthenticationProperties { IsPersistent = app || remember });
     }
 
     /// <summary>"Chrome on Windows" from a user-agent string — enough to recognise a session.</summary>

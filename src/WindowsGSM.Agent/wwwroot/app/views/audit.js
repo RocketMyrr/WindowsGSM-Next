@@ -39,7 +39,7 @@ export async function auditPanel(host, machine) {
         catch (e) { clear(body).append(empty("warn", "Couldn't load the audit log", e.message)); return; }
         clear(body);
         if (!list.length) { body.append(empty("audit", "Nothing matches", "Try a wider filter.")); return; }
-        body.append(h("table", { class: "table" },
+        body.append(h("table", { class: "table cards-sm" },
             h("thead", {}, h("tr", {}, h("th", { text: "When" }), h("th", { text: "Who" }), h("th", { text: "What" }), h("th", { text: "Server" }), h("th", { text: "Details" }), h("th", { text: "From" }))),
             h("tbody", {}, ...list.map(e => h("tr", {},
                 h("td", { class: "nowrap small", title: fmtDateTime(e.at), text: timeAgo(e.at) }),

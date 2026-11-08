@@ -34,7 +34,7 @@ export async function addPasskey(name) {
 }
 
 /** Signs in with a passkey from this device (it shows which ones it has for this address). */
-export async function signInWithPasskey() {
+export async function signInWithPasskey(remember = false) {
     const { token, options: o } = await post("/auth/passkey/options");
     const publicKey = {
         ...o,
@@ -52,7 +52,7 @@ export async function signInWithPasskey() {
         },
         clientExtensionResults: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
     };
-    return post("/auth/passkey/login", { token, response });
+    return post("/auth/passkey/login", { token, response, remember });
 }
 
 /** "Chrome on Windows"-ish default name for a new passkey. */

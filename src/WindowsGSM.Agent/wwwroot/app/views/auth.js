@@ -4,7 +4,7 @@ import { h, icon, clear } from "../dom.js";
 import { passkeysAvailable, signInWithPasskey } from "../passkeys.js";
 import { get, post } from "../api.js";
 import { navigate } from "../router.js";
-import { field, input, busy } from "../ui.js";
+import { field, input, busy, toggle } from "../ui.js";
 
 function frame(root, card) {
     clear(root).append(h("div", { class: "auth" },
@@ -52,11 +52,12 @@ export async function login(root, { query }) {
     const code = input({ inputmode: "numeric", autocomplete: "one-time-code", maxlength: 8, placeholder: "123 456", class: "input mono" });
     const codeField = field("Two-factor code", code, { hint: "From your authenticator app." });
     codeField.hidden = true;
+    const remember = toggle("Keep me signed in on this device", true, { hint: "Untick on a shared computer: you're then signed out when the browser closes." });
     const err = errorBox();
     const submit = h("button", { class: "btn primary lg block", type: "submit" }, "Sign in", icon("chevronRight"));
     const passkeyBtn = passkeysAvailable() ? h("button", { class: "btn lg block", type: "button", onclick: () => busy(passkeyBtn, async () => {
         err.show("");
-        try { await signInWithPasskey(); goNext(); }
+        try { await signInWithPasskey(remember.input.checked); goNext(); }
         catch (ex) { if (ex.name !== "NotAllowedError" && ex.name !== "AbortError") err.show(ex.message); }
     }) }, icon("key"), "Sign in with a passkey") : null;
 
@@ -66,6 +67,7 @@ export async function login(root, { query }) {
         field("Username", username),
         field("Password", password),
         codeField,
+        remember,
         submit,
         passkeyBtn,
         h("p", { class: "tiny faint", text: "Signed-in sessions last a few hours without activity. Your sessions can be reviewed and signed out from Account & security." }));
@@ -75,7 +77,7 @@ export async function login(root, { query }) {
         err.show("");
         await busy(submit, async () => {
             try {
-                const res = await post("/auth/login", { username: username.value.trim(), password: password.value, code: code.value.replace(/\s/g, "") || null });
+                const res = await post("/auth/login", { username: username.value.trim(), password: password.value, code: code.value.replace(/\s/g, "") || null, remember: remember.input.checked });
                 if (res.twoFactorRequired) {
                     codeField.hidden = false;
                     code.focus();

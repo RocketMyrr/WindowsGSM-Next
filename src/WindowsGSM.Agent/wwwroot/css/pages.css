@@ -274,6 +274,9 @@ a.sched-line:hover { color: var(--text); background: var(--hover); }
     .list-item:has(> .sched-actions) > .grow { flex: 1 1 calc(100% - 60px); }
     .list-item:has(> .sched-actions) > .sched-next { order: 5; width: auto; text-align: left; padding-left: 48px; margin-right: auto; }
     .list-item > .sched-actions { order: 6; }
+    /* An installed plugin: its name and author get the whole line; the buttons go underneath. */
+    .plugin-row { flex-wrap: wrap; }
+    .plugin-row > .plugin-main { flex: 1 1 calc(100% - 60px); }
 }
 
 /* ── Storage ── */

@@ -3,6 +3,19 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## 2.0.0-rc.8
+
+- **Phones stay signed in:** switching apps on a phone signed you out, because the sign-in only lasted until the
+  browser closed and a phone "closes" it in the background. The sign-in page now has *Keep me signed in on this
+  device* (on by default): the sign-in then lasts your usual session time. Untick it on a shared computer.
+- **Every page checked on a phone:**
+  - Backups, Users & access and the activity log show each row as a small card, so nothing is cut off and every
+    button is in reach.
+  - Game plugins: names no longer squeezed to a few letters; the buttons go underneath.
+  - Console: the filter box gets its own line and the toolbar buttons stay a tappable size.
+  - The top bar shortens a long server name instead of squeezing its buttons.
+  - The player list scrolls sideways instead of cutting off.
+
 ## 2.0.0-rc.7
 
 - **"Port already in use" says by what:** a start blocked by a busy port now names the program holding it, with

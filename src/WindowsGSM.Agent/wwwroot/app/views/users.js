@@ -40,13 +40,13 @@ export default async function users(host, { scope }) {
         h("div", { class: "page-head" },
             h("div", {}, h("h1", { text: "Users & access" }), h("p", { text: "Give friends and co-admins their own sign-in — with access to exactly the servers you choose." })),
             h("div", { class: "actions" }, h("button", { class: "btn primary", onclick: () => edit(null) }, icon("plus"), "Add a person"))),
-        h("section", { class: "panel" }, h("div", { class: "panel-body flush" }, table)));
+        h("section", { class: "panel" }, h("div", { class: "panel-body flush table-wrap" }, table)));
 
     async function load() {
         const list = await get("/users");
         clear(table);
         if (!list.length) { table.append(empty("users", "No users", "")); return; }
-        table.append(h("table", { class: "table" },
+        table.append(h("table", { class: "table cards-sm" },
             h("thead", {}, h("tr", {}, h("th", { text: "Person" }), h("th", { text: "Role" }), h("th", { text: "Access" }), h("th", { text: "Last sign-in" }), h("th", { class: "actions" }))),
             h("tbody", {}, ...list.map(u => h("tr", { class: !u.enabled ? "disabled-row" : "" },
                 h("td", {}, h("span", { class: "row" }, h("span", { class: "avatar", text: u.username.slice(0, 1) }),

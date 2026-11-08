@@ -148,7 +148,8 @@ public sealed record PathRequest(string Path);
 
 // ── Auth & accounts ──
 
-public sealed record LoginRequest(string Username, string Password, string? Code = null);
+/// <param name="Remember">Keep the sign-in when the browser closes (a phone "closes" it whenever you switch apps).</param>
+public sealed record LoginRequest(string Username, string Password, string? Code = null, bool Remember = false);
 
 /// <param name="TwoFactorRequired">Credentials were right but a code is needed — send them again with <c>code</c>.</param>
 public sealed record LoginResult(bool Ok, bool TwoFactorRequired, MeDto? Me);

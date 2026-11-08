@@ -168,8 +168,9 @@ body:has(.save-bar:not([hidden])) .toasts { bottom: 92px; }
 
 /* Phones: icon-only toolbar buttons, a wrapping command row. */
 @media (max-width: 600px) {
-    .console-bar .btn.ghost { font-size: 0; gap: 0; width: 32px; padding: 0; }
-    .console-bar .search { max-width: none; }
+    .console-bar { flex-wrap: wrap; }
+    .console-bar .btn.ghost { font-size: 0; gap: 0; width: 32px; padding: 0; flex-shrink: 0; }
+    .console-bar .search { max-width: none; flex-basis: 100%; } /* the filter gets its own line; the buttons keep a tappable size below */
     .console-input { flex-wrap: wrap; }
     .console-input .input { flex: 1 1 calc(100% - 40px); }
     .console-input .segmented { flex: 1; }

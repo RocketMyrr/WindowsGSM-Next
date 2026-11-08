@@ -27,7 +27,7 @@ export default async function playersTab(host, { id, machine, key, server, scope
     host.append(h("section", { class: "panel" },
         h("div", { class: "panel-head" }, h("h2", { text: "Players online" }), count, h("span", { class: "spacer" }),
             can(server(), "Console") ? h("button", { class: "btn sm", onclick: () => broadcast() }, icon("send"), "Message everyone") : null),
-        h("div", { class: "panel-body flush" }, body),
+        h("div", { class: "panel-body flush table-wrap" }, body),
         queryLine));
 
     // ── History ──
