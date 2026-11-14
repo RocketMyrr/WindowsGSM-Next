@@ -48,38 +48,55 @@ public class MaintenanceTests
             Assert.Contains("this server's own game", job.Error);
             Assert.Equal(WindowsGSM.Engine.Servers.ServerState.Stopped, _f.Engine.Servers.Get("102")!.State);
 
-            // Another of WindowsGSM's servers holds it: named, so you know which one to change.
+            // Another of WindowsGSM's servers holds it as its own game port: refused, naming which one to change.
+            var other = _f.Engine.Servers.Get("101")!;
+            string? portBefore = other.Config.ServerPort;
             PortCheck.Holder = _ => (4322, "RustDedicated.exe", System.IO.Path.Combine(WindowsGSM.Functions.ServerPath.GetServersServerFiles("101"), "RustDedicated.exe"));
-            job = await Finished((await ApiClient.Read<JobAccepted>(await _f.Owner.PostAsync(_f.ServerUrl("102", "/start")))).JobId);
-            Assert.Contains("the game of #101", job.Error);
+            try
+            {
+                other.Config.ServerPort = EngineFixture.Port("102").ToString();
+                Assert.Contains("#101", PortCheck.Check(_f.Engine.Servers.Get("102")!, _f.Engine.Servers).Error);
+            }
+            finally { other.Config.ServerPort = portBefore; }
+            // …but as one of its other ports (RCON, Rust+ app — usually TCP, where game ports usually aren't): a warning.
+            var shared = PortCheck.Check(_f.Engine.Servers.Get("102")!, _f.Engine.Servers);
+            Assert.Null(shared.Error);
+            Assert.Contains(shared.Warnings, w => w.Contains("also one of #101"));
         }
         finally { PortCheck.Listening = before; PortCheck.Holder = holderBefore; }
     }
 
     [Fact]
-    public async Task A_running_servers_rcon_port_and_extra_start_parameter_ports_count_as_taken()
+    public async Task A_running_servers_rcon_and_extra_start_parameter_ports_are_a_warning_and_its_game_port_a_refusal()
     {
         await _f.Owner.PostAsync(_f.ServerUrl("102", "/kill"));
         await EngineFixture.WaitUntil(() => _f.Engine.Servers.Get("102")!.State == WindowsGSM.Engine.Servers.ServerState.Stopped, "102 stopped");
         var running = _f.Engine.Servers.Get("101")!;
         if (running.State == WindowsGSM.Engine.Servers.ServerState.Stopped) { await _f.Owner.PostAsync(_f.ServerUrl("101", "/start")); }
         await EngineFixture.WaitUntil(() => running.State == WindowsGSM.Engine.Servers.ServerState.Running, "101 running");
-        string? rconBefore = running.Config.RconPort, extraBefore = running.Config.ServerParam;
+        string? rconBefore = running.Config.RconPort, extraBefore = running.Config.ServerParam, portBefore = running.Config.ServerPort;
         string taken = EngineFixture.Port("102").ToString();
+        var mine = _f.Engine.Servers.Get("102")!;
         try
         {
+            // Its RCON port, then a port in its Extra start parameters: both can share a number with a game port.
             running.Config.RconPort = taken;
-            var job = await Finished((await ApiClient.Read<JobAccepted>(await _f.Owner.PostAsync(_f.ServerUrl("102", "/start")))).JobId);
-            Assert.Equal("Failed", job.Status);
-            Assert.Contains("is used by #101", job.Error);
+            var check = PortCheck.Check(mine, _f.Engine.Servers);
+            Assert.Null(check.Error);
+            Assert.Contains(check.Warnings, w => w.Contains("also one of #101"));
 
             running.Config.RconPort = rconBefore;
             running.Config.ServerParam = $"{extraBefore} +app.port {taken}".Trim();
-            job = await Finished((await ApiClient.Read<JobAccepted>(await _f.Owner.PostAsync(_f.ServerUrl("102", "/start")))).JobId);
-            Assert.Equal("Failed", job.Status);
-            Assert.Contains("is used by #101", job.Error);
+            check = PortCheck.Check(mine, _f.Engine.Servers);
+            Assert.Null(check.Error);
+            Assert.Contains(check.Warnings, w => w.Contains("also one of #101"));
+
+            // Its game port: a real clash, so the start is refused.
+            running.Config.ServerParam = extraBefore;
+            running.Config.ServerPort = taken;
+            Assert.Contains("is used by #101", PortCheck.Check(mine, _f.Engine.Servers).Error);
         }
-        finally { running.Config.RconPort = rconBefore; running.Config.ServerParam = extraBefore; }
+        finally { running.Config.RconPort = rconBefore; running.Config.ServerParam = extraBefore; running.Config.ServerPort = portBefore; }
     }
 
     [Fact]

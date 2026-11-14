@@ -78,4 +78,18 @@ public class ApiTokenTests
         Assert.True(reset.IsSuccessStatusCode, await reset.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.Unauthorized, (await script.GetAsync("/api/v2/auth/me")).StatusCode);
     }
+
+    [Fact]
+    public async Task Changing_your_own_password_ends_your_tokens_too()
+    {
+        var me = await _f.UserAsync("changeme", Role.Operator);
+        var made = await (await me.PostAsync("/api/v2/auth/tokens", new ApiTokenRequest("script", null))).Content.ReadFromJsonAsync<JsonElement>(AgentFixture.Json);
+        var script = Script(made.GetProperty("token").GetString()!);
+        Assert.Equal(HttpStatusCode.OK, (await script.GetAsync("/api/v2/auth/me")).StatusCode);
+
+        // Someone who got in made that token: changing the password must lock them out of it as well.
+        Assert.Equal(HttpStatusCode.NoContent, (await me.PostAsync("/api/v2/auth/password", new PasswordChangeRequest("password-changeme", "a new long password"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await script.GetAsync("/api/v2/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await me.GetAsync("/api/v2/auth/me")).StatusCode); // this device stays signed in
+    }
 }

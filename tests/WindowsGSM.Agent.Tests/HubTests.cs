@@ -90,6 +90,8 @@ public class HubTests
             var download = await _f.Owner.GetAsync($"/api/v2/machines/{Remote}/servers/103/files/download?path=big.txt");
             Assert.Equal(HttpStatusCode.OK, download.StatusCode);
             Assert.Equal(big, await download.Content.ReadAsStringAsync());
+            // Whatever the other machine answers, it never runs as a page on the hub's address.
+            Assert.StartsWith("sandbox", download.Headers.GetValues("Content-Security-Policy").Single());
 
             using var form = new MultipartFormDataContent();
             var part = new ByteArrayContent(Encoding.UTF8.GetBytes(new string('y', 200_000)));

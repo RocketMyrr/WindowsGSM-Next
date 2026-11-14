@@ -316,7 +316,7 @@ notifications.
 - **Staying signed in:** *Stay signed in to this PC* (connect window, or tray → PC) is on by default. After you
   sign in once — password and two-factor as usual — that PC gives the app a key of its own. The app keeps it
   encrypted for your Windows account and uses it to sign back in whenever its session ends. That PC keeps only
-  a hash of the key, and lists it under Account & security as "WindowsGSM app on <PC> — stays signed in".
+  a hash of the key, and lists it under Your account as "WindowsGSM app on <PC> — stays signed in".
   It stops working when you remove it there, sign out in the app, use "sign out everywhere else", change your
   password, or an admin disables or resets the account; or after 90 days unused.
 - **Updates:** an app-only install has no agent to update it. When the PC it shows runs a newer version, the
@@ -355,8 +355,8 @@ GitHub does it: push a version tag and the **Release** workflow (`.github/workfl
 tests, builds the package and publishes the release with both files.
 
 ```powershell
-git tag v2.0.0-alpha.4
-git push origin v2.0.0-alpha.4
+git tag v2.0.1
+git push origin v2.0.1
 ```
 
 The tag is the version — nothing to edit first. A version with a dash is published as a pre-release. Or run it

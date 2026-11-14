@@ -259,6 +259,9 @@ public sealed class HubLinks
                     if (headers[name] is JsonNode value) { http.Response.Headers[name] = (string?)value; }
                 }
             }
+            // The answer is the other machine's, on this hub's address: whatever type it claims, a browser never runs
+            // scripts in it (a machine someone else controls could otherwise act as whoever opened the link here).
+            http.Response.Headers["Content-Security-Policy"] = "sandbox; default-src 'none'";
             await foreach (byte[] chunk in pending.Body.Reader.ReadAllAsync(abort))
             {
                 await http.Response.Body.WriteAsync(chunk, abort);

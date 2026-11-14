@@ -117,8 +117,9 @@ export default async function account(host, { scope }) {
             await busy(btn, async () => {
                 await post("/auth/password", { currentPassword: current.value, newPassword: next.value });
                 form.reset();
-                toast("Password changed", { type: "good", text: "Other devices have been signed out." });
+                toast("Password changed", { type: "good", text: "Other devices have been signed out, and your API tokens removed." });
                 loadSessions();
+                loadTokens();
             }, "Password not changed");
         });
         return form;

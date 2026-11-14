@@ -3,6 +3,34 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## 2.0.0
+
+The first stable release of WindowsGSM Next, the rebuild of WindowsGSM. Your current WindowsGSM folder — servers,
+backups, accounts, schedules, Discord bot — carries straight over.
+
+- **Servers that don't depend on a window:** a background agent runs them. Close the panel, restart the agent or
+  update WindowsGSM itself, and the game servers keep running.
+- **One panel everywhere:** the desktop app, any browser and your phone. Pair other PCs with a hub to control every
+  server from one place, with the same accounts and permissions.
+- **Every plugin still works:** all 43 built-in games, plus community plugins found and installed from the panel.
+- **Steam downloads with DepotDownloader,** including rolling back to an earlier game build.
+- **Safe by default:** accounts with roles and per-server permissions, two-factor sign-in and passkeys, accounts
+  that only sign in on the machine itself, an audit log, encrypted secrets, and Let's Encrypt for HTTPS.
+- **Backups you can trust:** tested, restorable with automatic rollback if anything fails, and copied off-site.
+- **Schedules, automations and alerts** to Discord and webhooks; updates of WindowsGSM itself with roll back.
+
+Since 2.0.0-rc.8 (from a final review before release):
+
+- **Linked machines:** whatever another machine sends back through the hub, a browser never runs it as a page on
+  the hub's address — a machine someone else controls can't act as you there.
+- **Changing your password** also removes your API tokens, as an admin's reset already did — one made by whoever
+  got in before the change stops working too.
+- **Ports between your servers:** another server's RCON port or a port in its Extra start parameters (usually
+  TCP) no longer stops a server whose game port has the same number (usually UDP) from starting — they can share
+  it, so the log says so instead. A clash with its game or query port still stops the start.
+
+The pre-releases below list every change on the way to 2.0.
+
 ## 2.0.0-rc.8
 
 - **Phones stay signed in:** switching apps on a phone signed you out, because the sign-in only lasted until the

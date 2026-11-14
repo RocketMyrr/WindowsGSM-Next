@@ -58,14 +58,16 @@ namespace WindowsGSM.Engine.Services
             foreach (var other in servers.All.Where(o => o.Id != s.Id && o.State != ServerState.Stopped && SameAddress(o)))
             {
                 // Its RCON port too, and every port set in its Extra start parameters (+app.port 28082, -queryport=27016…).
-                var theirs = new[] { other.Config.ServerPort, other.Config.ServerQueryPort,
-                    ConsoleService.RconConfigured(other.Config, out _, out int rcon) ? rcon.ToString() : null }.Concat(ExtraPorts(other.Config.ServerParam)).ToList();
+                var extra = new[] { ConsoleService.RconConfigured(other.Config, out _, out int rcon) ? rcon.ToString() : null }.Concat(ExtraPorts(other.Config.ServerParam)).ToList();
                 foreach (var (label, port, required) in mine)
                 {
-                    if (!theirs.Contains(port.ToString())) { continue; }
-                    string text = $"Its {label} {port} is used by #{other.Id} {other.Name}, which is running. Stop that server or change the port in Settings.";
-                    if (required) { return new Result(text, warnings); }
-                    warnings.Add(text);
+                    if (GameOrQueryPort(other, port))
+                    {
+                        string text = $"Its {label} {port} is used by #{other.Id} {other.Name}, which is running. Stop that server or change the port in Settings.";
+                        if (required) { return new Result(text, warnings); }
+                        warnings.Add(text);
+                    }
+                    else if (extra.Contains(port.ToString())) { warnings.Add(MaybeShared(label, port, $"#{other.Id} {other.Name}")); }
                 }
             }
 
@@ -78,13 +80,25 @@ namespace WindowsGSM.Engine.Services
             foreach (var (label, port, required) in mine)
             {
                 if (!listening.Any(ep => ep.Port == port && Clashes(ep))) { continue; }
-                var (who, advice) = Describe(s, servers, Holder(port));
+                var (who, advice, other) = Describe(s, servers, Holder(port));
+                // One of our other servers' extra ports (RCON, Rust+ app…), not its game or query port: see MaybeShared.
+                if (other != null && other.Id != s.Id && !GameOrQueryPort(other, port)) { warnings.Add(MaybeShared(label, port, $"#{other.Id} {other.Name}")); continue; }
                 string text = $"Its {label} {port} is already in use by {who}.";
                 if (required) { return new Result(text + " " + (advice ?? "Close that program, or change the port in Settings."), warnings); }
                 warnings.Add(text + " Server browsers may not see it.");
             }
             return new Result(null, warnings);
         }
+
+        private static bool GameOrQueryPort(ServerInstance o, int port) =>
+            o.Config.ServerPort == port.ToString() || o.Config.ServerQueryPort == port.ToString();
+
+        /// <summary>
+        /// Another server's RCON or Extra-parameter port (Rust's RCON and Rust+ app ports are TCP) on the same number as
+        /// a game port (usually UDP): a TCP and a UDP port can share a number, so it's said, not a reason to refuse.
+        /// </summary>
+        private static string MaybeShared(string label, int port, string other) =>
+            $"Its {label} {port} is also one of {other}'s other ports (RCON or Extra start parameters). That's usually a different kind of connection (TCP or UDP), so both can run — if players can't reach this server, change the port in Settings.";
 
         /// <summary>Ports set in Extra start parameters: any switch with "port" in its name, followed by a number.</summary>
         internal static IEnumerable<string> ExtraPorts(string? extra) =>
@@ -95,10 +109,10 @@ namespace WindowsGSM.Engine.Services
         /// Who holds the port, in words (the program, its PID and where it runs from), and what to do when that's
         /// one of WindowsGSM's servers: this one left running from before, or another one that opens the same port.
         /// </summary>
-        private static (string Who, string? Advice) Describe(ServerInstance s, ServerRegistry servers, (int Pid, string Name, string? Path)? holder)
+        private static (string Who, string? Advice, ServerInstance? Server) Describe(ServerInstance s, ServerRegistry servers, (int Pid, string Name, string? Path)? holder)
         {
-            if (holder is not { } h) { return ("another program on this computer", null); }
-            if (h.Pid == 4) { return ("Windows itself (System, PID 4: a Windows service such as IIS or HTTP.sys)", null); }
+            if (holder is not { } h) { return ("another program on this computer", null, null); }
+            if (h.Pid == 4) { return ("Windows itself (System, PID 4: a Windows service such as IIS or HTTP.sys)", null, null); }
             string who = $"{h.Name} (PID {h.Pid}{(h.Path != null ? ", " + h.Path : "")})";
             foreach (var o in servers.All)
             {
@@ -108,10 +122,10 @@ namespace WindowsGSM.Engine.Services
                 if (!runsThere) { try { runsThere = o.Process is { } p && p.Id == h.Pid; } catch { /* exited */ } }
                 if (!runsThere) { continue; }
                 return o.Id == s.Id
-                    ? (who + ": this server's own game, still running from before", $"End it in Task Manager (Details, PID {h.Pid}), then start again.")
-                    : (who + $": the game of #{o.Id} {o.Name}, which opens this port too", "Change the port on one of them in Settings.");
+                    ? (who + ": this server's own game, still running from before", $"End it in Task Manager (Details, PID {h.Pid}), then start again.", o)
+                    : (who + $": the game of #{o.Id} {o.Name}, which opens this port too", "Change the port on one of them in Settings.", o);
             }
-            return (who, null);
+            return (who, null, null);
         }
 
         // The owning process isn't in .NET's listener lists; Windows' extended TCP/UDP tables have it (what netstat -ano shows).

@@ -1,7 +1,7 @@
 # WindowsGSM Next
 
 [![CI](https://github.com/RocketMyrr/WindowsGSM-Next/actions/workflows/ci.yml/badge.svg?style=flat-square)](https://github.com/RocketMyrr/WindowsGSM-Next/actions/workflows/ci.yml)
-[![Latest Release](https://img.shields.io/github/v/release/RocketMyrr/WindowsGSM-Next?include_prereleases&label=latest%20release&style=flat-square)](https://github.com/RocketMyrr/WindowsGSM-Next/releases)
+[![Latest Release](https://img.shields.io/github/v/release/RocketMyrr/WindowsGSM-Next?label=latest%20release&style=flat-square)](https://github.com/RocketMyrr/WindowsGSM-Next/releases)
 [![Downloads](https://img.shields.io/github/downloads/RocketMyrr/WindowsGSM-Next/total?label=downloads&style=flat-square)](https://github.com/RocketMyrr/WindowsGSM-Next/releases)
 [![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white&style=flat-square)](https://dotnet.microsoft.com/)
 [![Windows](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white&style=flat-square)](https://www.microsoft.com/windows/)
@@ -14,10 +14,9 @@ WindowsGSM Next is the rebuild of [WindowsGSM](https://github.com/WindowsGSM/Win
 whether or not any window is open, every existing game plugin keeps working, and your current WindowsGSM folder —
 servers, backups, accounts, schedules, Discord bot — carries straight over.
 
-> **Status: 2.0.0-rc.8 (release candidate).** Everything planned for 2.0 is in; from here on it's fixes. Settings files
-> are stable: later versions read them as they are. Keep backups, and try it on a copy of your WindowsGSM folder
-> first if you're switching from the old app. What changed in each version: [CHANGELOG.md](CHANGELOG.md). Problems
-> we already know about, with ways around them: [Known issues](docs/KNOWN-ISSUES.md).
+> **2.0.0 is the first stable release.** Switching from the old app? Keep a backup of your WindowsGSM folder, or
+> try it on a copy first. What changed: [CHANGELOG.md](CHANGELOG.md). Known problems and ways around them:
+> [Known issues](docs/KNOWN-ISSUES.md).
 
 ---
 
@@ -52,8 +51,8 @@ servers, backups, accounts, schedules, Discord bot — carries straight over.
   (Enshrouded, Palworld, Valheim and many more). Compatibility is enforced by tests.
 - **Fast, reliable Steam downloads.** DepotDownloader is the standard for installing and updating Steam servers,
   including roll back to an earlier game build.
-- **Safe by default.** Accounts with roles and per-server permissions, two-factor sign-in and passkeys, an audit
-  log of who did what, and secrets stored encrypted.
+- **Safe by default.** Accounts with roles and per-server permissions, two-factor sign-in and passkeys, accounts
+  that only sign in on the PC itself, an audit log of who did what, and secrets stored encrypted.
 - **Help built in.** A ? next to settings, page tips and a searchable Help page.
 
 ## Requirements
@@ -182,8 +181,9 @@ two bots don't answer at once.
 
 Run WindowsGSM on every PC that hosts servers, then pair them:
 
-1. On the PC you'll use as the **hub**, turn on *Reachable from other computers* (Agent settings) and open
-   **Machines → Add a machine** for a one-time code.
+1. On the PC you'll use as the **hub**, turn on *Reachable from other computers* (Agent settings → Network; use
+   *Allow through firewall* there if it says the port is blocked) and open **Machines → Add a machine** for a
+   one-time code.
 2. On each other PC, **Machines → Join a hub** with the hub's address and the code.
 
 Only the hub needs to be reachable; the others connect out to it. From then on:
@@ -212,7 +212,7 @@ Windows notifications — for a PC you don't run servers on, like your laptop:
   fingerprint once; compare it with Agent settings → HTTPS on that PC. After that the app trusts only that
   certificate, and stops if it changes.
 - **Staying signed in:** after you sign in, the PC gives the app its own key, stored encrypted for your Windows
-  account. Turn it off in the tray's PC menu. To remove it, use Account & security on that PC, or sign out in
+  account. Turn it off in the tray's PC menu. To remove it, use Your account on that PC, or sign out in
   the app. Changing your password removes it too, and it lapses after 90 days unused.
 - **Updates:** the app offers to update itself when the PC it shows runs a newer WindowsGSM.
 - **Running servers here later:** Start menu → WindowsGSM → WindowsGSM setup → *Run game servers on this PC too*.
@@ -244,13 +244,15 @@ optional, and owners can point updates at another repository or their own feed.
 
 - **Accounts and roles**: owner, admin, operator, member and viewer, with per-server permissions on top.
 - **Two-factor sign-in** (authenticator app) and **passkeys** (fingerprint, face or phone).
+- **Only on this PC**: an account (say, the one you use over Remote Desktop) can be limited to signing in on the
+  machine itself. From anywhere else it's refused, and it can't lock you out.
 - **API tokens** for scripts and tools (Home Assistant, a Stream Deck…): they act as you, can't manage accounts or
-  other tokens, are stored only as a hash, and end when an admin resets your password or disables you.
+  other tokens, are stored only as a hash, and end when your password changes or an admin disables you.
 - **Audit log** of every action: who, from where, and through what (panel, hub, Discord).
 - **Encrypted secrets**: the Steam password, Discord bot token, webhook URLs, certificate passwords, the hub link
   and sign-in cookie keys are protected with Windows data protection for your account.
-- **HTTPS** with your own certificate or free **Let's Encrypt** certificates. Only owners can install plugins,
-  since plugins run as code.
+- **HTTPS** with your own certificate or free **Let's Encrypt** certificates; with Let's Encrypt, visitors who
+  come by IP are sent to your domain. Only owners can install plugins, since plugins run as code.
 - Nothing is sent anywhere you haven't set up. The old app posted crash logs to its author's Discord; this one
   doesn't.
 - **Settings that survive damage**: every settings file keeps its previous copy. A file that can't be read (cut off
@@ -266,10 +268,11 @@ More detail, and how to report a security problem privately: [SECURITY.md](SECUR
 | **Forgot your password or lost your 2FA phone** | Tray icon → *Stop everything and quit*, then run `WindowsGSM.exe --reset-password <user>` (add `--disable-2fa` for a lost phone) and sign in with the temporary password. |
 | **Players can't connect** | Overview → *Can players reach it?* checks the port, firewall, router and Steam list, and offers fixes. |
 | **No player counts** | The Players tab says which query port answers, or why none does. |
-| **Server won't start: port in use** | The message names the server or program using it. Change the port in Settings. |
+| **Server won't start: port in use** | The message names the server or program using it (with its PID). Change the port in Settings, or end a leftover copy of the game in Task Manager. |
 | **A plugin update broke a game** | Game plugins → *Previous version* on that plugin. |
 | **A game update broke the server** | ⋯ menu → *Roll back game update…* |
 | **No console window appears** | Turn off *Capture the console here* in Settings (captured servers show output in the Console tab instead), then restart the server once. |
+| **Signed out every time you switch apps on a phone** | Sign in once with *Keep me signed in on this device* ticked. |
 | **Something else** | **Logs** (Manage → Logs) has the activity log, app log, crashes, Discord bot log and diagnostics, with a *problems only* filter. Check [Known issues](docs/KNOWN-ISSUES.md), then **Report a problem** (Help or Ctrl K) with the zip from Health checks → *Export diagnostics*. |
 
 Stopping the agent (or quitting the desktop app) leaves game servers running. To shut everything down, use the
@@ -364,11 +367,11 @@ Type `help` for the commands (`list`, `start 1`, `console 1`, `cmd 1 say hi`, `u
 Push a version tag; the **Release** workflow tests, builds and publishes the zip and its `.sha256`:
 
 ```powershell
-git tag v2.0.0-alpha.4
-git push origin v2.0.0-alpha.4
+git tag v2.0.1
+git push origin v2.0.1
 ```
 
-A version with a dash is published as a pre-release. To build a package by hand:
+A version with a dash (`2.1.0-beta.1`) is published as a pre-release. To build a package by hand:
 `.\tools\publish.ps1 -Version 2.0.1` → `dist\WindowsGSM-<version>.zip` and `.zip.sha256`. Installed copies
 check this repository's GitHub releases for updates, so they can only see releases they can reach: a private
 repository's releases aren't visible to them.

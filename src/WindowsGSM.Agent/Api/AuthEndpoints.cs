@@ -133,8 +133,10 @@ public static class AuthEndpoints
             string? problem = ctx.Users.ChangePassword(user.Username, body.CurrentPassword, body.NewPassword);
             ctx.Record(http, "password-change", null, problem == null, problem);
             if (problem != null) { return ApiResults.BadRequest(problem); }
-            // A new password signs out every other device.
+            // A new password signs out every other device, and ends API tokens: one made by whoever got in before the
+            // change would otherwise keep working (an admin's reset does the same).
             ctx.Sessions.RemoveAllForUser(user.Username, keepId: AgentContext.SessionId(http));
+            ctx.Tokens.RemoveAllForUser(user.Username);
             return Results.NoContent();
         });
 
