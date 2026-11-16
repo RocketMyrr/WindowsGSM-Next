@@ -3,7 +3,7 @@
   <ItemGroup>
     <!-- Engine (versions match the legacy app so behaviour doesn't shift underneath the port) -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="11.0.0" />
     <PackageVersion Include="NCrontab.Signed" Version="3.4.0" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageVersion Include="SharpZipLib" Version="1.4.2" />
