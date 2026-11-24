@@ -148,7 +148,7 @@ internal static class EngineFixture
         Directory.CreateDirectory(configs);
         if (Directory.Exists(serverFiles)) { TestData.DeleteDirectory(serverFiles); }
         Directory.CreateDirectory(serverFiles);
-        File.WriteAllLines(Path.Combine(configs, "WindowsGSM.cfg"), new[]
+        string[] lines = new[]
         {
             $"servergame=\"{GameName}\"",
             $"servername=\"Test {id}\"",
@@ -158,7 +158,13 @@ internal static class EngineFixture
             $"serverqueryport=\"{Port(id) + 1}\"",
             $"autorestart=\"{(autoRestart ? 1 : 0)}\"",
             $"test_mode=\"{mode}\"",
-        }.Concat(extraSettings));
+        }.Concat(extraSettings).ToArray();
+        // Other tests' engines read every server's config while they start, which can hold this file for a moment.
+        for (int attempt = 1; ; attempt++)
+        {
+            try { File.WriteAllLines(Path.Combine(configs, "WindowsGSM.cfg"), lines); break; }
+            catch (IOException) when (attempt < 20) { Thread.Sleep(50); }
+        }
         // A stale PID cache from an earlier run must not make the engine adopt some unrelated process.
         string cache = Path.Combine(WgsmEnvironment.DataRoot, "servers", id, "cache");
         // A running engine may still be writing it (a server just killed is being noticed): the helper retries.
