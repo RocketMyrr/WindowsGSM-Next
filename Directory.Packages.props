@@ -15,7 +15,7 @@
     <PackageVersion Include="AWSSDK.S3" Version="4.0.104.8" />
     <PackageVersion Include="FluentFTP" Version="55.1.0" />
     <PackageVersion Include="SSH.NET" Version="2026.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.FileProviders.Embedded" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="11.0.0" />
     <PackageVersion Include="Discord.Net.WebSocket" Version="3.20.2" />
     <PackageVersion Include="Fido2" Version="4.3.2" />
