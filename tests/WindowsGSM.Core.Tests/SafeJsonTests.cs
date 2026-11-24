@@ -268,13 +268,16 @@ public class SafeJsonWriteTests : IDisposable
     }
 
     [Fact]
-    public async Task A_save_waits_out_a_file_held_for_a_moment()
+    public void A_save_waits_out_a_file_held_for_a_moment()
     {
         SafeJson.Write(F(), new Settings { Name = "before" });
         var held = new FileStream(F(), FileMode.Open, FileAccess.Read, FileShare.None); // e.g. antivirus scanning it
-        var release = Task.Run(async () => { await Task.Delay(300); held.Dispose(); });
+        // Released from a thread of its own: on a busy machine (CI, tests in parallel) a thread-pool task could start
+        // after the save's ~3 s of retries were over.
+        var release = new Thread(() => { Thread.Sleep(300); held.Dispose(); });
+        release.Start();
         SafeJson.Write(F(), new Settings { Name = "after" });
-        await release;
+        release.Join();
         Assert.Equal("after", SafeJson.Read<Settings>(F())!.Name);
         // A held file isn't a damaged one: the previous copy is still kept as the backup.
         Assert.Contains("before", File.ReadAllText(F() + ".bak"));
