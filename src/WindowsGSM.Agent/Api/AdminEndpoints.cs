@@ -128,7 +128,17 @@ public static class AdminEndpoints
             });
         });
 
-        admin.MapGet("/agent/startup",() => Results.Json(new { registered = StartupTask.IsRegistered(), taskName = StartupTask.TaskName }));
+        admin.MapGet("/agent/startup",() => Results.Json(new { registered = StartupTask.IsRegistered(), taskName = StartupTask.TaskName,
+            legacyTask = StartupTask.LegacyTaskOn(global::WindowsGSM.Hosting.WgsmEnvironment.DataRoot) }));
+
+        // The old app's own start-on-boot (task WGSM), still on for this folder: turned off (Windows asks once).
+        admin.MapPost("/agent/startup/legacy-off", (HttpContext http, AgentContext ctx) =>
+        {
+            if (!ctx.CurrentUser(http)!.IsOwner) { return ApiResults.Forbidden("Only owners can change how things start with Windows."); }
+            string? problem = StartupTask.DisableLegacyTask();
+            ctx.Record(http, "legacy-startup-off", null, problem == null, problem);
+            return problem == null ? Results.NoContent() : ApiResults.Error(500, "legacy_startup", problem);
+        });
 
         admin.MapPost("/agent/startup", (HttpContext http, AgentContext ctx, StartupRequest body) =>
         {

@@ -3,6 +3,18 @@
 What changed in each version of WindowsGSM Next. The newest is first. Each version's section is also its release
 notes on GitHub, and the "What's new" text the app shows before you update.
 
+## 2.0.1
+
+- **Start with Windows opened the old app instead:** when the old WindowsGSM's own start-on-boot (its scheduled
+  task WGSM) was still on for your folder, it opened first at sign-in and WindowsGSM couldn't start — silently,
+  since it starts minimized. Now:
+  - Agent settings → This machine warns while that task is on, with a **Turn it off** button (Windows asks once;
+    the task is turned off, not deleted, so going back to the old app is one switch). Health checks says so too.
+  - If the agent still can't start, the app comes forward and says why, with **Try again**, instead of "the agent
+    didn't answer".
+- Dependency updates: Microsoft.Data.Sqlite, Microsoft.Extensions.DependencyModel,
+  Microsoft.Extensions.FileProviders.Embedded and System.Management 11.0.0.
+
 ## 2.0.0
 
 The first stable release of WindowsGSM Next, the rebuild of WindowsGSM. Your current WindowsGSM folder — servers,

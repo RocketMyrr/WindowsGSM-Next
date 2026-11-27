@@ -62,6 +62,7 @@ if (args.Contains("--unregister-startup"))
 }
 
 void Say(string message) => Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {message}");
+static string NotStartedFile(string root) => Path.Combine(root, "logs", "agent-not-started.txt");
 
 // A crash of the agent itself goes to logs\CRASH_<date>.log (as the legacy app did), and is reported in the
 // notification centre on the next start. Game servers keep running either way.
@@ -79,7 +80,14 @@ System.Threading.ThreadPool.SetMinThreads(Math.Max(minWorkers, 2 * WgsmEnvironme
 
 WgsmEngine engine;
 try { engine = await WgsmEngine.StartAsync(dataRoot); }
-catch (DataRootInUseException ex) { Say(ex.Message); return 2; }
+catch (DataRootInUseException ex)
+{
+    Say(ex.Message);
+    // Started at sign-in nobody sees this console: the desktop app shows this file instead of "didn't answer".
+    try { Directory.CreateDirectory(Path.Combine(dataRoot, "logs")); File.WriteAllText(NotStartedFile(dataRoot), ex.Message); } catch { /* best effort */ }
+    return 2;
+}
+try { File.Delete(NotStartedFile(dataRoot)); } catch { /* none */ }
 
 using (engine)
 {
@@ -89,6 +97,10 @@ using (engine)
     void Log(string message) => engine.Log.Write(message.StartsWith("Discord bot:") ? "Discord" : "Agent", message);
     Log($"WindowsGSM agent {WgsmEnvironment.Version} started — data: {WgsmEnvironment.DataRoot}");
     Log($"{engine.Servers.All.Count} server(s), {engine.Plugins.Plugins.Count(p => p.IsLoaded)} plugin(s).");
+    if (StartupTask.LegacyTaskOn(WgsmEnvironment.DataRoot))
+    {
+        Log("[WARN] The old WindowsGSM still starts with Windows (its scheduled task WGSM) on this folder: at sign-in it opens first and this agent can't start. Turn it off in Agent settings → This machine.");
+    }
 
     WebApplication app;
     try { app = await AgentApp.BuildAsync(engine, new AgentAppOptions { Log = Log }); }

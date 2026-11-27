@@ -80,6 +80,59 @@ public static class StartupTask
 
     public static bool IsRegistered() => Run($"/Query /TN \"{TaskName}\"") == null;
 
+    /// <summary>The old app's "Start on boot": a task of its own, made as administrator (schtasks … /rl highest).</summary>
+    public const string LegacyTaskName = "WGSM";
+
+    /// <summary>
+    /// Whether the old app's task is on and starts the WindowsGSM.exe in <paramref name="dataRoot"/> (the old app uses
+    /// its own folder as its data folder). Then at sign-in the old app opens this folder first, and this agent can't.
+    /// </summary>
+    public static bool LegacyTaskOn(string dataRoot)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("schtasks.exe", $"/Query /TN \"{LegacyTaskName}\" /XML")
+            {
+                UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
+            };
+            using var p = Process.Start(psi)!;
+            string xml = p.StandardOutput.ReadToEnd();
+            p.StandardError.ReadToEnd();
+            p.WaitForExit(15000);
+            return p.ExitCode == 0 && LegacyTaskStarts(xml, dataRoot);
+        }
+        catch { return false; }
+    }
+
+    /// <summary>From the task's XML: enabled, and its program is a file in <paramref name="dataRoot"/>.</summary>
+    internal static bool LegacyTaskStarts(string xml, string dataRoot)
+    {
+        var doc = System.Xml.Linq.XDocument.Parse(xml);
+        if (doc.Descendants().Any(e => e.Name.LocalName == "Enabled" && e.Parent?.Name.LocalName == "Settings" && e.Value.Trim() == "false")) { return false; }
+        string? command = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "Command")?.Value.Trim().Trim('"');
+        string? dir = command == null ? null : Path.GetDirectoryName(command)?.TrimEnd('\\');
+        return dir != null && string.Equals(dir, Path.GetFullPath(dataRoot).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Turns the old app's task off (not deleted, so going back to the old app is one switch). It was made as
+    /// administrator, so when a plain try is refused Windows asks. Returns an error message, or null.</summary>
+    public static string? DisableLegacyTask()
+    {
+        if (Run($"/Change /TN \"{LegacyTaskName}\" /Disable") == null) { return null; }
+        try
+        {
+            var psi = new ProcessStartInfo("schtasks.exe", $"/Change /TN \"{LegacyTaskName}\" /Disable")
+            {
+                UseShellExecute = true, Verb = "runas", CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden,
+            };
+            using var p = Process.Start(psi)!;
+            p.WaitForExit(60000);
+            return p.ExitCode == 0 ? null : $"schtasks exited with {p.ExitCode}";
+        }
+        catch (System.ComponentModel.Win32Exception) { return "Windows' permission prompt was declined."; }
+        catch (Exception ex) { return ex.Message; }
+    }
+
     private static string? Run(string args)
     {
         try

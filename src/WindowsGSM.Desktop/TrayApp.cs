@@ -244,7 +244,20 @@ internal sealed class TrayApp : ApplicationContext
             // First run can take a while (plugins compile, certificates load).
             if (!await AgentLocator.WaitAsync(http, url, TimeSpan.FromSeconds(60)))
             {
-                _window.ShowStatus($"The agent didn't answer at {url}. Check its log in {Path.Combine(_dataRoot!, "logs")}.");
+                // The agent refused the folder (usually the old WindowsGSM running on it, started with Windows by
+                // its own task): say so, and come forward — started minimized at sign-in, nobody would see it.
+                string notStarted = Path.Combine(_dataRoot!, "logs", "agent-not-started.txt");
+                string? why = null;
+                try { if (File.Exists(notStarted) && File.GetLastWriteTimeUtc(notStarted) > DateTime.UtcNow.AddMinutes(-5)) { why = File.ReadAllText(notStarted).Trim(); } } catch { /* unreadable */ }
+                if (why == null)
+                {
+                    _window.ShowStatus($"The agent didn't answer at {url}. Check its log in {Path.Combine(_dataRoot!, "logs")}.");
+                    return;
+                }
+                _window.ShowStatus("The WindowsGSM agent couldn't start.\n\n" + why +
+                    "\n\nIf the old app opened by itself when you signed in, its own start-with-Windows (scheduled task WGSM) is still on: once this one is running, turn it off in Agent settings → This machine.",
+                    ("Try again", () => _ = ConnectLocalAsync()));
+                _window.ShowAndActivate();
                 return;
             }
         }

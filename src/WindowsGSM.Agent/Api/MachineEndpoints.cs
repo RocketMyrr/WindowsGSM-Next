@@ -87,6 +87,11 @@ public static class MachineEndpoints
             if (!ctx.CurrentUser(http)!.IsAdmin) { return ApiResults.Forbidden(); }
             var checks = (await ctx.Engine.Readiness.CheckMachineAsync(network ?? true)).ToList();
             checks.AddRange(PanelSafety(ctx));
+            if (StartupTask.LegacyTaskOn(global::WindowsGSM.Hosting.WgsmEnvironment.DataRoot))
+            {
+                checks.Add(new("App", "Old app starts with Windows", WindowsGSM.Engine.Services.CheckStatus.Warning,
+                    "The old WindowsGSM's start-on-boot (scheduled task WGSM) is still on for this folder: at sign-in it opens first, and this agent can't start. Turn it off in Agent settings → This machine."));
+            }
             return Results.Json(checks.Select(c => new ReadinessCheckDto(c.Scope, c.Name, c.Status.ToString(), c.Message)));
         });
 

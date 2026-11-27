@@ -65,6 +65,17 @@ export default async function settings(host, { scope }) {
         },
     });
 
+    // The old app's own start-on-boot, still on for this folder: at sign-in it opens first and this agent can't start.
+    const legacyStartup = startup.legacyTask ? h("div", { class: "callout warn" }, icon("warn"),
+        h("div", { class: "grow" },
+            h("b", { text: "The old WindowsGSM still starts with Windows" }),
+            h("div", { class: "small", text: "Its start-on-boot (scheduled task WGSM) opens the old app on this folder at sign-in — first — and then this agent can't start. Turning it off doesn't delete it: going back to the old app is one switch there." })),
+        h("button", { class: "btn sm", onclick: e => busy(e.currentTarget, async () => {
+            await post("/agent/startup/legacy-off");
+            legacyStartup.remove();
+            toast("The old app no longer starts with Windows", { type: "good" });
+        }, "Couldn't turn it off") }, "Turn it off")) : null;
+
     const httpsHelp = helpButton("HTTPS", [
         "HTTPS encrypts everything between your browser and the panel — passwords included. Off is fine when the panel is only used on this PC.",
         "Self-signed: encrypted straight away, but browsers warn once. My certificate: one you already have. Let's Encrypt: free and trusted by every browser, renewed automatically — needs a domain and port 80 forwarded.",
@@ -89,7 +100,7 @@ export default async function settings(host, { scope }) {
         restartNote,
         h("div", { class: "settings-grid" },
             h("section", { class: "panel settings-section" }, h("div", { class: "panel-head" }, icon("machine"), h("h2", { text: "This machine" })),
-                h("div", { class: "panel-body stack" }, field("Name", machineName, { hint: "How it appears in the panel.", help: "Shown in the machine picker, on the overview and in notifications — handy once you connect several PCs." }), startupToggle)),
+                h("div", { class: "panel-body stack" }, field("Name", machineName, { hint: "How it appears in the panel.", help: "Shown in the machine picker, on the overview and in notifications — handy once you connect several PCs." }), startupToggle, legacyStartup)),
             h("section", { class: "panel settings-section" }, h("div", { class: "panel-head" }, icon("globe"), h("h2", { text: "Network" })),
                 h("div", { class: "panel-body stack" }, network, cfg.exposeToNetwork || cfg.acmeEnabled ? firewallRow(fw) : null, h("div", { class: "form-grid" }, field("Port", port, { hint: "Default 8971.", help: ["The port the panel listens on. Change it only if something else uses 8971.", "If you forward it on your router or allowed it through a firewall, change those too. Restart the agent afterwards."] }), field("Stay signed in for", sessionHours, { hint: "hours without activity", help: "How long a browser stays signed in without being used. Shorter is safer on shared or public computers; the desktop app on this PC can stay signed in regardless (its tray menu)." })))),
             h("section", { class: "panel settings-section" }, h("div", { class: "panel-head" }, icon("lock"), h("h2", { text: "HTTPS" }), httpsHelp),

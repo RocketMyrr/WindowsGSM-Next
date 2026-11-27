@@ -944,7 +944,7 @@ namespace WindowsGSM.Launcher
             Invoke((Action)(() => adopting = _useExisting.Checked));
             if (!adopting || !Shell.LegacyStartupTaskPointsAt(data)) { return; }
             if (Shell.DisableLegacyStartupTask()) { Say(null, "Turned off the old app's start with Windows (scheduled task WGSM)"); }
-            else { Say(null, "Couldn't turn off the old app's start with Windows — in the old app: Settings → Start on boot → off"); }
+            else { Say(null, "Couldn't turn off the old app's start with Windows (scheduled task WGSM) — turn it off in WindowsGSM's Agent settings → This machine, or the old app opens at sign-in instead"); }
         }
 
         /// <summary>A fresh install (or a separate copy).</summary>
